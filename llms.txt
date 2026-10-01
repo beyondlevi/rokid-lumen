@@ -1,0 +1,40 @@
+# Rokid Lumen
+
+> Rokid Lumen is an Android app platform for Rokid RG glasses (Android 12, a 480x640
+> monochrome green additive HUD), controlled with the Meta Neural Band. The glasses app
+> (dev.lumen.glasses) runs Meta Ray-Ban Display style web apps (offline .mrbd.zip packages and
+> online HTTPS apps) in GeckoView 156 or the system WebView (Chromium 95), shows the phone's
+> notifications and offers dictation. The phone companion (dev.lumen.companion) forwards
+> notifications, transcribes the glasses' microphone, arranges the apps grid and shares the
+> phone's internet through a local-only hotspot and proxy. MIT, by Levi Nóbrega.
+
+Web apps get a 600x600 CSS pixel viewport, arrow keys and Enter from the band, and Escape for
+Back. The host adds `window.lumen.config` (settings declared in the manifest's `lumen_config`
+and set from the phone), `navigator.install`, and fills in `navigation.canGoBack` and
+`speechSynthesis` where the engine lacks them.
+
+## Docs
+
+- [README](README.md): what Lumen is, features, install, recommended use, build
+- [Getting started](docs/getting-started.md): requirements, installing both apps, Hi Rokid
+  authorization, the band's key and pairing, the self-arm and how to undo it
+- [Features](docs/features.md): band gestures and mappings, the apps grid, notifications,
+  internet through the phone, dictation engines, the companion's tabs
+- [Building apps](docs/building-apps.md): the developer guide for Lumen web apps: input model,
+  Back, the composer, the host APIs, the manifest fields, packaging and installing, engines,
+  testing on the glasses
+- [Security](docs/security.md): the security model and the known open issues
+
+## Agents
+
+- [Lumen app skill](skills/lumen-app/SKILL.md): a checklist, a manifest template and the
+  pitfalls, for coding agents that build Lumen apps
+
+## Optional
+
+- [Roadmap](ROADMAP.md)
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [The Neural Band link](NEURALBAND.md): why there's no official API and how the band is reached
+- [NOTICE](NOTICE): third-party code and licenses

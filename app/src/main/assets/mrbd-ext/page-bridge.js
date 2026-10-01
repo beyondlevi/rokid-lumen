@@ -1,0 +1,29 @@
+// GeckoView has no addJavascriptInterface: this stands in for WebAppActivity's `MrbdHost`,
+// passing calls to content.js by window messages (the app's replies come back the same way).
+(function () {
+  if (window.MrbdHost) return;
+  var back = false;
+  function send(message) { window.postMessage({ __mrbdToHost: message }, '*'); }
+  window.addEventListener('message', function (event) {
+    var data = event.data && event.data.__mrbdFromHost;
+    if (!data) return;
+    if (data.type === 'canGoBack') back = !!data.value;
+    if (data.type === 'back' && window.__mrbdBack) window.__mrbdBack();
+    if (data.type === 'speech' && window.__mrbdSpeech) window.__mrbdSpeech(data.id, data.event, data.code);
+    if (data.type === 'composerInput' && window.__mrbdComposerInput) window.__mrbdComposerInput(data.text);
+    if (data.type === 'composerClose' && window.__mrbdComposerClose) window.__mrbdComposerClose();
+    if (data.type === 'keyboardWanted' && window.__mrbdKeyboardWanted) window.__mrbdKeyboardWanted();
+    if (data.type === 'config' && window.__lumenConfig) window.__lumenConfig(data.id, data.values);
+    if (data.type === 'configChanged' && window.__lumenConfigChanged) window.__lumenConfigChanged(data.values);
+  });
+  window.MrbdHost = {
+    canGoBack: function () { return back; },
+    install: function (url, name) { send({ type: 'install', url: url, name: name }); },
+    speak: function (id, text, lang, rate, pitch) { send({ type: 'speak', id: id, text: text, lang: lang, rate: rate, pitch: pitch }); },
+    cancelSpeech: function () { send({ type: 'cancelSpeech' }); },
+    backResult: function (handled) { send({ type: 'backResult', handled: !!handled }); },
+    openComposer: function (value, multiline) { send({ type: 'openComposer', value: value, multiline: !!multiline }); },
+    noTextField: function () { send({ type: 'noTextField' }); },
+    getConfig: function (id) { send({ type: 'getConfig', id: id }); }
+  };
+})();

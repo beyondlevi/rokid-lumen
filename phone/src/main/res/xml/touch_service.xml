@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Performs gestures only: no window content, no events, no key filtering. -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/touch_service_description"
+    android:canPerformGestures="true"
+    android:canRetrieveWindowContent="false"
+    android:accessibilityEventTypes="typeAnnouncement"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="0" />

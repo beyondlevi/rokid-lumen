@@ -1,0 +1,195 @@
+// Injected by the Rokid host before a Meta Ray-Ban Display web app's own scripts run.
+// It fills in what MRBD's runtime offers and the glasses' WebView (Chromium 95) lacks,
+// through the `MrbdHost` bridge (WebAppActivity). Nothing here runs on a real MRBD.
+(function () {
+  if (window.__mrbdRokidHost) return;
+  window.__mrbdRokidHost = true;
+  var host = window.MrbdHost;
+
+  // MRBD asks for sensor access with the iOS-style static API; Android grants it silently.
+  ['DeviceOrientationEvent', 'DeviceMotionEvent'].forEach(function (name) {
+    var ctor = window[name];
+    if (ctor && typeof ctor.requestPermission !== 'function') {
+      ctor.requestPermission = function () { return Promise.resolve('granted'); };
+    }
+  });
+
+  // MRBD's shell reads navigation.canGoBack (Navigation API, Chromium 102+). React DOM 19
+  // treats any `navigation` object as the real API and listens on it, so this one is an
+  // EventTarget with no current entry and no transition: React takes its History API path.
+  if (!window.navigation) {
+    var nav = new EventTarget();
+    Object.defineProperty(nav, 'canGoBack', {
+      get: function () { return host ? host.canGoBack() : history.length > 1; }
+    });
+    nav.canGoForward = false;
+    nav.currentEntry = null;
+    nav.transition = null;
+    window.navigation = nav;
+  }
+
+  // Installing a web app adds it to the host's library.
+  if (!navigator.install && host) {
+    navigator.install = function (url, options) {
+      host.install(String(url || location.href), (options && options.name) || document.title || '');
+      return Promise.resolve();
+    };
+  }
+
+  // Rokid Lumen's own API: the app's configuration, set from the phone (its manifest's
+  // lumen_config). get() resolves to {key: value} (missing keys aren't set); onChange(cb)
+  // calls cb with the new values whenever the phone changes them.
+  if (!window.lumen && host && host.getConfig) {
+    var configId = 1;
+    var configPending = {};
+    var configListeners = [];
+    window.__lumenConfig = function (id, values) {
+      var resolve = configPending[id];
+      delete configPending[id];
+      if (resolve) resolve(values || {});
+    };
+    window.__lumenConfigChanged = function (values) {
+      configListeners.slice().forEach(function (cb) {
+        try { cb(values || {}); } catch (e) { setTimeout(function () { throw e; }); }
+      });
+    };
+    window.lumen = {
+      config: {
+        get: function () {
+          return new Promise(function (resolve) {
+            var id = configId++;
+            configPending[id] = resolve;
+            host.getConfig(id);
+          });
+        },
+        onChange: function (cb) {
+          if (typeof cb === 'function') configListeners.push(cb);
+          return function () { configListeners = configListeners.filter(function (x) { return x !== cb; }); };
+        }
+      }
+    };
+  }
+
+  // Web Speech synthesis through Android's TextToSpeech (WebView has no speechSynthesis).
+  if (!window.speechSynthesis && host) {
+    var nextId = 1;
+    var pending = {};
+    var voice = { name: 'Android TTS', lang: 'en-US', voiceURI: 'android-tts', localService: true, default: true };
+
+    var Utterance = function (text) {
+      this.text = text == null ? '' : String(text);
+      this.lang = 'en-US';
+      this.rate = 1;
+      this.pitch = 1;
+      this.volume = 1;
+      this.voice = null;
+      this.onstart = this.onend = this.onerror = this.onpause = this.onresume = null;
+      this._listeners = {};
+    };
+    Utterance.prototype.addEventListener = function (type, fn) {
+      (this._listeners[type] = this._listeners[type] || []).push(fn);
+    };
+    Utterance.prototype.removeEventListener = function (type, fn) {
+      var list = this._listeners[type] || [];
+      var i = list.indexOf(fn);
+      if (i >= 0) list.splice(i, 1);
+    };
+    Utterance.prototype._emit = function (type, extra) {
+      var event = { type: type, utterance: this, charIndex: 0, elapsedTime: 0, name: '' };
+      if (extra) for (var k in extra) event[k] = extra[k];
+      var handler = this['on' + type];
+      if (typeof handler === 'function') handler.call(this, event);
+      (this._listeners[type] || []).slice().forEach(function (fn) { fn.call(this, event); }, this);
+    };
+
+    var synthesis = {
+      speaking: false,
+      pending: false,
+      paused: false,
+      onvoiceschanged: null,
+      getVoices: function () { return [voice]; },
+      speak: function (utterance) {
+        var id = nextId++;
+        pending[id] = utterance;
+        host.speak(id, utterance.text, utterance.lang || 'en-US', +utterance.rate || 1, +utterance.pitch || 1);
+      },
+      cancel: function () { host.cancelSpeech(); },
+      pause: function () {},
+      resume: function () {},
+      addEventListener: function () {},
+      removeEventListener: function () {}
+    };
+    window.SpeechSynthesisUtterance = Utterance;
+    window.speechSynthesis = synthesis;
+    // Called by the host: 'start', 'end' or 'error' (with an MRBD error code).
+    window.__mrbdSpeech = function (id, type, code) {
+      var utterance = pending[id];
+      if (!utterance) return;
+      if (type === 'start') synthesis.speaking = true;
+      if (type !== 'start') { synthesis.speaking = false; delete pending[id]; }
+      utterance._emit(type, type === 'error' ? { error: code || 'synthesis-failed' } : null);
+    };
+  }
+
+  // MRBD's composer: activating a text field (Enter on it) opens the system's dictation panel
+  // instead of reaching the page; its text comes back through the value setter and `input`,
+  // then `change` when the panel closes. Focus alone never opens it.
+  var TEXT_TYPES = ['text', 'search', 'email', 'url', 'tel', 'number'];
+  var composerTarget = null;
+  function isTextField(el) {
+    if (!el || el.disabled || el.readOnly) return false;
+    if (el.isContentEditable) return true;
+    if (el.tagName === 'TEXTAREA') return true;
+    if (el.tagName !== 'INPUT') return false;
+    return TEXT_TYPES.indexOf((el.getAttribute('type') || 'text').toLowerCase()) >= 0;
+  }
+  if (host && host.openComposer) {
+    window.addEventListener('keydown', function (event) {
+      // No guard on an earlier target: while the composer is open the host keeps Enter from
+      // the page, and a composer the host closed without telling us mustn't block the next.
+      if (event.key !== 'Enter') return;
+      var el = document.activeElement;
+      if (!isTextField(el)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      composerTarget = el;
+      host.openComposer(el.isContentEditable ? el.textContent : el.value,
+        el.tagName === 'TEXTAREA' || el.isContentEditable);
+    }, true);
+  }
+  // GeckoView asked for a keyboard (a field got focus): a field the composer takes waits for
+  // Enter; anything else (a password, say) gets the system's keyboard.
+  window.__mrbdKeyboardWanted = function () {
+    if (host && host.noTextField && !isTextField(document.activeElement)) host.noTextField();
+  };
+  window.__mrbdComposerInput = function (text) {
+    var el = composerTarget;
+    if (!el) return;
+    if (el.isContentEditable) {
+      el.textContent = text;
+    } else {
+      // The prototype's setter, so frameworks that track the value (React) see the change.
+      var proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, text);
+    }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  window.__mrbdComposerClose = function () {
+    var el = composerTarget;
+    composerTarget = null;
+    if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  // Back, as MRBD's shell does it: the page gets Escape first; if it neither handles it nor
+  // navigates, the host goes back in history, or closes the app when there is none.
+  window.__mrbdBack = function () {
+    var target = document.activeElement || document.body || document.documentElement;
+    var before = location.href;
+    var init = { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true, cancelable: true };
+    var notPrevented = target.dispatchEvent(new KeyboardEvent('keydown', init));
+    target.dispatchEvent(new KeyboardEvent('keyup', init));
+    setTimeout(function () {
+      if (host) host.backResult(!notPrevented || location.href !== before);
+    }, 150);
+  };
+})();

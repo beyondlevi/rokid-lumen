@@ -1,0 +1,155 @@
+# Rokid Lumen
+
+**Rokid Lumen** turns Rokid RG glasses into a small app platform driven by the **Meta Neural
+Band**. A swipe of the thumb moves through a grid of web apps, an index tap opens, a middle tap
+goes back. The apps are Meta Ray-Ban Display (MRBD) style web apps, offline packages or online
+addresses. The phone's notifications, dictation and internet arrive through **Rokid Lumen
+Companion**, an app on the phone.
+
+Rokid Lumen is not affiliated with Meta or Rokid. "Rokid" names the glasses it runs on.
+
+<!-- media: hero -->
+![Three Lumen screens as the lens shows them: the apps grid, the WhatsApp example app's chats and a conversation](docs/media/hero.png)
+
+> **License note.** The glasses' input, navigation, settings screen and self-arm are derived
+> from [R08 Access Bridge](https://github.com/Anezium/R08-Access-Bridge) by Anezium, whose
+> repository states no license; the terms are being arranged with its author. That code is not
+> covered by this project's MIT License. Details in [NOTICE](NOTICE).
+
+## What is in the repository
+
+| Part | What it is |
+| --- | --- |
+| `app/` | The glasses app, `dev.lumen.glasses`: the apps grid, the web app host (GeckoView 156 or the system WebView), the notification inbox and banner, the dictation composer, and the accessibility service that connects to the band and drives the glasses. Rokid RG glasses, Android 12, a 480x640 monochrome green HUD. |
+| `phone/` | Rokid Lumen Companion, `dev.lumen.companion`: the band's settings, notification forwarding, dictation engines, the Apps tab (arrange the grid, install by address, set an app's server URL or API key), and the hotspot and proxy that give the glasses internet. |
+| `band/`, `rust/` | The Neural Band link, in Rust (`liblumen_band.so` over JNI), from [air-gestures](https://gitlab.com/896kb/air-gestures) and [kinesis](https://github.com/callbacked/kinesis). |
+| `protocol/` | The messages between the glasses and the phone, sent over Rokid's CXR link. |
+
+## How it fits together
+
+```text
+ Meta Neural Band --(Bluetooth L2CAP, Rust bridge)--> glasses: BandAccessibilityService
+                                                         |  gestures -> D-pad, Enter, Back
+                                                         v
+                         apps grid, web apps (GeckoView / WebView), inbox, composer
+                                                         ^
+                       Rokid CXR link (through Hi Rokid) |  notifications, dictation,
+                                                         |  settings, grid, hotspot offer
+                                                         v
+ phone: Rokid Lumen Companion --(local-only hotspot + HTTP proxy)--> internet for the glasses
+```
+
+- The band talks to the glasses directly, over the reverse-engineered protocol. Meta publishes
+  no Android API for it (see [NEURALBAND.md](NEURALBAND.md)).
+- The glasses and the phone talk over Rokid's own link, so there is no extra pairing. The
+  messages are defined once, in `protocol/`.
+- Web pages never go over that link: when the glasses need the phone's internet, they join a
+  hotspot the phone opens for them.
+
+## Features
+
+- **Band control.** Swipes move, the index tap selects, the middle tap is Back. The middle
+  double tap turns the screen off and on, the middle hold turns the controls off and on, and
+  pinch and turn changes the volume (or navigates). The index double tap can be mapped to an
+  action or an app.
+- **Apps grid.** A 3x3 grid in pages: the phone's notifications first, then the web apps and
+  any native apps you add, and the glasses' settings last. You arrange it from the phone.
+- **Web apps.** Offline `.mrbd.zip` packages, served from a loopback server, and online HTTPS
+  apps. Each app has its own origin and, on GeckoView, its own cookies and storage. Apps can
+  declare settings (a server URL, an API key) that you fill in from the phone.
+- **Notifications.** A banner over any app and an inbox grouped by app. Dismiss on the glasses
+  (it clears on the phone too), snooze the banners for 15 minutes, hide the text.
+- **Dictation.** Enter on a text field opens a composer. The phone transcribes the glasses'
+  microphone with the engine you choose: the Android recognizer, OpenAI, ElevenLabs, Azure, or
+  Vosk offline in English or Portuguese.
+- **Internet through the phone.** When no saved Wi-Fi is in range, the companion opens a
+  local-only hotspot and a proxy, and the glasses join it on their own.
+- **The band on the phone.** The companion can take the band over and control the phone
+  (media, volume, brightness, flashlight, screen gestures). Either side hands it back.
+
+Details: [docs/features.md](docs/features.md).
+
+## Install
+
+Download both APKs from the [GitHub Releases](https://github.com/beyondlevi/rokid-lumen/releases)
+page. Each release has `rokid-lumen-glasses-<version>.apk`,
+`rokid-lumen-companion-<version>.apk` and `SHA256SUMS.txt`.
+
+```sh
+sha256sum -c SHA256SUMS.txt
+adb install rokid-lumen-glasses-<version>.apk      # with the glasses connected
+adb install rokid-lumen-companion-<version>.apk    # with the phone connected
+```
+
+Then follow [docs/getting-started.md](docs/getting-started.md): authorize the companion in Hi
+Rokid, import the band's key, enable the accessibility service, pair the band, and run the
+self-arm.
+
+## Recommended use
+
+- **Make Lumen your main screen.** Open the grid from Rokid Lumen's icon on the Rokid launcher,
+  or map the index double tap to *MRBD apps* in the companion's Band tab. Add the native apps
+  you use to the grid from the companion's Apps tab, so everything is a swipe away.
+- **Keep the screen on and turn it off with the band.** The middle double tap turns the HUD off
+  and on again, as on Meta's glasses. With the screen off it is the only gesture that does
+  anything, so nothing runs by accident.
+- **Turn on band power saving** if you want the band quiet while the screen is off. The band
+  then stops sending gestures, and only the glasses' button turns the screen back on.
+- **Run the self-arm once.** Without it, a firmware force-stop leaves the band disconnected,
+  and the glasses can't join the phone's hotspot. Read [docs/security.md](docs/security.md)
+  first: it leaves ADB over TCP enabled.
+
+## Documentation
+
+- [Getting started](docs/getting-started.md): requirements, installing, pairing, the self-arm,
+  and how to undo it.
+- [Features](docs/features.md): gestures, the grid, notifications, internet, dictation, the
+  companion.
+- [Building apps](docs/building-apps.md): the developer guide for Lumen web apps.
+- [Security](docs/security.md): the security model and the known open issues.
+- [Roadmap](ROADMAP.md), [Changelog](CHANGELOG.md), [Contributing](CONTRIBUTING.md).
+- [skills/lumen-app/SKILL.md](skills/lumen-app/SKILL.md): a skill for coding agents that build
+  Lumen apps. [llms.txt](llms.txt) indexes the docs for language models.
+
+## Build
+
+You need the Android SDK (platform 37.2, which GeckoView 156 is built against) and NDK, JDK 17
+or later, and Rust with the `aarch64-linux-android` target and `cargo-ndk`.
+
+```sh
+./build-rust.sh                  # the Rust bridge, into band/src/main/jniLibs
+./gradlew assembleDebug          # both apps: app/ (glasses) and phone/ (companion)
+./gradlew test lintDebug         # unit tests and lint
+(cd rust && cargo test --workspace)
+python3 scripts/check-english.py
+```
+
+`band/src/main/jniLibs` is not committed: run `./build-rust.sh` before the first Gradle build.
+More in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Credits
+
+- [air-gestures](https://gitlab.com/896kb/air-gestures) (MIT): the band link this project grew
+  from (`band/`, `rust/`).
+- [kinesis](https://github.com/callbacked/kinesis) (MIT): the Neural Band protocol, ported to
+  Rust in `rust/band-core/`.
+- [R08 Access Bridge](https://github.com/Anezium/R08-Access-Bridge) by Anezium: the glasses'
+  input, navigation, settings screen and self-arm are derived from it; it showed that the Rokid
+  glasses can be driven through an accessibility service and armed from the glasses themselves.
+  Its terms are being arranged (see [NOTICE](NOTICE)).
+- [rokid-r08-wake](https://github.com/hacha/rokid-r08-wake) by hacha (MIT): the loopback
+  self-arm technique the accessibility watchdog recovery is built on.
+- [Rokid Nexus](https://github.com/Anezium/Rokid-Nexus) (Apache-2.0): the notification text
+  extraction and sensitive content detection, the design of the notification relay, and the
+  dictation engines.
+- The [Meta Ray-Ban Display UI Toolkit](https://github.com/facebook/meta-ray-ban-display-ui-toolkit-web)
+  (Apache-2.0): the glasses' screens follow its design tokens. No toolkit code is included.
+- [GeckoView](https://mozilla.github.io/geckoview/) (MPL 2.0),
+  [Vosk](https://alphacephei.com/vosk/) (Apache-2.0), [Noto Sans](https://notofonts.github.io/)
+  (OFL 1.1), kadb, OkHttp and the other libraries listed in [NOTICE](NOTICE).
+
+## License
+
+MIT, see [LICENSE](LICENSE). Copyright (c) 2026 Levi Nóbrega. Third-party code and its
+licenses are listed in [NOTICE](NOTICE). The code derived from R08 Access Bridge is not covered
+by the MIT License; see [NOTICE](NOTICE).

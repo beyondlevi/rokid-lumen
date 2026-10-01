@@ -1,0 +1,388 @@
+package dev.lumen.companion
+
+import dev.lumen.protocol.BandStatus
+import dev.lumen.band.Identity
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import android.app.AlertDialog
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.ComponentName
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.provider.Settings
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.mutableStateOf
+import com.rokid.sprite.aiapp.externalapp.auth.AuthResult
+import com.rokid.sprite.aiapp.externalapp.auth.AuthorizationHelper
+import com.rokid.sprite.aiapp.externalapp.auth.GlassPermission
+import dev.lumen.companion.ui.CompanionActions
+import dev.lumen.companion.ui.CompanionApp
+import dev.lumen.companion.ui.CompanionUiState
+import dev.lumen.companion.ui.DictationUiState
+import dev.lumen.companion.speech.SpeechEngine
+import dev.lumen.companion.speech.SpeechLanguage
+import dev.lumen.companion.speech.SpeechPatience
+import dev.lumen.companion.speech.SpeechProvider
+import dev.lumen.companion.speech.SpeechSecrets
+import dev.lumen.companion.speech.SpeechSettings
+import dev.lumen.companion.ui.LumenTheme
+import dev.lumen.protocol.GridOps
+import dev.lumen.protocol.SettingsOps
+
+/**
+ * Authorizes this app with Hi Rokid (the link to the glasses and their microphone), prepares
+ * the speech model, grants notification access and starts [CompanionService]. After that the
+ * phone needs no attention: notifications reach the glasses, and the glasses app asks for
+ * dictation when a web app's text field is activated. The screens are [CompanionApp].
+ */
+class CompanionActivity : ComponentActivity(), CompanionActions {
+    private val state = mutableStateOf(CompanionUiState())
+    private val listener: (LinkState) -> Unit = { refresh() }
+    private val bandListener: () -> Unit = { refresh() }
+    private val gridListener: () -> Unit = { refresh() }
+    private val snoozeListener: () -> Unit = { refresh() }
+    private val snoozeEnded = Runnable { refresh() }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
+        super.onCreate(savedInstanceState)
+        setContent {
+            LumenTheme { CompanionApp(state.value, this) }
+        }
+        askRuntimePermissions()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        CompanionService.listeners += listener
+        BandStore.listeners += bandListener
+        PhoneBand.listeners += bandListener
+        GridCache.listeners += gridListener
+        PhoneSnooze.listeners += snoozeListener
+        if (CompanionPrefs.token(this) != null) CompanionService.start(this)
+        refresh()
+    }
+
+    override fun onPause() {
+        CompanionService.listeners -= listener
+        BandStore.listeners -= bandListener
+        PhoneBand.listeners -= bandListener
+        GridCache.listeners -= gridListener
+        PhoneSnooze.listeners -= snoozeListener
+        window.decorView.removeCallbacks(snoozeEnded)
+        super.onPause()
+    }
+
+    private fun refresh(message: String? = state.value.message, modelProgress: String? = state.value.modelProgress) {
+        state.value = CompanionUiState(
+            link = CompanionService.state,
+            authorized = CompanionPrefs.token(this) != null,
+            notificationAccess = hasNotificationAccess(),
+            modelDownloaded = PhoneModel.isDownloaded(this),
+            modelLanguage = PhoneModel.chosen(this).language.nativeName,
+            modelProgress = modelProgress,
+            sendNotifications = CompanionPrefs.notificationsEnabled(this),
+            bannerOnlyScreenOff = CompanionPrefs.pauseWhileScreenOn(this),
+            hideText = CompanionPrefs.hideContent(this),
+            focusBanner = CompanionPrefs.focusBanner(this),
+            snoozedUntil = if (PhoneSnooze.isActive()) PhoneSnooze.until else 0L,
+            blockedCount = CompanionPrefs.blockedApps(this).size,
+            message = message,
+            version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty(),
+            bandSchema = BandStore.schema,
+            bandStatus = BandStore.status,
+            bandOnPhone = CompanionPrefs.bandOnPhone(this),
+            phoneBandStatus = BandStatus(
+                phase = PhoneBand.phase.name.lowercase(),
+                name = Identity.bandName(this).orEmpty(),
+                battery = PhoneBand.battery(),
+                charging = PhoneBand.status.optBoolean("charging"),
+                paused = PhoneBand.status.optBoolean("paused"),
+                onPhone = true,
+            ),
+            bandKeyPresent = Identity.present(this),
+            bluetoothGranted = PhoneBand.problem(this) != PhoneBand.Problem.NO_BLUETOOTH,
+            phoneSettings = PhoneSettings.schema(this),
+            touchEnabled = PhoneTouchService.instance != null,
+            writeSettingsGranted = Settings.System.canWrite(this),
+            bandError = BandStore.lastError,
+            gridItems = GridCache.items,
+            gridAvailable = GridCache.available,
+            gridKnown = GridCache.known,
+            gridIcons = HashMap(GridCache.icons),
+            gridError = GridCache.lastError,
+            dictation = DictationUiState(
+                engine = SpeechSettings.engine(this),
+                language = SpeechSettings.language(this),
+                patience = SpeechSettings.patience(this),
+                keys = SpeechProvider.entries.filter { SpeechSecrets.hasKey(this, it) }.toSet(),
+                azureRegion = SpeechSecrets.azureRegion(this),
+                missing = SpeechSettings.missing(this),
+            ),
+        )
+        // The switch turns off by itself when the snooze runs out.
+        window.decorView.removeCallbacks(snoozeEnded)
+        if (PhoneSnooze.isActive()) window.decorView.postDelayed(snoozeEnded, PhoneSnooze.until - System.currentTimeMillis() + 500)
+    }
+
+    private fun say(message: String) = refresh(message = message)
+
+    override fun authorize() {
+        // isRokidAppInstalled only knows the Chinese app (com.rokid.sprite.aiapp); the request
+        // itself picks the global Hi Rokid (com.rokid.sprite.global.aiapp) when that's the one.
+        if (!AuthorizationHelper.isRequiredHiRokidInstalled(this) && !AuthorizationHelper.isRokidAppInstalled(this)) {
+            say(getString(R.string.auth_hi_rokid_missing))
+        }
+        // Not an activity to start: the SDK asks Hi Rokid's content provider and hands back the
+        // answer as (resultCode, Intent with auth_result/auth_token), ready to parse.
+        val request = AuthorizationHelper.requestAuthorization(this, arrayOf(GlassPermission.MICROPHONE), REQUEST_AUTH)
+        if (request == null) {
+            say(getString(R.string.auth_no_answer))
+            return
+        }
+        handleAuthorization(request.first ?: RESULT_CANCELED, request.second)
+    }
+
+    private fun handleAuthorization(resultCode: Int, data: Intent?) {
+        when (val result = if (data == null) null else AuthorizationHelper.parseAuthorizationResult(resultCode, data)) {
+            is AuthResult.AuthSuccess -> {
+                CompanionPrefs.setToken(this, result.token)
+                CompanionPrefs.setPermissions(this, listOf(GlassPermission.MICROPHONE))
+                CompanionService.start(this, reconnect = true)
+                say(getString(R.string.auth_done))
+            }
+            else -> say(getString(R.string.auth_failed))
+        }
+    }
+
+    @Deprecated("Activity result API of the platform Activity")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_AUTH) handleAuthorization(resultCode, data)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_MICROPHONE) refresh()
+    }
+
+    override fun reconnect() = CompanionService.start(this, reconnect = true)
+
+    override fun stop() {
+        stopService(Intent(this, CompanionService::class.java))
+        refresh()
+    }
+
+    override fun downloadModel() {
+        PhoneModel.load(this, PhoneModel.chosen(this), onStatus = { refresh(modelProgress = it) }) { _, problem ->
+            refresh(message = problem ?: getString(R.string.model_ready), modelProgress = null)
+        }
+    }
+
+    override fun openNotificationAccess() = startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+
+    override fun setSendNotifications(on: Boolean) {
+        CompanionPrefs.setNotificationsEnabled(this, on)
+        NotificationForwarder.requestSync()
+        refresh()
+    }
+
+    override fun setBannerOnlyScreenOff(on: Boolean) {
+        CompanionPrefs.setPauseWhileScreenOn(this, on)
+        refresh()
+    }
+
+    override fun useBandOnPhone() {
+        PhoneBand.useHere(this)
+        refresh()
+    }
+
+    override fun useBandOnGlasses() {
+        PhoneBand.useOnGlasses(this)
+        refresh()
+    }
+
+    /** The key file exported by the original phone app or the Linux app (air-gestures-band.json). */
+    private val keyPicker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isEmpty()) return@registerForActivityResult
+        val contents = uris.mapNotNull { uri -> runCatching { contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull() }
+        val result = Identity.import(this, contents)
+        if (Identity.present(this) && CompanionPrefs.bandOnPhone(this)) PhoneBand.start(this)
+        say(result)
+    }
+
+    override fun importBandKey() = keyPicker.launch(arrayOf("*/*"))
+
+    override fun setPhoneSetting(key: String, value: String) {
+        if (PhoneSettings.set(this, key, value)) PhoneBand.applyMapping(this)
+        refresh()
+    }
+
+    override fun openTouchSettings() = startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+
+    override fun allowWriteSettings() =
+        startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, android.net.Uri.parse("package:$packageName")))
+
+    override fun allowBluetooth() {
+        requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN), REQUEST_PERMISSIONS)
+    }
+
+    override fun setSnooze(on: Boolean) {
+        if (!CompanionService.requestSnooze(on)) say(getString(R.string.band_waiting))
+    }
+
+    override fun setFocusBanner(on: Boolean) {
+        CompanionPrefs.setFocusBanner(this, on)
+        refresh()
+    }
+
+    override fun setHideText(on: Boolean) {
+        CompanionPrefs.setHideContent(this, on)
+        NotificationForwarder.requestSync()
+        refresh()
+    }
+
+    /** The apps seen notifying, ticked when their notifications stay on the phone. */
+    override fun chooseBlockedApps() {
+        val packages = CompanionPrefs.seenApps(this).sortedBy { NotificationForwarder.appLabel(this, it).lowercase() }
+        if (packages.isEmpty()) {
+            say(getString(R.string.notifications_none_seen))
+            return
+        }
+        val blocked = CompanionPrefs.blockedApps(this)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.notifications_blocked_dialog)
+            .setMultiChoiceItems(
+                packages.map { NotificationForwarder.appLabel(this, it) }.toTypedArray(),
+                packages.map { it in blocked }.toBooleanArray(),
+            ) { _, which, checked -> CompanionPrefs.setBlocked(this, packages[which], checked) }
+            .setPositiveButton(R.string.ok) { _, _ ->
+                NotificationForwarder.requestSync()
+                refresh()
+            }
+            .show()
+    }
+
+    /** A notification of this app's own, which the forwarder lets through (test category). */
+    override fun sendTestNotification() {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(NotificationChannel(TEST_CHANNEL, getString(R.string.notifications_test_channel), NotificationManager.IMPORTANCE_DEFAULT))
+        val notification = Notification.Builder(this, TEST_CHANNEL)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(getString(R.string.notifications_test_title, getString(R.string.app_name)))
+            .setContentText(getString(R.string.notifications_test_text))
+            .setCategory(NotificationForwarder.CATEGORY_TEST)
+            .setAutoCancel(true)
+            .build()
+        manager.notify(TEST_ID, notification)
+        say(getString(if (hasNotificationAccess()) R.string.notifications_test_sent else R.string.notifications_test_needs_access))
+    }
+
+    override fun refreshBand() {
+        CompanionService.requestSettings(SettingsOps.describe())
+    }
+
+    override fun setBandSetting(key: String, value: String) {
+        CompanionService.requestSettings(SettingsOps.set(key, value))
+    }
+
+    override fun bandAction(name: String) {
+        CompanionService.requestSettings(SettingsOps.action(name))
+    }
+
+    override fun refreshGrid() {
+        CompanionService.requestGrid(GridOps.describe())
+    }
+
+    override fun reorderGrid(order: List<String>) {
+        CompanionService.requestGrid(GridOps.set(order, GridCache.hiddenFor(order)))
+    }
+
+    override fun hideGridItem(id: String) {
+        val order = GridCache.items.map { it.id } - id
+        CompanionService.requestGrid(GridOps.set(order, GridCache.hiddenFor(order)))
+    }
+
+    override fun addGridItem(id: String) {
+        val order = GridCache.added(id)
+        CompanionService.requestGrid(GridOps.set(order, GridCache.hiddenFor(order)))
+    }
+
+    override fun addWebApp(url: String, name: String) {
+        CompanionService.requestGrid(GridOps.addWeb(url, name))
+    }
+
+    override fun addPackage(url: String) {
+        CompanionService.requestGrid(GridOps.addPackage(url))
+        say(getString(R.string.apps_package_sent))
+    }
+
+    override fun setGridEngine(id: String, engine: String) {
+        CompanionService.requestGrid(GridOps.engine(id, engine))
+    }
+
+    override fun setGridConfig(id: String, key: String, value: String) {
+        CompanionService.requestGrid(GridOps.config(id, key, value))
+    }
+
+    override fun setSpeechEngine(engine: SpeechEngine) {
+        SpeechSettings.setEngine(this, engine)
+        refresh()
+        if (SpeechSettings.missing(this, engine) == SpeechSettings.Missing.MICROPHONE) allowMicrophone()
+    }
+
+    override fun setSpeechLanguage(language: SpeechLanguage) {
+        SpeechSettings.setLanguage(this, language)
+        refresh()
+    }
+
+    override fun setSpeechPatience(patience: SpeechPatience) {
+        SpeechSettings.setPatience(this, patience)
+        refresh()
+    }
+
+    override fun saveSpeechKey(provider: SpeechProvider, key: String) {
+        val saved = SpeechSecrets.setKey(this, provider, key)
+        refresh(message = if (saved) null else getString(R.string.speech_key_save_failed))
+    }
+
+    override fun removeSpeechKey(provider: SpeechProvider) {
+        SpeechSecrets.removeKey(this, provider)
+        refresh()
+    }
+
+    override fun saveAzureRegion(region: String) {
+        val saved = SpeechSecrets.setAzureRegion(this, region)
+        refresh(message = if (saved) null else getString(R.string.speech_azure_region_invalid))
+    }
+
+    override fun allowMicrophone() = requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MICROPHONE)
+
+    override fun deleteWebApp(id: String) {
+        CompanionService.requestGrid(GridOps.remove(id))
+    }
+
+    private fun hasNotificationAccess(): Boolean =
+        getSystemService(NotificationManager::class.java)
+            .isNotificationListenerAccessGranted(ComponentName(this, NotificationForwarder::class.java))
+
+    private fun askRuntimePermissions() {
+        val missing = listOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.NEARBY_WIFI_DEVICES)
+            .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isNotEmpty()) requestPermissions(missing.toTypedArray(), REQUEST_PERMISSIONS)
+    }
+
+    companion object {
+        private const val REQUEST_AUTH = 7
+        private const val REQUEST_MICROPHONE = 8
+        private const val REQUEST_PERMISSIONS = 8
+        private const val TEST_CHANNEL = "test"
+        private const val TEST_ID = 42
+    }
+}

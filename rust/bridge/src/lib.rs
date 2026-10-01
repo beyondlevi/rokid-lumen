@@ -1,0 +1,268 @@
+//! The Android app's view of a band connection: bytes in, bytes out, plus
+//! action names to run and a status snapshot. Kotlin owns the Bluetooth socket
+//! and the clock; this owns the band-core session, the keepalive timing (as the
+//! desktop daemon's link loop does) and the gesture controller (copied from
+//! air-gestures: held taps, the double-tap wait, the toggle hold, the dial).
+
+use band_core::events::Event;
+use band_core::identity::EnrollmentIdentity;
+use band_core::session::BandSession;
+use serde::Serialize;
+
+pub mod config;
+pub mod controller;
+mod jni_api;
+pub mod status;
+
+use config::{Config, DIAL_TOGGLE, DialTarget};
+use controller::{Command, Controller};
+use status::Status;
+
+fn config_with(mapping: &str) -> Config {
+    let mut config = Config::default();
+    config.apply_mapping(mapping);
+    config
+}
+
+/// Battery query period and the quiet time before a stream-state query. A battery reading a
+/// minute is plenty (the glasses show it every 30 s); with the motion streams off traffic is
+/// sparse, so the quiet query waits longer then (each query wakes the band's radio).
+const BATTERY_EVERY: f64 = 60.0;
+const QUIET_QUERY: f64 = 2.0;
+const QUIET_QUERY_NO_MOTION: f64 = 30.0;
+
+pub struct Connection {
+    session: BandSession,
+    controller: Controller,
+    live: bool,
+    last_read: f64,
+    last_query: f64,
+    next_battery: f64,
+    /// Motion streams and gestures wanted (see `set_motion`, `set_gestures`), and what was last
+    /// sent.
+    motion: bool,
+    gestures: bool,
+    streams_sent: (bool, bool),
+    actions: Vec<String>,
+    log: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct Snapshot<'a> {
+    connected: bool,
+    #[serde(flatten)]
+    status: &'a Status,
+}
+
+impl Connection {
+    /// `owner_key` is the desktop's `owner.key` (32 or 97 bytes); `scheme_guess`
+    /// its `band.json` value (0 for current firmware). `paused` and `dial` carry
+    /// the app's settings over from the previous connection.
+    pub fn new(
+        owner_key: &[u8],
+        scheme_guess: usize,
+        paused: bool,
+        dial: &str,
+        mapping: &str,
+    ) -> Result<Self, String> {
+        let (private, band) = match owner_key.len() {
+            32 => (owner_key, None),
+            97 => (&owner_key[..32], Some(&owner_key[32..])),
+            length => return Err(format!("owner.key must be 32 or 97 bytes, not {length}")),
+        };
+        let identity = EnrollmentIdentity::from_bytes(private, band).map_err(|e| e.to_string())?;
+        let mut controller = Controller::new(config_with(mapping));
+        if paused {
+            controller.pause();
+        }
+        // An empty `dial` keeps what the mapping chose.
+        if !dial.is_empty() {
+            controller.set_dial_target(DialTarget::from_name(dial));
+        }
+        Ok(Self {
+            session: BandSession::new(Some(identity), None, false).with_scheme_guess(scheme_guess),
+            controller,
+            live: false,
+            last_read: 0.0,
+            last_query: 0.0,
+            next_battery: 0.0,
+            motion: true,
+            gestures: true,
+            streams_sent: (true, true),
+            actions: Vec::new(),
+            log: Vec::new(),
+        })
+    }
+
+    /// The first bytes to write once the L2CAP channel is open.
+    pub fn request(&mut self) -> Result<Vec<u8>, String> {
+        self.session.request().map_err(|e| e.to_string())
+    }
+
+    /// Bytes read from the band at `now` (seconds, monotonic); returns bytes to write.
+    pub fn feed(&mut self, bytes: &[u8], now: f64) -> Result<Vec<u8>, String> {
+        self.last_read = now;
+        let result = self.session.feed(bytes, now).map_err(|e| e.to_string())?;
+        let mut outgoing = result.outgoing;
+        for event in &result.events {
+            outgoing.extend(self.on_event(event, now)?);
+        }
+        Ok(outgoing)
+    }
+
+    /// Call every ~50 ms (held single taps fire on time); returns bytes to write.
+    pub fn tick(&mut self, now: f64) -> Result<Vec<u8>, String> {
+        let mut outgoing = Vec::new();
+        for event in self.session.tick(now) {
+            outgoing.extend(self.on_event(&event, now)?);
+        }
+        if self.controller.held_tap_due().is_some_and(|due| now >= due) {
+            for command in self.controller.fire_held_tap(now) {
+                outgoing.extend(self.apply(command, now)?);
+            }
+        }
+        if self.session.streams_enabled() && now >= self.next_battery {
+            self.next_battery = now + BATTERY_EVERY;
+            outgoing.extend(
+                self.session
+                    .query_battery_status(now)
+                    .map_err(|e| e.to_string())?,
+            );
+        }
+        let wanted = (self.gestures, self.motion);
+        if self.session.streams_enabled() && wanted != self.streams_sent {
+            self.streams_sent = wanted;
+            let on_off = |on: bool| if on { "on" } else { "off" };
+            self.log.push(format!(
+                "gestures {}, motion streams {}",
+                on_off(self.gestures),
+                on_off(self.motion)
+            ));
+            outgoing.extend(
+                self.session
+                    .set_streams(self.gestures, self.motion)
+                    .map_err(|e| e.to_string())?,
+            );
+        }
+        let quiet = if self.motion { QUIET_QUERY } else { QUIET_QUERY_NO_MOTION };
+        if self.session.streams_enabled()
+            && now - self.last_read >= quiet
+            && now - self.last_query >= quiet
+        {
+            self.last_query = now;
+            outgoing.extend(
+                self.session
+                    .query_stream_state()
+                    .map_err(|e| e.to_string())?,
+            );
+        }
+        Ok(outgoing)
+    }
+
+    /// Action names to run since the last call ("media.next", "volume.up", …).
+    pub fn take_actions(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.actions)
+    }
+
+    /// Log lines since the last call ("connected", "gesture swipe left", …).
+    pub fn take_log(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.log)
+    }
+
+    /// Motion streams (gyro, orientation) on or off, sent with the next tick. Off saves the
+    /// band's power while nothing needs pinch and turn (the glasses' screen is off).
+    pub fn set_motion(&mut self, enabled: bool) {
+        self.motion = enabled;
+    }
+
+    /// The gesture stream on or off, sent with the next tick. Off with the motion streams off is
+    /// the band's power saving: it sends nothing and doesn't vibrate, so no gesture can wake the
+    /// glasses (their button does).
+    pub fn set_gestures(&mut self, enabled: bool) {
+        self.gestures = enabled;
+    }
+
+    pub fn set_paused(&mut self, paused: bool, now: f64) {
+        if paused {
+            self.controller.pause();
+        } else {
+            self.controller.resume(now);
+        }
+    }
+
+    /// Replace the gesture and dial mapping (see `Config::apply_mapping`).
+    pub fn set_mapping(&mut self, mapping: &str) {
+        let paused = self.controller.status().paused;
+        for command in self.controller.set_config(config_with(mapping)) {
+            if let Command::Run(action) = command {
+                self.actions.push(action);
+            }
+        }
+        // A new config resets the controller's pause state; keep the app's.
+        if paused {
+            self.controller.pause();
+        }
+    }
+
+    pub fn set_dial(&mut self, dial: &str) {
+        self.controller.set_dial_target(DialTarget::from_name(dial));
+    }
+
+    /// `{"connected":…, "paused":…, "battery":…, "charging":…, "hand":…, "dial":…,
+    /// "last_gesture":…, "last_action":…, "gestures":…}`.
+    pub fn status_json(&self) -> String {
+        serde_json::to_string(&Snapshot {
+            connected: self.live,
+            status: self.controller.status(),
+        })
+        .expect("status serializes")
+    }
+
+    fn on_event(&mut self, event: &Event, now: f64) -> Result<Vec<u8>, String> {
+        match event {
+            Event::Connected => {
+                self.live = true;
+                self.log.push("connected".into());
+            }
+            Event::Handedness(hand) => self.log.push(format!("hand {hand:?}").to_lowercase()),
+            _ => {}
+        }
+        let gestures = self.controller.status().gestures;
+        let mut outgoing = Vec::new();
+        for command in self.controller.on_event(event, now) {
+            outgoing.extend(self.apply(command, now)?);
+        }
+        let status = self.controller.status();
+        if status.gestures != gestures
+            && let Some(gesture) = &status.last_gesture
+        {
+            self.log.push(format!("gesture {gesture}"));
+        }
+        Ok(outgoing)
+    }
+
+    fn apply(&mut self, command: Command, now: f64) -> Result<Vec<u8>, String> {
+        match command {
+            Command::Run(action) if action == DIAL_TOGGLE => {
+                self.controller.cycle_dial();
+                self.log
+                    .push(format!("dial {}", self.controller.status().dial.name()));
+                self.actions.push(format!(
+                    "dial.changed.{}",
+                    self.controller.status().dial.name()
+                ));
+            }
+            Command::Run(action) => {
+                self.log.push(format!("action {action}"));
+                self.actions.push(action);
+            }
+            Command::SetHand(hand) => {
+                return self
+                    .session
+                    .set_handedness(hand, now)
+                    .map_err(|e| e.to_string());
+            }
+        }
+        Ok(Vec::new())
+    }
+}

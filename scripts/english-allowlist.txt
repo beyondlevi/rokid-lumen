@@ -1,0 +1,12 @@
+# path<TAB>text: a line of that file containing the text is accepted (see check-english.py).
+# Labels of the Rokid firmware in Portuguese (Portugal), which the code and docs must name as shown.
+app/src/main/java/dev/lumen/glasses/SettingsLabels.kt	"Opções de programador", not "Opções do desenvolvedor"
+# Labels the self-arm matches on the Settings screen (normalized: no accents, lower case).
+app/src/main/java/dev/lumen/glasses/SelfArmWirelessDebuggingAutomator.kt	"opcoes de programador"
+app/src/main/java/dev/lumen/glasses/SelfArmWirelessDebuggingAutomator.kt	"opcoes do desenvolvedor"
+app/src/main/java/dev/lumen/glasses/SelfArmWirelessDebuggingAutomator.kt	"ative primeiro as opcoes de programador"
+app/src/main/java/dev/lumen/glasses/SelfArmWirelessDebuggingAutomator.kt	"ative primeiro as opcoes do desenvolvedor"
+# Test fixtures: a dictated phrase.
+protocol/src/test/kotlin/dev/lumen/protocol/LinkTest.kt	"olá"
+# Languages in their own names.
+phone/src/main/java/dev/lumen/companion/speech/SpeechConfig.kt	"Français"

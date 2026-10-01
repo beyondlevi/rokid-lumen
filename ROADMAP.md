@@ -1,0 +1,62 @@
+# Roadmap
+
+What is planned after 0.1.0, roughly in order. Nothing here exists yet unless it says so. Ideas
+and feedback are welcome in the issues.
+
+## An app store in the companion
+
+Browse and install Lumen apps from the companion, instead of typing a package's address.
+
+- A **signed catalog**: the companion downloads a list of apps and checks its signature
+  before showing anything.
+- Each entry names its package's **SHA-256**; the glasses refuse a package that doesn't match.
+- **Updates by version**: the companion compares the catalog's version with the installed
+  app's manifest `version` and offers the update.
+- Installing from the catalog keeps today's rules: same manifest `id` updates the app and keeps
+  its data and settings.
+
+## Lumen as the default HOME
+
+Today the apps grid opens on top of the Rokid launcher, from its icon or a mapped gesture. The
+plan is for Lumen to be able to be the glasses' home screen itself, with the Rokid launcher one
+item away.
+
+## Phone notifications for web apps
+
+Let a web app receive the phone's notifications that concern it.
+
+- A new manifest field, **`lumen_notifications`**, declares which phone apps' notifications the
+  web app wants.
+- **Enter on a banner** for such a notification opens the web app instead of the inbox.
+- **`window.lumen.notifications`**: the web app reads and follows those notifications,
+  filtered by its origin, so an app sees only what it declared and nothing meant for another.
+
+## The full Meta visual identity
+
+The inbox, the banner and the install screen already follow the Meta Ray-Ban Display UI
+Toolkit's tokens. The grid, the settings screens and the companion are next, so the whole
+platform looks like one system.
+
+## Compatibility modes, back
+
+The navigator has built-in handling for a few native apps that don't work well with the generic
+accessibility navigation (ReadEra, ArBook and the Rokid build of NewPipe). The plan is to bring
+back compatibility modes as choices, per app, for native apps on the grid.
+
+## Security
+
+The open items in [docs/security.md](docs/security.md#known-open-issues):
+
+- **ADB over TCP only on loopback**, or only while it's needed, instead of port 5555 left
+  listening on every interface after the self-arm.
+- **Helper IPC off external storage**: the shortcut bridge's request, response, heartbeat and
+  doorbell files move out of `/sdcard/Android/data/...`.
+- **No ADB key import from external storage**: the self-arm's key only from the app's private
+  storage.
+- **Per-session authentication on the phone's proxy**, so only the glasses that asked can use
+  it.
+- **Secrets encrypted at rest on the glasses**, as the companion's API keys already are on the
+  phone.
+- **A way to undo the self-arm from the app**, instead of the adb steps in
+  [docs/getting-started.md](docs/getting-started.md#undo-the-self-arm).
+- **Licensing**: settle the terms for the code derived from R08 Access Bridge, or replace it.

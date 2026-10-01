@@ -1,0 +1,75 @@
+# Every push and pull request: the Rust bridge, unit tests, lint, release builds (unsigned),
+# a secrets scan and the English check.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NDK_VERSION: 30.0.16248370
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Secrets scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: English check
+        run: python3 scripts/check-english.py
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.2" "build-tools;37.0.0" "ndk;$NDK_VERSION" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Rust tests
+        working-directory: rust
+        run: cargo test --workspace
+
+      - name: Rust bridge (arm64)
+        run: |
+          cargo install cargo-ndk --locked
+          ./build-rust.sh
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests, lint and release builds
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :phone:testDebugUnitTest :protocol:test lintDebug assembleRelease
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reports
+          path: |
+            */build/reports/
+          retention-days: 7

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The Vosk model download. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Keeping the CXR-L link to the glasses while the glasses app is in use. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- The Android speech recognizer, fed with the glasses' audio, checks that its caller may record. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The glasses' internet: a local-only hotspot on the phone (PhoneNetwork). -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation" />
+    <!-- Bringing the link back after a reboot, when the companion is authorized. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- The band's brightness steps on the phone ("Modify system settings", granted in Settings). -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+
+    <queries>
+        <!-- The speech recognizers the Android engine may use. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <package android:name="com.rokid.sprite.aiapp" />
+        <package android:name="com.rokid.sprite.global.aiapp" />
+        <!-- The apps a band gesture can open on the phone. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+        <activity
+            android:name=".CompanionActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".CompanionService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|microphone" />
+
+        <!-- The band's screen gestures on the phone (swipes, Back, Home, arrow keys, opening apps).
+             Performs gestures only; reads nothing on screen. -->
+        <service
+            android:name=".PhoneTouchService"
+            android:exported="false"
+            android:label="@string/touch_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/touch_service" />
+        </service>
+
+        <!-- The phone's notifications for the glasses (view only). Granted in Settings,
+             "Notification access"; nothing read here is written to disk. -->
+        <service
+            android:name=".NotificationForwarder"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

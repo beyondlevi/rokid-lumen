@@ -1,0 +1,284 @@
+# Features
+
+What Rokid Lumen does on the glasses and on the phone. To set it up, start with
+[getting-started.md](getting-started.md).
+
+## Band gestures
+
+The band link recognises the gestures on the band itself (in the Rust bridge, `rust/bridge/`)
+and hands the glasses an action name for each one. The navigation gestures are fixed:
+
+| Gesture | Action | On the Rokid launcher and lists | In a web app |
+| --- | --- | --- | --- |
+| Swipe right or down | Next | Next app, next item | Arrow right, arrow down |
+| Swipe left or up | Previous | Previous app, previous item | Arrow left, arrow up |
+| Index tap | Select | Open the app, click the item | Enter |
+| Middle tap | Back | Android Back | MRBD's Back (see below) |
+| Middle double tap | Screen off and on | | |
+| Middle hold | Controls off and on | | |
+| Index double tap | Mappable, no action by default | | |
+| Pinch and turn | Volume (default), Navigation, or No action | | |
+
+- **The middle double tap turns the screen off and on**, as on Meta's glasses. With the screen
+  off it is the only gesture that does anything; the others are ignored. A gesture right after
+  the screen wakes is also ignored, so nothing runs blindly.
+- **The middle hold pauses the controls.** The band stays connected and still vibrates, but
+  its gestures do nothing until the next hold. The settings screen shows *Band connected,
+  controls off*.
+- **The index double tap ships unmapped**, so an index tap is immediate: the bridge only waits
+  to rule out a double tap when one is mapped. It can be set to: Back, Home, Play or pause,
+  Launch app (any app with a launcher icon), MRBD apps (the grid), Rokid AI, Hi Rokid Shortcut
+  (needs the self-arm), Take photo, Video toggle, AR screenshot, AR video toggle, or Use the
+  band on the phone.
+- **Pinch and turn** steps the volume up and down by default (the system volume panel shows
+  it), or moves through lists and the launcher, or does nothing.
+- **Navigation: Stable or Fast.** In Fast mode, three swipes in a row on the Rokid launcher
+  start moving two apps per swipe.
+- **Wrist**: as set on the band, left or right.
+
+All of these are set from the companion's Band tab. The glasses' own Settings show a
+**Gesture guide** and keep **Power saving** and **Forget band**.
+
+The glasses' touchpad keys work everywhere too.
+
+### Band power saving
+
+With the glasses' screen off the band always stops its motion streams (gyro and orientation,
+which only pinch and turn needs). With **band power saving** on, it also stops its gestures: it
+recognises nothing and doesn't vibrate, and only the glasses' button turns the screen (and the
+band) back on. With it off, the middle double tap still wakes the screen.
+
+The band's battery is read once a minute. A link that can't connect waits longer between
+tries, up to 30 seconds.
+
+### The band's battery on the Rokid launcher
+
+While the Rokid launcher is in front and the band is connected, its battery shows on the
+launcher's status row, left of the glasses' own: `+` while charging, amber at 20% or less. It
+refreshes every 30 seconds. The companion's Band tab turns it off (*Battery on the Rokid
+launcher*).
+
+### How the band link works
+
+Meta publishes no Android API for the band's gestures. The band core (`rust/band-core/`, a
+port of [kinesis](https://github.com/callbacked/kinesis) by way of
+[air-gestures](https://gitlab.com/896kb/air-gestures)) speaks the band's own Bluetooth protocol,
+worked out by reverse engineering: GATT to find the input channel, then an L2CAP channel.
+This is unofficial, and a band firmware update could change it. The research and its sources
+are in [NEURALBAND.md](../NEURALBAND.md).
+
+The apps talk to a `GestureDevice` (`band/src/main/java/dev/lumen/band/GestureDevice.kt`): start,
+stop, pause, and a mapping string `gesture=action;...` built by `BandMapping`. Two implementations
+exist:
+
+- `BandLink`: the real band, through the Rust bridge.
+- `SimulatedBand`: no band, in debug builds. Turn on **Band > Simulated band**, then send
+  gestures with adb:
+
+  ```sh
+  adb shell am broadcast -a dev.lumen.glasses.SIMULATE --es gesture swipe_right
+  ```
+
+  Keys: `swipe_up`, `swipe_down`, `swipe_left`, `swipe_right`, `index_tap`, `index_double`,
+  `middle_tap`, `middle_double`, `dial_up`, `dial_down`, `middle_hold`. It resolves the same
+  mapping string, but not the bridge's timing (a single tap waiting out its double).
+
+An official API, if Meta publishes one, would be a third implementation of the same interface.
+
+## The apps grid
+
+<!-- media: grid -->
+![The apps grid on the HUD: a 3x3 page with notifications, web apps and Settings](media/grid.png)
+
+Rokid Lumen's icon on the Rokid launcher opens the apps grid, on top of the Rokid launcher. It
+shows 3x3 items per page:
+
+- **Notifications** first: the phone's notification inbox.
+- **Web apps**, offline and online, and any **native apps** of the glasses you added from the
+  phone (opened with their launch intent).
+- **Settings** last: the glasses' own settings (pairing, the self-arm, the band's key and
+  log, the web apps list, accessibility and Bluetooth). Settings can't be hidden, so the glasses
+  can't lock you out of them.
+
+Swipes move the focus in two dimensions and cross to the next page at the edges; the index tap
+opens; the middle tap goes back to the Rokid launcher. The bar shows a clock and a count of
+unread notifications.
+
+The grid is arranged from the companion's Apps tab. A web app installed later joins the end on
+its own; a native app shows only once added.
+
+## Web apps
+
+The glasses run Meta Ray-Ban Display (MRBD) style web apps in a 600x600 CSS pixel viewport, on
+the HUD's 480x480 square. The band's swipes are arrow keys, the index tap is Enter, and the
+middle tap is MRBD's Back: Escape goes to the page first; if the page doesn't handle it, the
+app goes back in its history, or closes when there is none.
+
+- **Offline apps** are `.mrbd.zip` packages, served from a loopback server
+  (`http://127.0.0.1:<port>`, one port per app). They work with no network.
+- **Online apps** are HTTPS addresses.
+- **Engines.** Each app runs on GeckoView 156 (the default, bundled with the app) or on the
+  glasses' system WebView (Chromium 95, the firmware's). Switch it per app from the companion's
+  Apps tab or from **Settings > Web apps (MRBD)** on the glasses.
+- **Installs are confirmed on the glasses** when they come from adb, another app or a page's
+  `navigator.install()`: the confirmation shows the app's name and host, whether it uses the
+  internet, the settings it asks for, and what it updates. Cancel has the focus first. What
+  you add from the companion installs without asking again.
+
+How to build one: [building-apps.md](building-apps.md).
+
+## Notifications
+
+The companion forwards the phone's notifications. On the glasses they appear in two places.
+
+<!-- media: notification-banner -->
+![A notification banner at the top of the HUD, over a web app](media/notification-banner.png)
+
+**The banner** shows at the top of the HUD over any app, for 6 seconds, and wakes the display.
+While it's up it takes the band's navigation:
+
+- index tap: open it in the inbox;
+- middle tap: dismiss it (a display it woke goes back to sleep);
+- two swipes down: snooze the banners for 15 minutes (the first swipe asks for the second);
+- other swipes stop at the banner instead of reaching the app behind it. Volume and the mapped
+  actions still work.
+
+A banner that woke the display turns it off again when it times out, unless you used the
+glasses meanwhile. **Darken behind the banner** (companion, Notifications tab) covers the HUD
+behind it with black, which the additive display shows as see-through, so only the
+notification stays.
+
+<!-- media: inbox -->
+![The notification inbox, grouped by app](media/inbox.png)
+
+**The inbox** is the grid's first item. It holds up to 50 notifications, grouped by app (the
+app with the newest one first, with its count). The index tap expands an app, then opens one
+notification in full; the middle tap goes back a level. A left swipe on a row shows the bin, a
+second one dismisses it (a whole app at the first level), on the glasses and in the phone's
+shade. The last row of the first level is the banners' snooze. The inbox and the banner follow
+the Meta Ray-Ban Display UI Toolkit's look.
+
+What the phone sends:
+
+- **News only.** The phone dates a notification by what it says (its newest message, else the
+  app's own time) and sends a banner only when that is under 3 minutes old and newer than what
+  it sent for that notification before. A messaging app re-posting old chats doesn't bring them
+  back as new.
+- **What stays on the phone:** ongoing notifications (music, navigation), foreground services,
+  group summaries, progress, transport, service and system notifications, notifications that
+  can't be cleared, and the apps you block (Notifications tab, **Blocked apps**).
+- **Privacy.** Content Android already redacted (a one-time code, say), a secret
+  notification's text, and every notification's text when **Hide the text** is on never leave
+  the phone: the glasses show the app and the title. A private notification (on Android 14 and
+  older) goes as its public version, as on the lock screen, or hidden when it has none.
+- **Banner only with the phone screen off** is on by default: with the phone's screen on, the
+  notification goes to the inbox only.
+- Notifications live in memory on both sides. They leave the inbox when they're removed on the
+  phone, and the inbox is resent in full when the link comes back.
+
+## Internet through the phone
+
+Online apps, and offline apps that ask for the internet (`lumen_internet`), get it in this
+order:
+
+1. A network that already has internet: a saved Wi-Fi in range, waited for up to 8 seconds.
+   The wait ends early when a scan shows no saved network in range.
+2. Otherwise the phone's. The companion opens a **local-only hotspot** (Android generates its
+   name and passphrase) and an **HTTP proxy** on the hotspot's address, which goes out over the
+   phone's own connection. The credentials come back over Rokid's link, the glasses join the
+   hotspot through the self-arm's shell, and both engines send their requests through the
+   proxy. The offline apps' loopback servers always go direct.
+
+The glasses ask the phone as soon as the saved-network wait starts, so the hotspot is often
+ready when the wait ends. Rokid's CXR link can delay or lose messages (right after the glasses
+boot, an answer took 33 seconds to arrive), so the glasses ask again every 10 seconds and wait
+up to 45 seconds. On the hotspot they check the proxy every 15 seconds and start over if it's
+gone, and renew the request every minute. 30 seconds after the last app that needs the
+internet closes, the glasses tell the phone, forget the hotspot and put the Wi-Fi back as it
+was. The phone closes everything by itself if the glasses stop renewing for 3 minutes.
+
+The proxy goes to the public internet only, and serves at most 64 connections at a time. See
+[security.md](security.md) for what it refuses.
+
+Without the self-arm the glasses can't join the hotspot, and the app says so.
+
+## Dictation
+
+<!-- media: composer -->
+![The dictation composer over a web app's text field](media/composer.png)
+
+Enter on a text field of a web app opens the **composer** instead of reaching the page. Focus
+alone never opens it. The Rokid firmware silences a third-party microphone on the glasses, so
+the companion streams the glasses' microphone over Rokid's CXR-L link (16 kHz mono) and
+transcribes it on the phone. The text goes into the field through `input` events, then
+`change` when the composer closes.
+
+In the composer: the index tap pauses or resumes, a left swipe deletes the last word, and the
+middle tap finishes. Finishing waits for the last words still being transcribed; a second
+middle tap closes at once.
+
+Listening is continuous. Audio reaches an engine only once someone speaks (with a 600 ms
+lead-in); a pause of the chosen **patience** (Quick 1.5 s, Normal 2.5 s, Patient 4 s) ends a
+sentence and sends it to the composer, and the next one starts. After 90 seconds with nobody
+speaking, the phone gives the microphone back.
+
+The engines, chosen in the companion (Settings, Dictation):
+
+| Engine | How | Needs |
+| --- | --- | --- |
+| Android recognizer (default) | The phone's recognizer, fed the glasses' audio; live text | The phone's microphone permission |
+| OpenAI GPT Realtime Whisper | Live text | An OpenAI API key |
+| OpenAI GPT-4o Transcribe, GPT-4o mini Transcribe | After each sentence | An OpenAI API key |
+| ElevenLabs Scribe v2 Realtime | Live text | An ElevenLabs API key |
+| ElevenLabs Scribe v2, Scribe v1 | After each sentence | An ElevenLabs API key |
+| Azure Speech to Text | After each sentence | An Azure key and region |
+| Vosk (offline) | On the phone, no internet; English or Portuguese small models | A one-time model download |
+
+- The cloud engines can be set to a language, or Auto. The Android recognizer picks its own.
+  Vosk has English and Portuguese models; on Auto it follows the phone's language, and any
+  other language uses English.
+- API keys are encrypted on the phone with an AndroidKeyStore key and never leave it.
+- Vosk's models are downloaded from alphacephei.com on first use and checked against a pinned
+  SHA-256 before they're used.
+
+## The companion
+
+<!-- media: companion-apps -->
+![The companion's Apps tab: the grid preview and the list in the HUD's order](media/companion-apps.png)
+
+Rokid Lumen Companion talks to the glasses through Rokid's own link (CXR-L on the phone,
+authorized in Hi Rokid; CXR-S on the glasses), so no extra Bluetooth pairing is needed. Its
+tabs:
+
+- **Home**: the link to the glasses (authorize, reconnect, stop), what's on the glasses, and
+  the state of dictation and notifications.
+- **Apps**: a small preview of the HUD's grid over the grid as a list, in the HUD's order.
+  Drag a row to reorder it, take an app off the grid, or open its details: what it still
+  needs ("Set up"), its settings, its engine, deleting it. **Add** a web app by address (HTTPS)
+  or an offline package by address (a `.mrbd.zip`; the glasses download it, through the phone's
+  internet when they have none). A secret setting shows only whether it's set: its value stays
+  on the glasses.
+- **Band**: the band's state (connection, battery, charging), the glasses' gestures and band
+  settings, which device the band controls, and the gestures on the phone.
+- **Notifications**: send to the glasses or not, banner only with the phone screen off, hide
+  the text, darken behind the banner, snooze, blocked apps, notification access, a test
+  notification.
+- **Settings**: the Hi Rokid authorization, the dictation engine, its language, patience and
+  key, the offline voice model, and the version.
+
+### The band on the phone
+
+The band talks to one device at a time. The Band tab shows which one it controls and hands it
+over: **Use on this phone** (the glasses let go and stay off the band until it's handed back)
+or **Use on the glasses**. A **Reconnect** on the glasses takes it back too. Hi Rokid can hold
+messages from the phone to the glasses for minutes, so the phone's buttons can be slow; a
+gesture on the glasses (an index double tap mapped to *Use the band on the phone*) is quick.
+
+On the phone each gesture is set in the Band tab: media (play or pause, next, previous),
+volume and mute, brightness, the flashlight, swipes on the screen, Back, Home, Recent apps,
+the arrow keys and Enter, opening an app, or *Use the band on the glasses*. Pinch and turn is
+the volume, the playback position or the brightness. The defaults are a media layout: swipe up
+and down change the track, the index tap plays or pauses, the middle double tap mutes. The
+screen actions, arrow keys and opening apps need the companion's accessibility service (it
+performs gestures only and reads nothing on the screen); brightness needs *Modify system
+settings*. The phone needs the band's key, imported from a file in the Band tab.

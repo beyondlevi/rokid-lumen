@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
+
+    <!-- The band: finding it by its advertised name (no location), then GATT and L2CAP. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.ACCESS_COARSE_LOCATION"
+        android:maxSdkVersion="30" />
+    <!-- Waking the display on band input. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Self-arm: Wireless Debugging over local ADB loopback (127.0.0.1), Wi-Fi on only while it runs. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <!-- Granted by the self-arm over ADB: USB debugging on at boot, accessibility repair. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Dictation in the web app composer (offline, Vosk): the page never gets the microphone. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- No POST_NOTIFICATIONS and no foreground service: notifications don't reach the HUD, so
+         the band link lives in the accessibility service (as R08 Access Bridge keeps its ring). -->
+
+    <permission
+        android:name="dev.lumen.glasses.permission.INTERNAL_COMMAND"
+        android:protectionLevel="signature" />
+
+    <uses-permission android:name="dev.lumen.glasses.permission.INTERNAL_COMMAND" />
+
+    <!-- The apps a gesture can open: anything with a launcher icon. -->
+    <queries>
+        <!-- Web apps' speech (speechSynthesis) through the installed TextToSpeech engine. -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <!-- Rokid Nexus: the self-arm stays off where it manages ADB (NexusGuard). -->
+        <package android:name="com.anezium.rokidbus.glasses" />
+        <!-- The self-arm reads Settings' own labels, in the device's language (SettingsLabels). -->
+        <package android:name="com.android.settings" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/full_backup_content"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@style/AppTheme"
+        android:supportsRtl="true"
+        tools:targetApi="s">
+
+        <!-- The glasses' own settings, opened from the grid's last item. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/settings_title"
+            android:taskAffinity="dev.lumen.glasses.apps"
+            android:screenOrientation="portrait"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
+
+        <!-- The app's home and its one icon on the Rokid launcher: the apps grid. -->
+        <activity
+            android:name=".LauncherActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:launchMode="singleTask"
+            android:taskAffinity="dev.lumen.glasses.apps"
+            android:screenOrientation="portrait"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Installs asked for from outside (adb, another app on the glasses) or by a page's
+             navigator.install(): shows what would be installed and installs only when the user
+             activates Install. The phone companion's installs (GridApi) don't come here. -->
+        <activity
+            android:name=".InstallConfirmActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity="dev.lumen.glasses.apps"
+            android:screenOrientation="portrait"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity">
+            <!-- An offline package: adb shell am start -n dev.lumen.glasses/.InstallConfirmActivity
+                 -a dev.lumen.glasses.INSTALL_PACKAGE -d https://…/app.mrbd.zip -->
+            <intent-filter tools:ignore="AppLinkUrlError">
+                <action android:name="dev.lumen.glasses.INSTALL_PACKAGE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="https" />
+            </intent-filter>
+            <!-- An online app: adb shell am start -n dev.lumen.glasses/.InstallConfirmActivity
+                 -a android.intent.action.VIEW -d https://… Not BROWSABLE on purpose: only
+                 explicit intents reach it, so it never takes over the glasses' ordinary links. -->
+            <intent-filter tools:ignore="AppLinkUrlError">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="https" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".NotificationInboxActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:taskAffinity="dev.lumen.glasses.apps"
+            android:screenOrientation="portrait"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
+
+        <!-- Meta Ray-Ban Display web apps, opened from the grid (an app of the library, by id).
+             Not exported: adding one goes through InstallConfirmActivity. -->
+        <activity
+            android:name=".WebAppActivity"
+            android:exported="false"
+            android:taskAffinity="dev.lumen.glasses.apps"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
+
+
+        <activity
+            android:name=".BridgeCommandActivity"
+            android:exported="true"
+            android:permission="dev.lumen.glasses.permission.INTERNAL_COMMAND"
+            android:theme="@style/AppTheme" />
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name=".BandAccessibilityService"
+            android:exported="true"
+            android:label="@string/service_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/band_accessibility_service" />
+        </service>
+    </application>
+</manifest>

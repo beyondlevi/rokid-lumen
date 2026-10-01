@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="identity_no_folder">A pasta do app não está disponível</string>
+    <string name="identity_no_file">Nenhum arquivo da banda em %1$s</string>
+    <string name="identity_unreadable">Não consegui ler o arquivo da banda (adb shell chmod 644 nele): %1$s</string>
+    <string name="identity_too_new">Esse arquivo da banda é da versão %1$d, mais nova do que este app entende; atualize o app</string>
+    <string name="identity_no_version">Esse arquivo da banda não tem uma versão utilizável</string>
+    <string name="identity_not_band_file">Esse não é um arquivo de banda do air-gestures</string>
+    <string name="identity_key_unreadable">A chave do dono nesse arquivo da banda não é legível</string>
+    <string name="identity_no_key">Nenhuma chave do dono nos arquivos (air-gestures-band.json ou owner.key)</string>
+    <string name="identity_bad_key_size">Essa não é uma chave do dono utilizável (%1$d bytes)</string>
+    <string name="identity_bad_key">Essa não é uma chave do dono utilizável: %1$s</string>
+    <string name="identity_imported">Chave do dono importada</string>
+    <string name="identity_imported_band">Chave do dono e banda importadas</string>
+</resources>

@@ -1,0 +1,134 @@
+package dev.lumen.glasses;
+
+import android.content.Context;
+import android.system.ErrnoException;
+import android.system.Os;
+import android.system.OsConstants;
+import android.util.Log;
+
+
+import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+
+final class PrivilegedShortcutBridge {
+    private static final String TAG = "BandPrivBridge";
+    private static final long ARMED_HEARTBEAT_TTL_MS = 15000L;
+    private static final byte[] DOORBELL_SIGNAL = new byte[] {(byte) '\n'};
+
+    private PrivilegedShortcutBridge() {
+    }
+
+    static boolean ensureReady(Context context) {
+        File dir = bridgeDir(context);
+        return dir != null && ensureDir(dir) && ensureRequestFile(dir);
+    }
+
+    static boolean requestHiRokidShortcut(Context context) {
+        if (!writeRequest(context, BridgeProtocol.COMMAND_SHORTCUT)) {
+            return false;
+        }
+        ringDoorbell(context);
+        return true;
+    }
+
+    static boolean requestWifiEnabled(Context context, boolean enabled) {
+        return writeRequest(context, enabled
+                ? BridgeProtocol.COMMAND_WIFI_ENABLE
+                : BridgeProtocol.COMMAND_WIFI_DISABLE);
+    }
+
+    private static boolean writeRequest(Context context, String command) {
+        File dir = bridgeDir(context);
+        if (dir == null || !ensureDir(dir)) {
+            Log.w(TAG, "Bridge directory unavailable");
+            return false;
+        }
+        File request = new File(dir, BridgeProtocol.REQUEST_FILE);
+        String token = command + ":" + System.currentTimeMillis();
+        try (FileOutputStream output = new FileOutputStream(request, false)) {
+            output.write(token.getBytes(StandardCharsets.UTF_8));
+            output.write('\n');
+            output.flush();
+            Log.d(TAG, "Requested privileged command=" + command);
+            return true;
+        } catch (IOException e) {
+            Log.w(TAG, "Failed to write bridge request", e);
+            return false;
+        }
+    }
+
+    private static void ringDoorbell(Context context) {
+        File dir = bridgeDir(context);
+        if (dir == null) {
+            return;
+        }
+        File doorbell = new File(dir, BridgeProtocol.DOORBELL_FILE);
+        if (!doorbell.exists()) {
+            return;
+        }
+
+        FileDescriptor descriptor = null;
+        try {
+            descriptor = Os.open(doorbell.getAbsolutePath(),
+                    OsConstants.O_WRONLY | OsConstants.O_NONBLOCK, 0);
+            Os.write(descriptor, DOORBELL_SIGNAL, 0, DOORBELL_SIGNAL.length);
+        } catch (ErrnoException | IOException | RuntimeException ignored) {
+            // Best effort only: the bridge may be stopped, missing, or between waits.
+        } finally {
+            if (descriptor != null) {
+                try {
+                    Os.close(descriptor);
+                } catch (ErrnoException ignored) {
+                    // Best effort only.
+                }
+            }
+        }
+    }
+
+    static boolean isArmed(Context context) {
+        File dir = bridgeDir(context);
+        if (dir == null) {
+            return false;
+        }
+        File heartbeat = new File(dir, BridgeProtocol.HEARTBEAT_FILE);
+        long ageMs = System.currentTimeMillis() - heartbeat.lastModified();
+        return heartbeat.isFile() && ageMs >= 0L && ageMs <= ARMED_HEARTBEAT_TTL_MS;
+    }
+
+    static String bridgeDirPath(Context context) {
+        File dir = bridgeDir(context);
+        return dir == null ? "" : dir.getAbsolutePath();
+    }
+
+    private static File bridgeDir(Context context) {
+        File root = context.getExternalFilesDir(null);
+        if (root == null) {
+            return null;
+        }
+        return new File(root, BridgeProtocol.BRIDGE_DIR_NAME);
+    }
+
+    private static boolean ensureDir(File dir) {
+        return dir.isDirectory() || dir.mkdirs();
+    }
+
+    private static boolean ensureRequestFile(File dir) {
+        File request = new File(dir, BridgeProtocol.REQUEST_FILE);
+        try {
+            if (!request.isFile()) {
+                try (FileOutputStream ignored = new FileOutputStream(request, true)) {
+                    // Create the app-owned request file before the shell bridge starts.
+                }
+            }
+            request.setReadable(true, false);
+            request.setWritable(true, false);
+            return true;
+        } catch (IOException exception) {
+            Log.w(TAG, "Failed to prepare bridge request file", exception);
+            return false;
+        }
+    }
+}

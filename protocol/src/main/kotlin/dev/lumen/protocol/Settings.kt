@@ -1,0 +1,178 @@
+package dev.lumen.protocol
+
+import org.json.JSONArray
+import org.json.JSONObject
+
+/**
+ * The glasses' settings, edited from the phone. The glasses describe what they have (a schema
+ * of typed settings and actions, with values), the phone draws it and sends changes back: a
+ * setting the glasses add later shows up on the phone without a companion update.
+ *
+ *   phone → glasses   [Link.SETTINGS]        {op: describe} | {op: set, key, value} | {op: action, name}, each a request (id)
+ *   glasses → phone   [Link.SETTINGS_EVENT]  {type: schema, settings, actions, status} (the answer to describe, and after a change)
+ *                                            {type: result, ok, key|name, error?} (the answer to set and action)
+ *                                            {type: status, status} (whenever the band's status changes)
+ *
+ * Labels travel in English as a fallback: the phone shows its own translation for a known key
+ * and the glasses' label for one it doesn't know yet.
+ */
+object SettingsOps {
+    const val DESCRIBE = "describe"
+    const val SET = "set"
+    const val ACTION = "action"
+
+    /**
+     * The band talks to one device at a time. [ACTION_TO_PHONE]: the glasses let it go and
+     * stay off it (a restart included) while the phone uses it; [ACTION_TO_GLASSES]: they take
+     * it back (the phone lets go first). The glasses' status says which ([BandStatus.onPhone]).
+     */
+    const val ACTION_TO_PHONE = "to_phone"
+    const val ACTION_TO_GLASSES = "to_glasses"
+
+    @JvmStatic
+    fun describe(): JSONObject = Link.request().put("op", DESCRIBE)
+
+    @JvmStatic
+    fun set(key: String, value: String): JSONObject = Link.request().put("op", SET).put("key", key).put("value", value)
+
+    @JvmStatic
+    fun action(name: String): JSONObject = Link.request().put("op", ACTION).put("name", name)
+}
+
+/** One choice of a [Setting.Kind.CHOICE] setting. */
+data class SettingOption(val id: String, val label: String) {
+    fun toJson(): JSONObject = JSONObject().put("id", id).put("label", label)
+
+    companion object {
+        fun from(json: JSONObject) = SettingOption(json.optString("id"), json.optString("label"))
+    }
+}
+
+/**
+ * A setting: a [Kind.CHOICE] among [options] or an on/off [Kind.TOGGLE] ("true"/"false"). A
+ * setting with [visibleWhen] shows only while that other setting has that value.
+ */
+data class Setting(
+    val key: String,
+    val kind: Kind,
+    val label: String,
+    val value: String,
+    val options: List<SettingOption> = emptyList(),
+    val section: String = "",
+    val visibleWhen: Pair<String, String>? = null,
+) {
+    enum class Kind(val id: String) {
+        CHOICE("choice"), TOGGLE("toggle");
+
+        companion object {
+            fun of(id: String) = entries.firstOrNull { it.id == id } ?: CHOICE
+        }
+    }
+
+    val checked: Boolean get() = value == "true"
+
+    fun isVisible(all: List<Setting>): Boolean {
+        val (key, value) = visibleWhen ?: return true
+        return all.firstOrNull { it.key == key }?.value == value
+    }
+
+    fun toJson(): JSONObject = JSONObject().put("key", key).put("kind", kind.id).put("label", label).put("value", value)
+        .put("section", section)
+        .put("options", JSONArray().apply { options.forEach { put(it.toJson()) } })
+        .apply { visibleWhen?.let { put("visibleWhen", JSONObject().put("key", it.first).put("value", it.second)) } }
+
+    companion object {
+        fun from(json: JSONObject): Setting {
+            val options = json.optJSONArray("options")
+            val visible = json.optJSONObject("visibleWhen")
+            return Setting(
+                key = json.optString("key"),
+                kind = Kind.of(json.optString("kind")),
+                label = json.optString("label"),
+                value = json.optString("value"),
+                options = (0 until (options?.length() ?: 0)).map { SettingOption.from(options!!.getJSONObject(it)) },
+                section = json.optString("section"),
+                visibleWhen = visible?.let { it.optString("key") to it.optString("value") },
+            )
+        }
+    }
+}
+
+/** Something to do rather than a value to set (reconnect, forget); [destructive] asks first. */
+data class SettingsAction(val name: String, val label: String, val destructive: Boolean = false) {
+    fun toJson(): JSONObject = JSONObject().put("name", name).put("label", label).put("destructive", destructive)
+
+    companion object {
+        fun from(json: JSONObject) = SettingsAction(json.optString("name"), json.optString("label"), json.optBoolean("destructive"))
+    }
+}
+
+/** The band as the glasses see it; [battery] is -1 until the band reports it. */
+data class BandStatus(
+    val phase: String = PHASE_STOPPED,
+    val name: String = "",
+    val battery: Int = -1,
+    val charging: Boolean = false,
+    val paused: Boolean = false,
+    /** The band is with the phone ([SettingsOps.ACTION_TO_PHONE]): the glasses leave it alone. */
+    val onPhone: Boolean = false,
+) {
+    val connected: Boolean get() = phase == PHASE_CONNECTED
+
+    fun toJson(): JSONObject = JSONObject().put("phase", phase).put("name", name).put("battery", battery)
+        .put("charging", charging).put("paused", paused).put("on_phone", onPhone)
+
+    companion object {
+        const val PHASE_STOPPED = "stopped"
+        const val PHASE_SEARCHING = "searching"
+        const val PHASE_CONNECTING = "connecting"
+        const val PHASE_CONNECTED = "connected"
+
+        fun from(json: JSONObject?) = if (json == null) BandStatus() else BandStatus(
+            json.optString("phase", PHASE_STOPPED),
+            json.optString("name"),
+            json.optInt("battery", -1),
+            json.optBoolean("charging"),
+            json.optBoolean("paused"),
+            json.optBoolean("on_phone"),
+        )
+    }
+}
+
+/** What arrives on [Link.SETTINGS_EVENT]. */
+sealed class SettingsEvent {
+    data class Schema(val settings: List<Setting>, val actions: List<SettingsAction>, val status: BandStatus) : SettingsEvent() {
+        fun toJson(request: JSONObject? = null): JSONObject = (request?.let { Link.reply(it) } ?: Link.message()).put("type", "schema")
+            .put("settings", JSONArray().apply { settings.forEach { put(it.toJson()) } })
+            .put("actions", JSONArray().apply { actions.forEach { put(it.toJson()) } })
+            .put("status", status.toJson())
+    }
+
+    /** The answer to a set or an action; [error] explains a refusal. */
+    data class Result(val ok: Boolean, val subject: String, val error: String = "") : SettingsEvent() {
+        fun toJson(request: JSONObject): JSONObject = Link.reply(request).put("type", "result").put("ok", ok)
+            .put("subject", subject).put("error", error)
+    }
+
+    data class Status(val status: BandStatus) : SettingsEvent() {
+        fun toJson(): JSONObject = Link.message().put("type", "status").put("status", status.toJson())
+    }
+
+    companion object {
+        @JvmStatic
+        fun from(json: JSONObject): SettingsEvent? = when (json.optString("type")) {
+            "schema" -> {
+                val settings = json.optJSONArray("settings")
+                val actions = json.optJSONArray("actions")
+                Schema(
+                    (0 until (settings?.length() ?: 0)).map { Setting.from(settings!!.getJSONObject(it)) },
+                    (0 until (actions?.length() ?: 0)).map { SettingsAction.from(actions!!.getJSONObject(it)) },
+                    BandStatus.from(json.optJSONObject("status")),
+                )
+            }
+            "result" -> Result(json.optBoolean("ok"), json.optString("subject"), json.optString("error"))
+            "status" -> Status(BandStatus.from(json.optJSONObject("status")))
+            else -> null
+        }
+    }
+}

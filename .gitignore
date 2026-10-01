@@ -1,0 +1,30 @@
+/local.properties
+/.gradle/
+/build/
+/app/build/
+/band/src/main/jniLibs/
+/band/build/
+/rust/target/
+/identity/
+*.apk
+/phone/build/
+/protocol/build/
+
+# IDEs and OS
+.idea/
+*.iml
+.kotlin/
+.DS_Store
+.cxx/
+
+# Signing, device and personal files: never commit
+*.jks
+*.keystore
+owner.key
+owner.pending.key
+*band.json
+*.pcm
+
+# Build artefacts
+*.aab
+*.mrbd.zip

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="identity_no_folder">The app\'s folder isn\'t available</string>
+    <string name="identity_no_file">No band file in %1$s</string>
+    <string name="identity_unreadable">Can\'t read the band file (adb shell chmod 644 it): %1$s</string>
+    <string name="identity_too_new">That band file is version %1$d, newer than this app understands; update the app</string>
+    <string name="identity_no_version">That band file has no usable version</string>
+    <string name="identity_not_band_file">That isn\'t an air-gestures band file</string>
+    <string name="identity_key_unreadable">That band file\'s owner key isn\'t readable</string>
+    <string name="identity_no_key">No owner key among the files (air-gestures-band.json, or owner.key)</string>
+    <string name="identity_bad_key_size">That isn\'t a usable owner key (%1$d bytes)</string>
+    <string name="identity_bad_key">That isn\'t a usable owner key: %1$s</string>
+    <string name="identity_imported">Imported the owner key</string>
+    <string name="identity_imported_band">Imported the owner key and band</string>
+</resources>

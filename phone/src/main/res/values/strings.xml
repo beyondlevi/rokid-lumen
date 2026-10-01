@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">Rokid Lumen Companion</string>
+
+    <!-- Tabs -->
+    <string name="tab_home">Home</string>
+    <string name="tab_notifications">Notifications</string>
+    <string name="tab_settings">Settings</string>
+
+    <!-- Home -->
+    <string name="home_title" translatable="false">Rokid Lumen</string>
+    <string name="home_subtitle">Your glasses and your phone</string>
+    <string name="home_glasses">Rokid glasses</string>
+    <string name="home_now">On the glasses</string>
+    <string name="home_dictation">Dictation</string>
+    <string name="home_notifications_on">Sent to the glasses</string>
+    <string name="home_notifications_off">Not sent to the glasses</string>
+    <string name="home_notifications_no_access">Notification access not allowed yet</string>
+    <string name="action_reconnect">Reconnect</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_authorize">Authorize in Hi Rokid</string>
+
+    <!-- Link states -->
+    <string name="link_stopped">Stopped</string>
+    <string name="link_not_authorized">Authorize in Hi Rokid first</string>
+    <string name="link_connecting">Connecting to Hi Rokid…</string>
+    <string name="link_refused">Hi Rokid refused the connection (authorize again)</string>
+    <string name="link_hi_rokid_connected">Connected to Hi Rokid</string>
+    <string name="link_hi_rokid_disconnected">Hi Rokid disconnected</string>
+    <string name="link_glasses_connected">Glasses connected</string>
+    <string name="link_glasses_disconnected">Glasses disconnected</string>
+    <string name="link_session_ready">Connected through Hi Rokid</string>
+    <string name="link_session_active">Connected, app in front on the glasses</string>
+    <string name="link_session_paused">Connected, app paused on the glasses</string>
+    <string name="link_session_unavailable">Glasses app unavailable</string>
+    <string name="link_dictating">Dictating</string>
+
+    <!-- Notifications -->
+    <string name="notifications_title">Notifications</string>
+    <string name="notifications_subtitle">What from the phone shows on the glasses</string>
+    <string name="notifications_send">Send notifications to the glasses</string>
+    <string name="notifications_banner_screen_off">Banner only with the phone screen off</string>
+    <string name="notifications_banner_screen_off_hint">With the screen on, only in the inbox</string>
+    <string name="notifications_hide_text">Hide the text</string>
+    <string name="notifications_hide_text_hint">Shows only the app and the title</string>
+    <string name="notifications_snooze">Snooze banners</string>
+    <string name="notifications_snooze_hint">No banners on the glasses for 15 min; the inbox still gets everything. Also two swipes down on a banner</string>
+    <string name="notifications_snooze_until">Snoozed until %1$s</string>
+    <string name="notifications_focus">Darken behind the banner</string>
+    <string name="notifications_focus_hint">The app on the glasses fades out while a notification shows, leaving only its text</string>
+    <string name="notifications_apps">Apps</string>
+    <string name="notifications_blocked">Blocked apps</string>
+    <string name="notifications_blocked_hint">These never go to the glasses</string>
+    <string name="notifications_blocked_dialog">Don\'t send to the glasses</string>
+    <string name="notifications_none_seen">No app has posted a notification yet</string>
+    <string name="notifications_access">Notification access</string>
+    <string name="notifications_access_granted">Allowed</string>
+    <string name="notifications_access_missing">Allow</string>
+    <string name="notifications_test">Send a test notification</string>
+    <string name="notifications_test_sent">Test notification sent</string>
+    <string name="notifications_test_needs_access">Allow notification access first</string>
+    <string name="notifications_test_channel">Test</string>
+    <string name="notifications_test_title">%1$s test</string>
+    <string name="notifications_test_text">If you can read this on the glasses, notifications get there.</string>
+    <plurals name="notifications_blocked_count">
+        <item quantity="one">%d app</item>
+        <item quantity="other">%d apps</item>
+    </plurals>
+    <string name="notifications_blocked_none">None</string>
+    <string name="ok">OK</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_link">Link to the glasses</string>
+    <string name="settings_hi_rokid" translatable="false">Hi Rokid</string>
+    <string name="settings_hi_rokid_hint">The bridge between the phone and the glasses</string>
+    <string name="settings_authorized">Authorized</string>
+    <string name="settings_not_authorized">Not authorized</string>
+    <string name="settings_authorize_again">Authorize again</string>
+    <string name="settings_dictation">Dictation</string>
+    <string name="settings_voice_model_hint">Vosk, %1$s · runs on the phone</string>
+    <string name="settings_downloaded">Downloaded</string>
+    <string name="settings_download">Download</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version %1$s</string>
+
+    <!-- Authorization -->
+    <string name="auth_hi_rokid_missing">Hi Rokid not found; trying anyway</string>
+    <string name="auth_no_answer">Hi Rokid didn\'t answer the authorization</string>
+    <string name="auth_done">Authorized</string>
+    <string name="auth_failed">Authorization not completed: sign in to Hi Rokid and try again</string>
+
+    <!-- Voice model -->
+    <string name="model_downloading">Downloading the voice model… %1$d%%</string>
+    <string name="model_loading">Loading the voice model…</string>
+    <string name="model_ready">Voice model ready</string>
+    <string name="model_error">Voice model: %1$s</string>
+
+    <!-- Sent to the glasses (shown there) -->
+    <string name="dictation_error_mic">Glasses microphone: %1$s</string>
+    <string name="dictation_error_no_link">No connection to Hi Rokid</string>
+    <string name="dictation_error_no_model">Voice model unavailable</string>
+    <string name="dictation_error_mic_refused">The glasses didn\'t open the microphone</string>
+    <string name="net_error_nearby">Allow \"Nearby devices\" in the companion</string>
+    <string name="net_error_unavailable">Local network unavailable: %1$s</string>
+    <string name="net_error_no_address">Local network without an address</string>
+    <string name="net_error_no_password">Local network without a password</string>
+    <string name="net_error_proxy">The proxy didn\'t open: %1$s</string>
+    <string name="net_error_incompatible">The phone can\'t open the local network now (hotspot on?)</string>
+    <string name="net_error_disallowed">The phone doesn\'t allow a local network</string>
+    <string name="net_error_no_channel">No free Wi-Fi channel for the local network</string>
+    <string name="net_error_failed">Local network failed (%1$d)</string>
+
+    <!-- Foreground notification -->
+    <string name="service_channel">Link to the glasses</string>
+    <string name="service_text">Dictation, notifications and internet for the glasses</string>
+
+    <!-- Band -->
+    <string name="tab_band">Band</string>
+    <string name="band_title" translatable="false">Meta Neural Band</string>
+    <string name="band_subtitle">The controller for the glasses and this phone</string>
+    <string name="band_battery" translatable="false">%1$d%%</string>
+    <string name="band_charging">Charging</string>
+    <string name="touch_service_label">Rokid Lumen: band gestures</string>
+    <string name="touch_service_description">Lets the Meta Neural Band swipe, go Back or Home, press the arrow keys and open apps on this phone. It performs gestures only and reads nothing on the screen.</string>
+    <string name="band_device_title">Controlling</string>
+    <string name="band_device_glasses">The glasses</string>
+    <string name="band_device_phone">This phone</string>
+    <string name="band_device_hint">The band connects to one device at a time.</string>
+    <string name="band_use_phone">Use on this phone</string>
+    <string name="band_use_glasses">Use on the glasses</string>
+    <string name="band_key_missing">To use the band on this phone, import its key: the air-gestures-band.json file exported by the original phone app or the Linux app.</string>
+    <string name="band_import_key">Import the key</string>
+    <string name="band_bluetooth_missing">Allow Bluetooth so this phone can connect to the band.</string>
+    <string name="band_allow_bluetooth">Allow Bluetooth</string>
+    <string name="band_paused">Paused</string>
+    <string name="band_waiting">Waiting for the glasses…</string>
+    <string name="band_waiting_hint">The band\'s settings come from the glasses: open the glasses and keep this phone connected.</string>
+    <string name="band_refused">The glasses didn\'t apply it: %1$s</string>
+    <string name="band_not_chosen">Not chosen</string>
+    <string name="band_forget_title">Forget the band?</string>
+    <string name="band_forget_text">The glasses stop connecting to it until you pair it again.</string>
+    <string name="cancel">Cancel</string>
+    <string name="band_phase_stopped">Off</string>
+    <string name="band_phase_searching">Looking for the band</string>
+    <string name="band_phase_connecting">Connecting</string>
+    <string name="band_phase_connected">Connected</string>
+    <string name="band_section_gestures">Gestures on the glasses</string>
+    <string name="band_section_phone">Gestures on this phone</string>
+    <string name="band_option_to_phone">Use the band on the phone</string>
+    <string name="phone_gesture_swipe_up">Swipe up</string>
+    <string name="phone_gesture_swipe_down">Swipe down</string>
+    <string name="phone_gesture_swipe_left">Swipe left</string>
+    <string name="phone_gesture_swipe_right">Swipe right</string>
+    <string name="phone_gesture_index_tap">Index tap</string>
+    <string name="phone_gesture_middle_tap">Middle tap</string>
+    <string name="phone_action_next">Next track</string>
+    <string name="phone_action_previous">Previous track</string>
+    <string name="phone_action_volume_up">Volume up</string>
+    <string name="phone_action_volume_down">Volume down</string>
+    <string name="phone_action_mute">Mute</string>
+    <string name="phone_action_swipe_up">Swipe up on screen</string>
+    <string name="phone_action_swipe_down">Swipe down on screen</string>
+    <string name="phone_action_swipe_left">Swipe left on screen</string>
+    <string name="phone_action_swipe_right">Swipe right on screen</string>
+    <string name="phone_action_home">Home screen</string>
+    <string name="phone_action_recents">Recent apps</string>
+    <string name="phone_action_arrow_up">Arrow up</string>
+    <string name="phone_action_arrow_down">Arrow down</string>
+    <string name="phone_action_arrow_left">Arrow left</string>
+    <string name="phone_action_arrow_right">Arrow right</string>
+    <string name="phone_action_enter">Enter (select)</string>
+    <string name="phone_action_brightness_up">Brightness up</string>
+    <string name="phone_action_brightness_down">Brightness down</string>
+    <string name="phone_action_torch">Flashlight on or off</string>
+    <string name="phone_action_to_glasses">Use the band on the glasses</string>
+    <string name="phone_dial_seek">Playback position</string>
+    <string name="phone_dial_brightness">Brightness</string>
+    <string name="phone_touch">Screen gestures</string>
+    <string name="phone_touch_hint">Swipes on the screen, Back, Home, arrow keys and opening apps need this accessibility service</string>
+    <string name="phone_touch_on">On</string>
+    <string name="phone_touch_off">Off</string>
+    <string name="phone_brightness">Change the brightness</string>
+    <string name="phone_brightness_hint">Brightness steps need \"Modify system settings\"</string>
+    <string name="phone_allowed">Allowed</string>
+    <string name="phone_not_allowed">Not allowed</string>
+    <string name="band_section_band">Band</string>
+    <string name="band_setting_index_double">Index double tap</string>
+    <string name="band_setting_middle_double">Middle double tap</string>
+    <string name="band_setting_app">App to open</string>
+    <string name="band_setting_dial">Pinch and turn</string>
+    <string name="band_setting_navigation">Navigation</string>
+    <string name="band_setting_hand">Wrist</string>
+    <string name="band_setting_paused">Pause the band</string>
+    <string name="band_option_none">No action</string>
+    <string name="band_option_back">Back</string>
+    <string name="band_option_home">Home</string>
+    <string name="band_option_play_pause">Play or pause</string>
+    <string name="band_option_launch_app">Open an app</string>
+    <string name="band_option_open_apps_grid" translatable="false">Lumen Apps</string>
+    <string name="band_option_ai_assist" translatable="false">Rokid AI</string>
+    <string name="band_option_hi_rokid_shortcut">Hi Rokid shortcut</string>
+    <string name="band_option_take_photo">Take a photo</string>
+    <string name="band_option_toggle_video">Start or stop a video</string>
+    <string name="band_option_ar_screenshot">AR screenshot</string>
+    <string name="band_option_toggle_ar_record">Start or stop an AR video</string>
+    <string name="band_option_volume">Volume</string>
+    <string name="band_option_navigation">Navigation</string>
+    <string name="band_option_stable">Stable</string>
+    <string name="band_option_fast">Fast</string>
+    <string name="band_option_hand_band">As on the band</string>
+    <string name="band_option_left">Left</string>
+    <string name="band_option_right">Right</string>
+    <string name="band_action_reconnect">Reconnect the band</string>
+    <string name="band_action_forget">Forget the band</string>
+    <string name="band_setting_launcher_battery">Battery on the Rokid launcher</string>
+    <string name="band_setting_power_saving">Band power saving</string>
+    <string name="apps_title">Glasses apps</string>
+    <plurals name="apps_count_grid">
+        <item quantity="one">%1$d on the grid</item>
+        <item quantity="other">%1$d on the grid</item>
+    </plurals>
+    <plurals name="apps_count_available">
+        <item quantity="one">%1$d available</item>
+        <item quantity="other">%1$d available</item>
+    </plurals>
+    <string name="apps_preview">How it looks on the glasses</string>
+    <string name="apps_page_of">Page %1$d of %2$d</string>
+    <string name="apps_on_grid">On the grid</string>
+    <string name="apps_drag_hint">Hold and drag to reorder</string>
+    <string name="apps_reorder">Reorder %1$s</string>
+    <string name="apps_needs_setup">Set up</string>
+    <string name="apps_missing_config">Missing for the app to work: %1$s</string>
+    <string name="apps_config_count">%1$d of %2$d</string>
+    <string name="apps_config_set_secret">Set · kept on the glasses only</string>
+    <string name="apps_meta_web_offline">Web · Offline</string>
+    <string name="apps_meta_web_online">Web · Online</string>
+    <string name="apps_engine_hint">GeckoView is newer; the system WebView is the glasses\' Chromium 95.</string>
+    <string name="apps_pick_one">Pick an app on the list to see its settings.</string>
+    <string name="apps_close">Close</string>
+    <string name="apps_config">App settings</string>
+    <string name="apps_config_not_set">Not set</string>
+    <string name="apps_config_optional">Optional, not set</string>
+    <string name="apps_config_save">Save</string>
+    <string name="apps_config_clear">Clear</string>
+    <string name="apps_config_secret_hint">Kept on the glasses only: it can\'t be read back here.</string>
+    <string name="tab_apps">Apps</string>
+    <string name="apps_waiting_hint">The grid comes from the glasses: open the glasses and keep this phone connected.</string>
+    <string name="apps_engine">Engine</string>
+    <string name="apps_engine_system">System WebView</string>
+    <string name="apps_take_off">Take off the grid</string>
+    <string name="apps_delete">Delete the app</string>
+    <string name="apps_delete_title">Delete %1$s?</string>
+    <string name="apps_delete_text">It leaves the glasses, with its offline package if it has one.</string>
+    <string name="apps_add">Add</string>
+    <string name="apps_add_short">Add</string>
+    <string name="apps_add_web">Web app by address</string>
+    <string name="apps_add_web_hint">An online app, over HTTPS</string>
+    <string name="apps_add_package">Offline package</string>
+    <string name="apps_add_package_hint">A .mrbd.zip; runs without internet</string>
+    <string name="apps_package_sent">Package sent: the glasses download and install it</string>
+    <string name="apps_available">Available</string>
+    <string name="apps_kind_native">An Android app on the glasses</string>
+    <string name="apps_kind_native_short">Native</string>
+    <string name="apps_kind_web">A web app</string>
+    <string name="apps_kind_glasses">Part of the glasses</string>
+    <string name="apps_url">Address (https://…)</string>
+    <string name="apps_name_optional">Name (optional)</string>
+    <string name="apps_engine_gecko" translatable="false">GeckoView</string>
+
+    <!-- Dictation engines (Settings, Dictation). Product names stay in code. -->
+    <string name="speech_engine">Engine</string>
+    <string name="speech_language">Language</string>
+    <string name="speech_language_auto">Auto (the phone\'s language)</string>
+    <string name="speech_language_fixed">This engine picks the language itself. Choose a cloud engine to force one.</string>
+    <string name="speech_language_note_vosk">Offline models in English and Portuguese. Auto follows the phone\'s language; other languages use English.</string>
+    <string name="speech_language_note_pt">Azure and Android use Brazilian Portuguese (pt-BR).</string>
+    <string name="speech_patience">Patience</string>
+    <string name="speech_patience_hint">How long a pause can last before the sentence is taken as finished. Dictation keeps listening after it.</string>
+    <string name="speech_patience_quick">Quick</string>
+    <string name="speech_patience_normal">Normal</string>
+    <string name="speech_patience_patient">Patient</string>
+    <string name="speech_api_key">%1$s API key</string>
+    <string name="speech_key_saved">Saved · kept encrypted on this phone</string>
+    <string name="speech_key_missing">Not set: dictation needs it</string>
+    <string name="speech_key_hint">Paste your %1$s API key</string>
+    <string name="speech_key_save_failed">Couldn\'t save the key on this phone</string>
+    <string name="speech_azure_region">Azure region</string>
+    <string name="speech_azure_region_hint">For example westeurope</string>
+    <string name="speech_azure_region_invalid">That isn\'t a region name (letters, digits and dashes)</string>
+    <string name="speech_remove">Remove</string>
+    <string name="speech_allow_mic">Allow the microphone</string>
+    <string name="speech_allow_mic_hint">The Android recognizer needs it, even though it hears the glasses</string>
+    <string name="speech_ready">Ready</string>
+    <string name="speech_needs_setup">Set up</string>
+    <string name="speech_vosk_model">Offline voice model</string>
+    <string name="speech_vosk_description">Runs on the phone, no internet. English or Portuguese, the least accurate.</string>
+    <string name="speech_vosk_badges">Offline · No key · English, Portuguese</string>
+    <string name="speech_android_description">Works straight away: no account, no API key, nothing to pay.</string>
+    <string name="speech_android_badges">Live text · No key · Phone engine</string>
+    <string name="speech_openai_realtime_description">Best when you want words to appear while you speak.</string>
+    <string name="speech_openai_4o_description">Best accuracy for longer replies, after you finish speaking.</string>
+    <string name="speech_openai_4o_mini_description">Good everyday choice when cost matters more than top accuracy.</string>
+    <string name="speech_scribe_realtime_description">Best for live text with an ElevenLabs account.</string>
+    <string name="speech_scribe_v2_description">Balanced accuracy, after you stop speaking.</string>
+    <string name="speech_scribe_v1_description">Legacy option for older ElevenLabs setups.</string>
+    <string name="speech_azure_description">Transcribes after you finish speaking: no live text.</string>
+    <string name="speech_realtime_badges">Realtime · Low delay · Cloud audio</string>
+    <string name="speech_most_accurate_badges">After speaking · Most accurate · Cloud audio</string>
+    <string name="speech_lower_cost_badges">After speaking · Lower cost · Cloud audio</string>
+    <string name="speech_balanced_badges">After speaking · Balanced · Cloud audio</string>
+    <string name="speech_legacy_badges">After speaking · Legacy · Cloud audio</string>
+    <string name="speech_azure_badges">After speaking · Free 5 h a month · Cloud audio</string>
+    <string name="speech_error_missing_key">Add the %1$s API key in the companion (Settings, Dictation)</string>
+    <string name="speech_error_missing_region">Add the Azure region in the companion (Settings, Dictation)</string>
+    <string name="speech_error_missing_microphone">Allow the microphone for the companion (Settings, Dictation)</string>
+    <string name="speech_error_auth">%1$s rejected the API key</string>
+    <string name="speech_error_quota">%1$s: quota or rate limit reached</string>
+    <string name="speech_error_network">%1$s: no connection</string>
+    <string name="speech_error_timeout">%1$s took too long to answer</string>
+    <string name="speech_error_language">%1$s doesn\'t support this language</string>
+    <string name="speech_error_other">%1$s: %2$s</string>
+</resources>
