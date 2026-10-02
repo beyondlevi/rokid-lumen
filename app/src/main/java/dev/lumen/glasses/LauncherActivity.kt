@@ -101,30 +101,37 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         })
         setContentView(root)
 
-        tab = lastTab
-        openFromIntent(intent)
+        tab = requestedTab(intent) ?: lastTab
+        lastTab = tab
         showTab(tab, animate = false)
         setPillFocus(false, animate = false)
     }
 
-    /** A banner's notification ([EXTRA_KEY]), or a tab ([EXTRA_TAB]). */
-    private fun openFromIntent(intent: Intent?) {
-        intent ?: return
+    /**
+     * The tab [intent] asks for: a banner's notification ([EXTRA_KEY], which the Notifications
+     * tab opens in full) or a tab by name ([EXTRA_TAB]); null for none. It doesn't change [tab]:
+     * the caller shows the tab (a [tab] set here made the switch a no-op, measured on the glasses:
+     * a banner's notification opened over the Apps tab while every gesture went to the hidden
+     * Notifications page, so nothing answered).
+     */
+    private fun requestedTab(intent: Intent?): Int? {
+        intent ?: return null
+        var wanted: Int? = null
         intent.getStringExtra(EXTRA_KEY)?.let { key ->
-            tab = TAB_NOTIFICATIONS
             notifications.openKey(key)
+            wanted = TAB_NOTIFICATIONS
         }
         when (intent.getStringExtra(EXTRA_TAB)) {
-            TAB_NAME_NOTIFICATIONS -> tab = TAB_NOTIFICATIONS
-            TAB_NAME_APPS -> tab = TAB_APPS
+            TAB_NAME_NOTIFICATIONS -> wanted = TAB_NOTIFICATIONS
+            TAB_NAME_APPS -> wanted = TAB_APPS
         }
+        return wanted
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        val before = tab
-        openFromIntent(intent)
-        if (tab != before) switchTo(tab, intoPage = true)
+        val wanted = requestedTab(intent)
+        if (wanted != null && wanted != tab) switchTo(wanted, intoPage = true)
         else setPillFocus(false)
     }
 
