@@ -18,9 +18,10 @@ import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 
 /**
- * Reads the phone's notifications (view only: no replies, no actions) and forwards them to the
- * glasses through [CompanionService]'s CXR link, as Rokid Nexus's Relay does over its own bus.
- * Nothing is written to disk: the text goes straight to the link.
+ * Reads the phone's notifications and forwards them to the glasses through [CompanionService]'s
+ * CXR link, as Rokid Nexus's Relay does over its own bus; a reply from the glasses goes back
+ * through the notification's own reply action ([reply]). Nothing is written to disk: the text
+ * goes straight to the link.
  *
  *   post   {key, app, pkg, title, text, when, group, redacted, live, alert, focus, icon}
  *          (when: the time of what it says, [NotificationAlerts.contentTime]; live: news, not a
@@ -105,6 +106,36 @@ class NotificationForwarder : NotificationListenerService() {
             Log.d(TAG, "dismissed ${sent.size} from the glasses")
         }
 
+        /**
+         * A reply from the glasses, sent as typing it in the shade would: the notification's
+         * first action with a free-form RemoteInput (as Rokid Nexus's Relay picks it) gets [text]
+         * in every free-form input. Only notifications this listener sent to the glasses. The
+         * outcome goes back as [NotifyEvent.replied]; a reaction is its emoji, as text.
+         */
+        fun reply(context: Context, key: String, text: String) {
+            val ok = runCatching {
+                val listener = instance ?: error("no notification access")
+                if (forwarded.sentOf(listOf(key)).isEmpty()) error("never sent to the glasses")
+                val sbn = listener.activeNotifications.orEmpty().firstOrNull { it.key == key } ?: error("gone from the shade")
+                val action = replyAction(sbn.notification) ?: error("no reply action")
+                val results = android.os.Bundle()
+                val inputs = action.remoteInputs.orEmpty().filter { it.allowFreeFormInput }
+                inputs.forEach { results.putCharSequence(it.resultKey, text) }
+                val fill = android.content.Intent()
+                android.app.RemoteInput.addResultsToIntent(inputs.toTypedArray(), fill, results)
+                android.app.RemoteInput.setResultsSource(fill, android.app.RemoteInput.SOURCE_FREE_FORM_INPUT)
+                action.actionIntent.send(context, 0, fill)
+            }.onFailure { Log.w(TAG, "reply failed: ${it.message}") }.isSuccess
+            Log.d(TAG, "reply sent=$ok")
+            CompanionService.sendNotify(NotifyEvent.replied(key, ok))
+        }
+
+        /** The notification's reply action: the first with a free-form RemoteInput, or null. */
+        fun replyAction(notification: Notification): Notification.Action? =
+            notification.actions.orEmpty().firstOrNull { action ->
+                action.actionIntent != null && action.remoteInputs.orEmpty().any { it.allowFreeFormInput }
+            }
+
         /** The glasses' `sync`: resend all, if notification access is granted. */
         fun requestSync() {
             instance?.let { listener -> runCatching { listener.syncAll() }.onFailure { Log.w(TAG, "sync failed", it) } }
@@ -156,6 +187,10 @@ class NotificationForwarder : NotificationListenerService() {
                 .put("alert", news && !(CompanionPrefs.pauseWhileScreenOn(context) && screenOn))
                 .put("focus", CompanionPrefs.focusBanner(context))
                 .put("icon", appIcon(context, sbn.packageName))
+                // Answerable from the glasses (not while its text is hidden from them).
+                .put("reply", !hidden && replyAction(notification) != null)
+                // The conversation, for a web app that opens it (WhatsApp's is the chat's JID).
+                .put("shortcut", notification.shortcutId.orEmpty())
         }
 
         /**

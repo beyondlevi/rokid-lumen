@@ -18,6 +18,10 @@ data class PhoneNotification(
     val icon: Bitmap?,
     /** The phone asks the banner to black out the rest of the HUD, leaving only the notification. */
     val focus: Boolean = false,
+    /** It has a reply action on the phone: quick replies go through it ([NotificationReplies]). */
+    val replyable: Boolean = false,
+    /** The conversation's shortcut id on the phone ("" if none): WhatsApp's is the chat's JID. */
+    val shortcut: String = "",
 ) {
     companion object {
         /** The last [count] non-blank lines of [text] (a chat's last messages), oldest first. */

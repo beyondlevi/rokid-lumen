@@ -160,6 +160,24 @@ Lumen reads these fields and ignores the rest:
 | `icons` | The grid's icon: the largest PNG (`type` `image/png`, or no type), by the width in `sizes`. Its `src` must be inside the package. |
 | `lumen_internet` | `true` if the app needs the internet. It opens at once, and the internet comes up behind it (the phone's when the glasses have none). |
 | `lumen_config` | The settings the app needs, filled in from the companion's Apps tab. |
+| `lumen_notifications` | The phone notifications the app opens: an open notification on the glasses offers the app's icon first, and opens the app at the page it names. |
+
+Each `lumen_notifications` entry is `{packages, open}`:
+
+- `packages`: the phone apps whose notifications it takes (Android package names).
+- `open`: the page to open, a path of the app (`/…`), with placeholders filled from the
+  notification and URL-encoded: `{shortcut}` (the conversation's shortcut id on the phone;
+  WhatsApp's is the chat's JID), `{title}`, `{package}`. When a placeholder it uses is empty,
+  or without `open`, the app opens on its start page. A single-page app's route works: the
+  glasses serve `index.html` for any path that isn't a file.
+
+```json
+"lumen_notifications": [
+  { "packages": ["com.whatsapp", "com.whatsapp.w4b"], "open": "/chat/{shortcut}" }
+]
+```
+
+Offline packages only for now: an online app's manifest isn't read for it.
 
 Each `lumen_config` entry is `{key, label, type, optional}`:
 

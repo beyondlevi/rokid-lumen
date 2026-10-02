@@ -320,6 +320,7 @@ class CompanionService : Service() {
                 if (NotifyCommand.isSync(json)) scheduleSync()
                 NotifyCommand.snoozeUntil(json)?.let { until -> main.post { PhoneSnooze.onState(until) } }
                 NotifyCommand.dismissedKeys(json)?.let { keys -> NotificationForwarder.dismiss(keys) }
+                NotifyCommand.replyOf(json)?.let { (key, text) -> NotificationForwarder.reply(this, key, text) }
             }
             Link.AUDIO -> audio.onMessage(json, Protocol.binary(data))
             Link.NET -> when (NetCommand.from(json)) {

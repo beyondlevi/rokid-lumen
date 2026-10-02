@@ -168,6 +168,7 @@ object PhoneLink {
                 appContext?.let { NotificationSnooze.publish(it) }
             }
             NotifyEvent.SNOOZE -> appContext?.let { NotificationSnooze.set(it, json.optBoolean("on")) }
+            NotifyEvent.REPLIED -> NotificationReplies.onReplied(json.optString("key"), json.optBoolean("ok"))
         }
     }
 
@@ -190,6 +191,8 @@ object PhoneLink {
             redacted = json.optBoolean("redacted"),
             icon = icon,
             focus = json.optBoolean("focus"),
+            replyable = json.optBoolean("reply"),
+            shortcut = json.optString("shortcut"),
         )
     }
 }

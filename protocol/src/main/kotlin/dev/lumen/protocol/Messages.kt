@@ -36,12 +36,27 @@ data class DictationEvent(val type: String, val text: String = "") {
  * glasses → phone, on [Link.NOTIFY]: resend the phone's notifications ({action: sync}), or the
  * banners' snooze as it stands ({action: snooze, until}: wall-clock ms, 0 when off), sent at
  * start and on every change, or notifications dismissed on the glasses ({action: dismiss, keys}),
- * which the phone clears from its shade too (their removal comes back as usual).
+ * which the phone clears from its shade too (their removal comes back as usual), or a reply
+ * ({action: reply, key, text}) the phone sends through the notification's own reply action
+ * (answered with [NotifyEvent.replied]).
  */
 object NotifyCommand {
     const val SYNC = "sync"
     const val SNOOZE = "snooze"
     const val DISMISS = "dismiss"
+    const val REPLY = "reply"
+
+    @JvmStatic
+    fun reply(key: String, text: String): JSONObject = Link.message().put("action", REPLY).put("key", key).put("text", text)
+
+    /** The key and text of a [reply] message, or null for another action (or an empty one). */
+    @JvmStatic
+    fun replyOf(json: JSONObject): Pair<String, String>? {
+        if (json.optString("action") != REPLY) return null
+        val key = json.optString("key")
+        val text = json.optString("text")
+        return if (key.isEmpty() || text.isBlank()) null else key to text
+    }
 
     @JvmStatic
     fun dismiss(keys: List<String>): JSONObject = Link.message().put("action", DISMISS).put("keys", org.json.JSONArray(keys))
@@ -70,15 +85,21 @@ object NotifyCommand {
 
 /**
  * phone → glasses, on [Link.NOTIFY_EVENT].
- * post {key, app, pkg, title, text, when, redacted, live, alert, icon (base64 PNG, optional)};
- * remove {key}; reset {} (a full sync follows as posts with alert false); snooze {on} (start
- * or end the banners' snooze; the glasses answer with [NotifyCommand.snooze]).
+ * post {key, app, pkg, title, text, when, redacted, live, alert, icon (base64 PNG, optional),
+ * reply (it can be answered from the glasses), shortcut (the conversation's shortcut id, "" if
+ * none)}; remove {key}; reset {} (a full sync follows as posts with alert false); snooze {on}
+ * (start or end the banners' snooze; the glasses answer with [NotifyCommand.snooze]); replied
+ * {key, ok} (how a [NotifyCommand.reply] went).
  */
 object NotifyEvent {
     const val POST = "post"
     const val REMOVE = "remove"
     const val RESET = "reset"
     const val SNOOZE = "snooze"
+    const val REPLIED = "replied"
+
+    @JvmStatic
+    fun replied(key: String, ok: Boolean): JSONObject = Link.message().put("type", REPLIED).put("key", key).put("ok", ok)
 
     @JvmStatic
     fun snooze(on: Boolean): JSONObject = Link.message().put("type", SNOOZE).put("on", on)

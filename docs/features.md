@@ -209,6 +209,20 @@ second one dismisses it (a whole app at the first level), on the glasses and in 
 shade; a right swipe puts the bin away or, with none shown, goes on to the Apps tab. The last row of the first level is the banners' snooze. The inbox and the banner follow
 the Meta Ray-Ban Display UI Toolkit's look.
 
+**Opening a notification** (the banner's index tap, or the inbox) shows a row of the toolkit's
+QuickReplyButtons under it, with the focus on the first:
+
+- the **web app** that declares that phone app (`lumen_notifications`, see
+  [building apps](building-apps.md)), its icon only: it opens the app at the notification's
+  page (WhatsApp: that chat), or its start page;
+- when the phone can answer it (the notification has a reply action): **reactions** (👍 ❤️ 😂
+  🙏) and **short replies** (OK, On my way, Talk later). The companion sends them through the
+  notification's own reply action, as typing in the shade would; a reaction goes as its emoji,
+  as text. *Sent* or *Couldn't reply* comes back in a moment.
+
+Left and right move along the row, up and down scroll the text, the index tap acts, the middle
+tap goes back. A notification whose text is hidden from the glasses offers no replies.
+
 What the phone sends:
 
 - **News only.** The phone dates a notification by what it says (its newest message, else the

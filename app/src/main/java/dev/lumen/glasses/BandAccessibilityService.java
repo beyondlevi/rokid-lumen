@@ -104,9 +104,11 @@ public final class BandAccessibilityService extends AccessibilityService {
             String notifyTitle = intent.getStringExtra(EXTRA_NOTIFY_TITLE);
             if (notifyTitle != null) {
                 String text = intent.getStringExtra(EXTRA_NOTIFY_TEXT);
+                String pkg = intent.getStringExtra("notify_pkg");
                 PhoneNotification notification = new PhoneNotification("debug|" + notifyTitle, "Lumen debug",
-                        getPackageName(), notifyTitle, text == null ? "" : text.replace("\\n", "\n"),
-                        System.currentTimeMillis(), false, null, false);
+                        pkg == null ? getPackageName() : pkg, notifyTitle, text == null ? "" : text.replace("\\n", "\n"),
+                        System.currentTimeMillis(), false, null, false, intent.getBooleanExtra("notify_reply", false),
+                        intent.getStringExtra("notify_shortcut") == null ? "" : intent.getStringExtra("notify_shortcut"));
                 mainHandler.post(() -> NotificationInbox.put(notification, true));
                 return;
             }

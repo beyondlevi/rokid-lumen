@@ -53,6 +53,14 @@ class LinkTest {
     }
 
     @Test
+    fun repliesRoundTrip() {
+        assertEquals("k" to "👍", NotifyCommand.replyOf(NotifyCommand.reply("k", "👍")))
+        assertNull(NotifyCommand.replyOf(NotifyCommand.reply("k", "  ")))
+        assertNull(NotifyCommand.replyOf(NotifyCommand.sync()))
+        assertEquals(NotifyEvent.REPLIED, NotifyEvent.replied("k", true).getString("type"))
+    }
+
+    @Test
     fun phoneBatteryRoundTrips() {
         assertEquals(PhoneEvent(57, true), PhoneEvent.from(PhoneEvent(57, true).toJson()))
         assertEquals(null, PhoneEvent.from(Link.message().put("type", "battery").put("level", 140)))

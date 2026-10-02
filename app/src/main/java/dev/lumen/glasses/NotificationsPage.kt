@@ -43,6 +43,12 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
     private val list: LinearLayout
     private val chip: TextView
     private val toast: TextView
+    /** Under an open notification: its web app and quick replies ([QuickReplyBar]). */
+    private val bar = QuickReplyBar(activity)
+    private val hideToast = Runnable { toast.visibility = View.GONE }
+    private val replyListener = NotificationReplies.Listener { _, ok ->
+        say(activity.getString(if (ok) R.string.quick_reply_sent else R.string.quick_reply_failed))
+    }
     private var level: Level = Level.Apps
     /** The level [render] last drew, to tell a redraw of the same level from a move. */
     private var renderedLevel: Level? = null
@@ -66,6 +72,7 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
             if (field == value) return
             field = value
             if (!value) conceal()
+            bar.active = value && level is Level.Detail
             applyFocus(animate = true)
         }
 
@@ -116,6 +123,7 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
             visibility = View.GONE
         }
         view.addView(toast, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, px(44f), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = px(24f) })
+        view.addView(bar.view, FrameLayout.LayoutParams(side, px(QuickReplyBar.HEIGHT), Gravity.BOTTOM).apply { bottomMargin = px(BAR_BOTTOM) })
     }
 
     private fun fade(orientation: GradientDrawable.Orientation) = View(activity).apply {
@@ -135,6 +143,7 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
         shown = true
         NotificationInbox.addListener(this)
         NotificationSnooze.listeners += snoozeListener
+        NotificationReplies.listeners += replyListener
         unread = unread + NotificationInbox.unreadKeys()
         NotificationInbox.markSeen()
         render()
@@ -145,6 +154,7 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
         shown = false
         NotificationInbox.removeListener(this)
         NotificationSnooze.listeners -= snoozeListener
+        NotificationReplies.listeners -= replyListener
         handler.removeCallbacks(rerender)
         conceal()
     }
@@ -209,12 +219,51 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
                 chip.text = item.appName.ifEmpty { activity.getString(R.string.notification_title) }
                 rows = emptyList()
                 list.addView(detail(item))
+                bar.show(quickActions(item), keepFocus = again)
+                bar.active = active
+                placeBar()
                 if (!again) scroll.scrollTo(0, 0)
                 return
             }
         }
+        bar.hide()
+        placeBar()
         rows.forEach { list.addView(it.frame) }
         applyFocus(animate = false)
+    }
+
+    /** The web app that takes [item] first, then quick replies when the phone can send them. */
+    private fun quickActions(item: PhoneNotification): List<QuickReplyBar.Action> {
+        val out = mutableListOf<QuickReplyBar.Action>()
+        WebAppNotifications.target(activity, item)?.let { out += QuickReplyBar.Action.OpenApp(it, WebAppIcons.load(it.app)) }
+        if (item.replyable && !item.redacted) {
+            activity.resources.getStringArray(R.array.quick_reactions).forEach { out += QuickReplyBar.Action.Reply(it, iconOnly = true) }
+            activity.resources.getStringArray(R.array.quick_replies).forEach { out += QuickReplyBar.Action.Reply(it, iconOnly = false) }
+        }
+        return out
+    }
+
+    /** Room under the text for the bar, and the toast above it, while it shows. */
+    private fun placeBar() {
+        scroll.setPadding(0, scroll.paddingTop, 0, px(if (bar.shown) 64f + QuickReplyBar.HEIGHT + BAR_BOTTOM else 64f))
+        (toast.layoutParams as FrameLayout.LayoutParams).bottomMargin = px(if (bar.shown) BAR_BOTTOM + QuickReplyBar.HEIGHT + 12f else 24f)
+        toast.requestLayout()
+    }
+
+    private fun perform(item: PhoneNotification, action: QuickReplyBar.Action) {
+        when (action) {
+            is QuickReplyBar.Action.OpenApp -> WebAppActivity.open(activity, action.target.app, action.target.path)
+            is QuickReplyBar.Action.Reply -> say(
+                activity.getString(if (NotificationReplies.send(item.key, action.text)) R.string.quick_reply_sending else R.string.quick_reply_no_phone),
+            )
+        }
+    }
+
+    private fun say(text: String) {
+        toast.text = text
+        toast.visibility = View.VISIBLE
+        handler.removeCallbacks(hideToast)
+        handler.postDelayed(hideToast, 2_500)
     }
 
     /** The row holding any of [keys] (its group may have gained one), else [index] kept in range. */
@@ -427,6 +476,23 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
      */
     override fun onCommand(command: String): HomeResult {
         Log.d(TAG, "command=$command level=$level focus=$focus rows=${rows.size} revealed=$revealed active=$active")
+        if (level is Level.Detail && bar.shown) {
+            // The bar has the focus: sideways along it, up and down through the text.
+            val item = NotificationInbox.find((level as Level.Detail).key)
+            when (command) {
+                BandCommand.RIGHT, BandCommand.FORWARD -> bar.move(1)
+                BandCommand.LEFT, BandCommand.BACKWARD -> bar.move(-1)
+                BandCommand.DOWN -> step(1)
+                BandCommand.UP -> step(-1)
+                BandCommand.ACTIVATE -> if (item != null) bar.current()?.let { perform(item, it) }
+                BandCommand.BACK -> {
+                    level = Level.App((level as Level.Detail).packageName)
+                    render()
+                }
+                else -> return HomeResult.UNHANDLED
+            }
+            return HomeResult.HANDLED
+        }
         if (level is Level.Detail) {
             when (command) {
                 BandCommand.RIGHT, BandCommand.DOWN, BandCommand.FORWARD -> step(1)
@@ -484,6 +550,8 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
 
     companion object {
         private const val TAG = "BandNotifPage"
+        /** The quick-reply bar's distance from the bottom. */
+        private const val BAR_BOTTOM = 28f
         /** Below the home's tabs (20 + 44), with room. */
         private const val TOP_PAD = 92f
         /** Below the tabs and a level's chip. */

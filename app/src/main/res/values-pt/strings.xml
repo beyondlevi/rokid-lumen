@@ -273,4 +273,13 @@
     <string name="controls_dnd_on">Não perturbe ligado: sem banners por 15 minutos</string>
     <string name="controls_dnd_off">Não perturbe desligado</string>
     <string name="controls_unavailable">Não disponível nestes óculos</string>
+    <string-array name="quick_replies">
+        <item>Ok</item>
+        <item>Já vou</item>
+        <item>Falo depois</item>
+    </string-array>
+    <string name="quick_reply_sending">Enviando…</string>
+    <string name="quick_reply_sent">Enviado</string>
+    <string name="quick_reply_failed">Não deu para responder pelo celular</string>
+    <string name="quick_reply_no_phone">O celular não está conectado</string>
 </resources>

@@ -25,13 +25,12 @@ and the teleprompter (`.page.wordtips.WordTipsPageActivity`, which doesn't close
 
 ## Phone notifications for web apps
 
-Let a web app receive the phone's notifications that concern it.
+`lumen_notifications` lets an offline app open its phone notifications (0.2.0-beta.6). Next:
 
-- A new manifest field, **`lumen_notifications`**, declares which phone apps' notifications the
-  web app wants.
-- **Enter on a banner** for such a notification opens the web app instead of the inbox.
+- the same for online apps (reading their web manifest when they're added);
 - **`window.lumen.notifications`**: the web app reads and follows those notifications,
-  filtered by its origin, so an app sees only what it declared and nothing meant for another.
+  filtered by its origin, so an app sees only what it declared and nothing meant for another;
+- quick replies chosen by the app or the phone's smart replies, instead of a fixed list.
 
 ## The full Meta visual identity
 

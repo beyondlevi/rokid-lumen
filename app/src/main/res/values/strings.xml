@@ -285,4 +285,19 @@
     <string name="controls_dnd_on">Do not disturb on: no banners for 15 minutes</string>
     <string name="controls_dnd_off">Do not disturb off</string>
     <string name="controls_unavailable">Not available on these glasses</string>
+    <string-array name="quick_reactions" translatable="false">
+        <item>👍</item>
+        <item>❤️</item>
+        <item>😂</item>
+        <item>🙏</item>
+    </string-array>
+    <string-array name="quick_replies">
+        <item>OK</item>
+        <item>On my way</item>
+        <item>Talk later</item>
+    </string-array>
+    <string name="quick_reply_sending">Sending…</string>
+    <string name="quick_reply_sent">Sent</string>
+    <string name="quick_reply_failed">Couldn\'t reply from the phone</string>
+    <string name="quick_reply_no_phone">The phone isn\'t connected</string>
 </resources>

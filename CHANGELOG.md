@@ -3,6 +3,25 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.6]
+
+### Glasses
+
+- **Quick replies under a notification**: opening one shows a row of the UI Toolkit's
+  QuickReplyButtons. First the web app that declares that phone app (`lumen_notifications` in
+  its manifest), which opens at the notification's page (WhatsApp: the chat); then reactions
+  (👍 ❤️ 😂 🙏) and short replies (OK, On my way, Talk later) when the phone can answer it.
+
+### Companion
+
+- Replies from the glasses go through the notification's own reply action, as typing in the
+  shade would (reactions as their emoji).
+
+### Web apps
+
+- `lumen_notifications` in an offline app's manifest: the phone notifications it opens, and the
+  page to open (`/chat/{shortcut}`).
+
 ## [0.2.0-beta.5]
 
 ### Companion

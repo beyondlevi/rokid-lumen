@@ -39,6 +39,8 @@ import org.json.JSONObject;
  */
 public final class WebAppActivity extends Activity implements BandAccessibilityService.InputTarget, WebEngine.Host {
     public static final String EXTRA_APP_ID = "app_id";
+    /** A page of the app to open instead of its start ("/chat/…"): a phone notification's. */
+    public static final String EXTRA_PATH = "path";
     /** Overrides the app's engine for this launch ("GECKO" or "SYSTEM"), for comparisons. */
     public static final String EXTRA_ENGINE = "engine";
 
@@ -58,7 +60,15 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     private boolean ttsReady;
 
     static void open(Context context, WebApp app) {
+        open(context, app, null);
+    }
+
+    /** Opens [app] at [path] (a path of the app, "/…"), or at its start when null. */
+    static void open(Context context, WebApp app, String path) {
         Intent intent = new Intent(context, WebAppActivity.class).putExtra(EXTRA_APP_ID, app.getId());
+        if (path != null) {
+            intent.putExtra(EXTRA_PATH, path);
+        }
         if (!(context instanceof Activity)) {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         }
@@ -129,13 +139,13 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         Log.d(TAG, "Opening " + app.getName() + " (" + app.getUrl() + ") on " + kind + " side=" + side);
         WebAppConfig.addListener(configListener);
         if (app.getOffline()) {
-            engine.load(app.getUrl());
+            engine.load(startUrl(app));
             if (app.getInternet()) {
                 acquireForOfflineApp(kind == WebEngineKind.SYSTEM);
             }
             return;
         }
-        String url = app.getUrl();
+        String url = startUrl(app);
         boolean system = kind == WebEngineKind.SYSTEM;
         internet = new PhoneInternet.Listener() {
             @Override
@@ -475,5 +485,17 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
             Log.w(TAG, "Could not read " + name, e);
             return "";
         }
+    }
+
+    /**
+     * Where the app opens: its start, or the page EXTRA_PATH names on its own origin (a path
+     * only, never another host: "//x" and anything not starting with "/" are ignored).
+     */
+    private String startUrl(WebApp app) {
+        String path = getIntent() == null ? null : getIntent().getStringExtra(EXTRA_PATH);
+        if (path == null || !path.startsWith("/") || path.startsWith("//") || path.equals("/")) {
+            return app.getUrl();
+        }
+        return originOf(app.getUrl()) + path;
     }
 }
