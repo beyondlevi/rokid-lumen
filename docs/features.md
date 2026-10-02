@@ -336,6 +336,21 @@ tabs:
   on the glasses (keeps their Wi-Fi on and awake, shows the `adb connect` command with Copy and
   Share, and notifies when they come back at a new address), the version and **Updates**.
 
+### Sharing logs
+
+**Settings > Share logs** gathers both apps' logs without adb: the companion asks the glasses
+for theirs over Rokid's link (gzipped, in acknowledged chunks, up to 2 MB), adds its own and a
+summary, and opens Android's share sheet with `rokid-lumen-logs-<yyyyMMdd-HHmmss>.zip`:
+
+- `info.txt`: the time, both apps' versions, the phone, the link and the band;
+- `companion.log`: the companion's own log (`logcat` of its process);
+- `glasses.log`: the glasses app's log, the band's recent log, the state of things and the
+  self-arm helpers' logs (when the self-arm's shell can read them); or
+  `glasses-unavailable.txt` saying why not (no link, no answer in 90 s).
+
+An app can only read its own log lines, so nothing of other apps goes in; notifications' keys
+and the apps' names can, so look before sending it to someone.
+
 ### Updates
 
 The companion updates itself and the glasses app from this repository's GitHub releases (the

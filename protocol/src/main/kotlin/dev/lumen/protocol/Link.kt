@@ -58,11 +58,17 @@ object Link {
     /** phone → glasses: the phone's own state, its battery ([PhoneEvent]). */
     const val PHONE_EVENT = "nb.phone.event"
 
+    /** phone → glasses: a request for the glasses' logs, and acks ([LogsOps]). */
+    const val LOGS = "nb.logs"
+
+    /** glasses → phone: the logs, in chunks ([LogsOps]). */
+    const val LOGS_EVENT = "nb.logs.event"
+
     /** What the glasses subscribe to (phone → glasses). */
-    val TO_GLASSES = listOf(DICTATION_EVENT, NOTIFY_EVENT, NET_EVENT, BENCH, SETTINGS, GRID, AUDIO_EVENT, PHONE_EVENT)
+    val TO_GLASSES = listOf(DICTATION_EVENT, NOTIFY_EVENT, NET_EVENT, BENCH, SETTINGS, GRID, AUDIO_EVENT, PHONE_EVENT, LOGS)
 
     /** What the phone handles (glasses → phone). */
-    val TO_PHONE = listOf(DICTATION, NOTIFY, NET, SETTINGS_EVENT, GRID_EVENT, AUDIO)
+    val TO_PHONE = listOf(DICTATION, NOTIFY, NET, SETTINGS_EVENT, GRID_EVENT, AUDIO, LOGS_EVENT)
 
     private val ids = AtomicLong(System.currentTimeMillis())
 

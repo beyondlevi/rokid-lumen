@@ -48,6 +48,17 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     private val snoozeListener: () -> Unit = { refresh() }
     private val snoozeEnded = Runnable { refresh() }
     private val updateListener: () -> Unit = { refresh() }
+    /** The logs zip shared once when it's ready (not again on every refresh). */
+    private var sharedLogs: java.io.File? = null
+    private val logsListener: () -> Unit = {
+        (LogShare.state as? LogShare.State.Ready)?.file?.let { file ->
+            if (file != sharedLogs) {
+                sharedLogs = file
+                LogShare.share(this, file)
+            }
+        }
+        refresh()
+    }
     /** The page the launching intent asks for (the update notification's). */
     private val startPage = mutableStateOf<String?>(null)
 
@@ -74,6 +85,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         GridCache.listeners += gridListener
         PhoneSnooze.listeners += snoozeListener
         dev.lumen.companion.update.UpdateManager.listeners += updateListener
+        LogShare.listeners += logsListener
         dev.lumen.companion.update.UpdateManager.checkIfDue(this)
         if (CompanionPrefs.token(this) != null) CompanionService.start(this)
         refresh()
@@ -86,6 +98,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         GridCache.listeners -= gridListener
         PhoneSnooze.listeners -= snoozeListener
         dev.lumen.companion.update.UpdateManager.listeners -= updateListener
+        LogShare.listeners -= logsListener
         window.decorView.removeCallbacks(snoozeEnded)
         super.onPause()
     }
@@ -141,6 +154,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
                 missing = SpeechSettings.missing(this),
             ),
             update = dev.lumen.companion.update.UpdateManager.state(this),
+            logs = LogShare.state,
         )
         // The switch turns off by itself when the snooze runs out.
         window.decorView.removeCallbacks(snoozeEnded)
@@ -211,6 +225,17 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     }
 
     override fun openWifiSettings() = startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
+
+    override fun shareLogs() {
+        // A zip already made is shared again; a tap while collecting does nothing.
+        when (val logs = LogShare.state) {
+            is LogShare.State.Collecting -> Unit
+            else -> {
+                if (logs is LogShare.State.Ready) LogShare.dismiss()
+                LogShare.start(this)
+            }
+        }
+    }
 
     override fun stop() {
         stopService(Intent(this, CompanionService::class.java))

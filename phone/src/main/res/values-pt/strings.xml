@@ -412,4 +412,11 @@
     <string name="update_try_again">Tentar de novo</string>
     <string name="notifications_test_reply">Responder</string>
     <string name="notifications_test_replied">Respondida pelos óculos: %1$s</string>
+    <string name="logs_share">Compartilhar logs</string>
+    <string name="logs_share_hint">Os logs dos dois apps num zip, para relatar um problema</string>
+    <string name="logs_asking">Pedindo aos óculos…</string>
+    <string name="logs_receiving">Recebendo os logs dos óculos · %1$d de %2$d</string>
+    <string name="logs_without_glasses">%1$s · sem os logs dos óculos</string>
+    <string name="logs_failed">Não deu para gerar o zip de logs</string>
+    <string name="logs_share_title">Compartilhar os logs</string>
 </resources>

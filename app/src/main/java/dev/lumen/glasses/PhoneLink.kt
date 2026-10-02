@@ -123,6 +123,7 @@ object PhoneLink {
             Link.SETTINGS -> BandSettings.onPhoneRequest(json)
             Link.GRID -> GridApi.onPhoneRequest(json)
             Link.PHONE_EVENT -> dev.lumen.protocol.PhoneEvent.from(json)?.let { PhoneBattery.onEvent(it) }
+            Link.LOGS -> appContext?.let { GlassesLogs.onPhoneMessage(it, json) }
         }
     }
 

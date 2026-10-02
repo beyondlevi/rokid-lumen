@@ -3,6 +3,13 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.7]
+
+### Companion
+
+- **Share logs** (Settings): both apps' logs in `rokid-lumen-logs-<date>-<time>.zip`, through
+  Android's share sheet, no adb needed. The glasses send theirs over Rokid's link.
+
 ## [0.2.0-beta.6]
 
 ### Glasses
