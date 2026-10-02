@@ -127,6 +127,16 @@ to undo).
   a time, and its phone internet is released when it closes.
 - Those Rokid screens aren't reachable from Lumen yet; a third tab is planned
   ([ROADMAP](../ROADMAP.md)). Until then, switch the home back to reach them.
+- **What the Rokid firmware does when the home changes** (measured on RG glasses, Android 12):
+  with another app as the home it uninstalls Rokid's assistant, `com.rokid.os.sprite.assistserver`
+  (Rokid AI, its TTS voice, the photo and video scenes, the phone's remote keyboard), for the
+  user; picking the Rokid launcher again reinstalls it. So while Lumen is the home, the Rokid
+  AI and capture actions don't answer.
+- Reinstalled, the assistant can also set `persist.vendor.adb` to `false`, and Rokid's adbd then
+  refuses `adb install`, `push`/`pull` and shell commands that start with `cmd`, `pm`,
+  `dumpsys` or `logcat` ("RKD-- not allow cmd"). That also stops the phone internet for web
+  apps, which joins the phone's network through the self-arm's local ADB (`cmd wifi`). It
+  survives reboots; `adb shell setprop persist.vendor.adb true` lifts it.
 
 The grid is arranged from the companion's Apps tab. A web app installed later joins the end on
 its own; a native app shows only once added.

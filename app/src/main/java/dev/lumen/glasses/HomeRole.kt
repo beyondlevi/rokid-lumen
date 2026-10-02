@@ -69,12 +69,30 @@ object HomeRole {
     fun onAccessibilityEvent(context: Context, event: AccessibilityEvent) {
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         if (event.packageName?.toString() != ROKID_LAUNCHER || event.className?.toString() != ROKID_LAUNCHER_MAIN) return
+        bringBack(context, "rokid_launcher")
+    }
+
+    /**
+     * The service (re)connecting: after an update of this app the system resumes the task below
+     * its home, the Rokid launcher's, before the service is back to see it come up (measured on
+     * the glasses). [frontPackage] is the package in front then, from the active window.
+     */
+    @JvmStatic
+    fun onServiceConnected(context: Context, frontPackage: CharSequence?) {
+        if (frontPackage?.toString() == ROKID_LAUNCHER) bringBack(context, "service_connected")
+    }
+
+    /** This app was updated (MY_PACKAGE_REPLACED): its home was closed with the old process. */
+    @JvmStatic
+    fun onPackageReplaced(context: Context) = bringBack(context, "package_replaced")
+
+    private fun bringBack(context: Context, reason: String) {
         if (!isDefault(context)) return
-        Log.d(TAG, "Rokid launcher came up with Lumen as the home app: back to Lumen")
+        Log.d(TAG, "Lumen is the home app: bringing its home to the front reason=$reason")
         try {
             context.startActivity(Intent(context, LauncherActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: RuntimeException) {
-            Log.w(TAG, "Could not bring Lumen's home back", e)
+            Log.w(TAG, "Could not bring Lumen's home back reason=$reason", e)
         }
     }
 }

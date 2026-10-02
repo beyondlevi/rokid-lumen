@@ -11,12 +11,18 @@ import android.util.Log;
  * the key the self-arm paired. A package the firmware force-stopped doesn't receive this
  * broadcast; the accessibility service connecting and the app's launch run the same path.
  * The band itself needs nothing here: it connects when Android binds the accessibility service.
+ * After an update (MY_PACKAGE_REPLACED) it reopens the home when Lumen is the home app.
  */
 public final class BootReceiver extends BroadcastReceiver {
     private static final String TAG = "BandBootReceiver";
 
     @Override
     public void onReceive(Context context, Intent intent) {
+        if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(intent.getAction())) {
+            // An update closes the home with the old process; as the home app, open it again.
+            HomeRole.onPackageReplaced(context);
+            return;
+        }
         if (!Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
             return;
         }
