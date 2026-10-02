@@ -94,6 +94,11 @@ data class CompanionUiState(
     val gridError: GridEvent.Result? = null,
     /** The offline package being handed over from this phone, or the last one's outcome. */
     val packageTransfer: dev.lumen.companion.PackageShare.Transfer? = null,
+    /** The glasses' wireless debugging, and the value asked for while they haven't confirmed it. */
+    val glassesDebug: dev.lumen.protocol.DebugStatus = dev.lumen.protocol.DebugStatus(),
+    val glassesDebugPending: Boolean? = null,
+    /** Whether this phone's Wi-Fi is on the glasses' network; null when unknown. */
+    val glassesDebugSameNetwork: Boolean? = null,
     val dictation: DictationUiState = DictationUiState(),
 )
 
@@ -128,6 +133,9 @@ interface CompanionActions {
     /** Pick a .zip on this phone to update the offline app [id] with. */
     fun replacePackage(id: String)
     fun dismissPackageTransfer()
+    fun setWirelessDebug(on: Boolean)
+    fun copyAdbCommand()
+    fun shareAdbCommand()
     fun useBandOnPhone()
     fun useBandOnGlasses()
     fun importBandKey()
@@ -325,9 +333,64 @@ private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions) {
         ListRow(title = stringResource(if (state.authorized) R.string.settings_authorize_again else R.string.action_authorize), onClick = actions::authorize)
     }
     DictationSection(state, actions)
+    WirelessDebugSection(state, actions)
     SectionTitle(stringResource(R.string.settings_about))
     Group {
         ListRow(title = stringResource(R.string.app_name), subtitle = stringResource(R.string.settings_version, state.version))
+    }
+}
+
+/** The glasses' wireless debugging: the switch, then where adb finds them (or why it can't). */
+@Composable
+private fun WirelessDebugSection(state: CompanionUiState, actions: CompanionActions) {
+    val debug = state.glassesDebug
+    val pending = state.glassesDebugPending
+    SectionTitle(stringResource(R.string.debug_section))
+    Group {
+        SwitchRow(
+            stringResource(R.string.debug_switch),
+            stringResource(R.string.debug_switch_hint),
+            checked = pending ?: debug.enabled,
+            busy = pending != null,
+            onChange = actions::setWirelessDebug,
+        )
+        if (debug.enabled && pending == null) {
+            val problem = when {
+                !debug.wifiOn -> stringResource(R.string.debug_wifi_off)
+                debug.address.isEmpty() -> stringResource(R.string.debug_no_network)
+                debug.onPhoneHotspot -> stringResource(R.string.debug_on_hotspot)
+                !debug.listening -> stringResource(R.string.debug_port_closed, debug.port)
+                else -> null
+            }
+            Column(
+                Modifier.fillMaxWidth().background(Lumen.surface).padding(horizontal = Lumen.spacingMedium, vertical = Lumen.spacingSmMed),
+                verticalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed),
+            ) {
+                if (debug.address.isNotEmpty()) {
+                    Text(
+                        if (debug.ssid.isNotEmpty()) stringResource(R.string.debug_where, debug.ssid) else stringResource(R.string.debug_where_unnamed),
+                        style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary,
+                    )
+                    Text(
+                        debug.command,
+                        style = MaterialTheme.typography.titleMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Lumen.elevation1).padding(Lumen.spacingSmMed),
+                    )
+                }
+                if (problem != null) {
+                    Text(problem, style = MaterialTheme.typography.bodySmall, color = Lumen.warning)
+                } else if (state.glassesDebugSameNetwork == false) {
+                    Text(stringResource(R.string.debug_other_network), style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
+                }
+                if (debug.address.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmall)) {
+                        PillButton(stringResource(R.string.debug_copy), primary = true, modifier = Modifier.weight(1f), onClick = actions::copyAdbCommand)
+                        PillButton(stringResource(R.string.debug_share), primary = false, modifier = Modifier.weight(1f), onClick = actions::shareAdbCommand)
+                    }
+                }
+                Text(stringResource(R.string.debug_notification_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textPlaceholder)
+            }
+        }
     }
 }
 
@@ -404,13 +467,13 @@ internal fun ListRow(
 }
 
 @Composable
-internal fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit, busy: Boolean = false) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
             .background(Lumen.surface)
-            .clickable(role = Role.Switch) { onChange(!checked) }
+            .clickable(role = Role.Switch, enabled = !busy) { onChange(!checked) }
             .padding(horizontal = Lumen.spacingMedium, vertical = Lumen.spacingSmMed),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed),
@@ -418,6 +481,11 @@ internal fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onCha
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
+        }
+        // Waiting on the other side: a spinner where the switch was, until it answers.
+        if (busy) {
+            androidx.compose.material3.CircularProgressIndicator(Modifier.size(24.dp), color = Lumen.accent, strokeWidth = 2.dp)
+            return@Row
         }
         Switch(
             checked = checked,

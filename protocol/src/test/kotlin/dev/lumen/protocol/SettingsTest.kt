@@ -58,4 +58,20 @@ class SettingsTest {
         assertFalse(BandStatus.from(org.json.JSONObject()).onPhone)
         assertEquals(SettingsOps.ACTION_TO_PHONE, SettingsOps.action(SettingsOps.ACTION_TO_PHONE).getString("name"))
     }
+
+    @Test
+    fun `wireless debugging travels in the schema and on its own`() {
+        val debug = DebugStatus(enabled = true, wifiOn = true, ssid = "Home", address = "192.168.0.92", listening = true)
+        assertEquals(debug, DebugStatus.from(debug.toJson()))
+        assertEquals("adb connect 192.168.0.92:5555", debug.command)
+        assertEquals(true, debug.ready)
+        assertEquals(false, debug.copy(onPhoneHotspot = true).ready)
+        assertEquals(false, DebugStatus().ready)
+        val event = SettingsEvent.from(SettingsEvent.Debug(debug).toJson())
+        assertEquals(SettingsEvent.Debug(debug), event)
+        val schema = SettingsEvent.Schema(emptyList(), emptyList(), BandStatus(), debug)
+        assertEquals(schema, SettingsEvent.from(schema.toJson()))
+        // A schema from older glasses has no debug: off.
+        assertEquals(DebugStatus(), (SettingsEvent.from(org.json.JSONObject().put("type", "schema")) as SettingsEvent.Schema).debug)
+    }
 }

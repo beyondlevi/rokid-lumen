@@ -328,4 +328,20 @@
     <string name="speech_error_timeout">%1$s demorou demais para responder</string>
     <string name="speech_error_language">%1$s não aceita este idioma</string>
     <string name="speech_error_other">%1$s: %2$s</string>
+    <string name="debug_section">Desenvolvedor</string>
+    <string name="debug_switch">Depuração sem fio dos óculos</string>
+    <string name="debug_switch_hint">Mantém o Wi-Fi dos óculos ligado e acordado e mostra onde o adb os encontra</string>
+    <string name="debug_where">Na rede %1$s</string>
+    <string name="debug_where_unnamed">No Wi-Fi</string>
+    <string name="debug_copy">Copiar</string>
+    <string name="debug_share">Compartilhar</string>
+    <string name="debug_copied">Comando copiado</string>
+    <string name="debug_wifi_off">O Wi-Fi dos óculos está desligado; ele está sendo ligado.</string>
+    <string name="debug_no_network">Os óculos ainda não estão numa rede Wi-Fi. Eles entram numa rede salva que estiver ao alcance.</string>
+    <string name="debug_on_hotspot">Os óculos estão no hotspot deste celular para a internet; voltam para a rede deles quando nenhum app precisar.</string>
+    <string name="debug_port_closed">O adb não responde na porta %1$d: refaça a autoconfiguração nos óculos.</string>
+    <string name="debug_other_network">Este celular está em outra rede; o computador precisa estar na rede dos óculos.</string>
+    <string name="debug_notification_hint">Quando os óculos voltarem com outro endereço, uma notificação traz o comando novo.</string>
+    <string name="debug_channel">Depuração dos óculos</string>
+    <string name="debug_notification_title">Óculos em %1$s</string>
 </resources>

@@ -340,4 +340,10 @@ class WebAppPlatformTest {
             assertEquals(problem, e.problem)
         }
     }
+
+    @Test
+    fun theNetworkNameComesFromCmdWifiStatus() {
+        assertEquals("Alberto", WirelessDebug.parseSsid("Wifi is enabled\nWifi is connected to \"Alberto\"\nWifiInfo: SSID: \"Alberto\""))
+        assertEquals("", WirelessDebug.parseSsid("Wifi is disabled"))
+    }
 }

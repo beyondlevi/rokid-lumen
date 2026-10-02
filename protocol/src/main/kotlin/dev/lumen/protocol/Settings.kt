@@ -12,6 +12,10 @@ import org.json.JSONObject
  *   glasses → phone   [Link.SETTINGS_EVENT]  {type: schema, settings, actions, status} (the answer to describe, and after a change)
  *                                            {type: result, ok, key|name, error?} (the answer to set and action)
  *                                            {type: status, status} (whenever the band's status changes)
+ *                                            {type: debug, debug} (whenever the wireless debugging state changes)
+ *
+ * Wireless debugging ([DebugStatus]) is set like a setting ([SettingsOps.KEY_WIRELESS_DEBUG],
+ * "true"/"false") but isn't in the band's list: the phone shows it apart, with the address.
  *
  * Labels travel in English as a fallback: the phone shows its own translation for a known key
  * and the glasses' label for one it doesn't know yet.
@@ -28,6 +32,9 @@ object SettingsOps {
      */
     const val ACTION_TO_PHONE = "to_phone"
     const val ACTION_TO_GLASSES = "to_glasses"
+
+    /** Keeps the glasses reachable over Wi-Fi for `adb connect` ([DebugStatus]). */
+    const val KEY_WIRELESS_DEBUG = "wireless_debug"
 
     @JvmStatic
     fun describe(): JSONObject = Link.request().put("op", DESCRIBE)
@@ -139,13 +146,61 @@ data class BandStatus(
     }
 }
 
+/**
+ * Wireless debugging on the glasses: while [enabled] they keep their Wi-Fi on and awake and
+ * report where adb finds them. [address] is their Wi-Fi IPv4 ("" without one), [listening] whether
+ * adb answers on [port] there, [onPhoneHotspot] whether that Wi-Fi is the phone's hotspot (which a
+ * computer can't reach).
+ */
+data class DebugStatus(
+    val enabled: Boolean = false,
+    val wifiOn: Boolean = false,
+    val ssid: String = "",
+    val address: String = "",
+    val port: Int = DEFAULT_PORT,
+    val listening: Boolean = false,
+    val onPhoneHotspot: Boolean = false,
+) {
+    /** Reachable from a computer on the same network. */
+    val ready: Boolean get() = enabled && address.isNotEmpty() && listening && !onPhoneHotspot
+
+    val command: String get() = "adb connect $address:$port"
+
+    fun toJson(): JSONObject = JSONObject().put("enabled", enabled).put("wifi_on", wifiOn).put("ssid", ssid)
+        .put("address", address).put("port", port).put("listening", listening).put("on_phone_hotspot", onPhoneHotspot)
+
+    companion object {
+        const val DEFAULT_PORT = 5555
+
+        fun from(json: JSONObject?) = if (json == null) DebugStatus() else DebugStatus(
+            json.optBoolean("enabled"),
+            json.optBoolean("wifi_on"),
+            json.optString("ssid"),
+            json.optString("address"),
+            json.optInt("port", DEFAULT_PORT),
+            json.optBoolean("listening"),
+            json.optBoolean("on_phone_hotspot"),
+        )
+    }
+}
+
 /** What arrives on [Link.SETTINGS_EVENT]. */
 sealed class SettingsEvent {
-    data class Schema(val settings: List<Setting>, val actions: List<SettingsAction>, val status: BandStatus) : SettingsEvent() {
+    data class Schema(
+        val settings: List<Setting>,
+        val actions: List<SettingsAction>,
+        val status: BandStatus,
+        val debug: DebugStatus = DebugStatus(),
+    ) : SettingsEvent() {
         fun toJson(request: JSONObject? = null): JSONObject = (request?.let { Link.reply(it) } ?: Link.message()).put("type", "schema")
             .put("settings", JSONArray().apply { settings.forEach { put(it.toJson()) } })
             .put("actions", JSONArray().apply { actions.forEach { put(it.toJson()) } })
             .put("status", status.toJson())
+            .put("debug", debug.toJson())
+    }
+
+    data class Debug(val debug: DebugStatus) : SettingsEvent() {
+        fun toJson(): JSONObject = Link.message().put("type", "debug").put("debug", debug.toJson())
     }
 
     /** The answer to a set or an action; [error] explains a refusal. */
@@ -168,8 +223,10 @@ sealed class SettingsEvent {
                     (0 until (settings?.length() ?: 0)).map { Setting.from(settings!!.getJSONObject(it)) },
                     (0 until (actions?.length() ?: 0)).map { SettingsAction.from(actions!!.getJSONObject(it)) },
                     BandStatus.from(json.optJSONObject("status")),
+                    DebugStatus.from(json.optJSONObject("debug")),
                 )
             }
+            "debug" -> Debug(DebugStatus.from(json.optJSONObject("debug")))
             "result" -> Result(json.optBoolean("ok"), json.optString("subject"), json.optString("error"))
             "status" -> Status(BandStatus.from(json.optJSONObject("status")))
             else -> null

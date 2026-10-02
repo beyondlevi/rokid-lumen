@@ -63,6 +63,10 @@ object PhoneInternet {
     private var phoneOffer: NetEvent.Ready? = null
     private var phoneFailure: String? = null
 
+    /** The phone's hotspot the glasses joined, until they leave it (null when none). */
+    @JvmStatic
+    val phoneHotspot: String? get() = joinedSsid
+
     /** The proxy the web engines use now (`host:port`), or null to go direct. */
     @JvmStatic
     @Volatile
@@ -340,14 +344,16 @@ object PhoneInternet {
         if (ssid != null || phoneRequested) PhoneLink.send(Link.NET, NetCommand.DOWN.toJson())
         phoneRequested = false
         phoneOffer = null
-        val turnOff = !wifiWasOn && state != State.IDLE
         val ctx = context
+        // Wireless debugging keeps the Wi-Fi on: the glasses go back to their saved network.
+        val turnOff = !wifiWasOn && state != State.IDLE && ctx?.let { WirelessDebug.isEnabled(it) } != true
         state = State.IDLE
         proxy = null
         joinedSsid = null
         io.execute {
             if (ssid != null) forget(ssid)
             if (turnOff && shell("svc wifi disable") == null && ctx != null) PrivilegedShortcutBridge.requestWifiEnabled(ctx, false)
+            WirelessDebug.check()
         }
     }
 

@@ -117,6 +117,9 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
             gridIcons = HashMap(GridCache.icons),
             gridError = GridCache.lastError,
             packageTransfer = PackageShare.transfer,
+            glassesDebug = BandStore.debug,
+            glassesDebugPending = GlassesDebug.pending,
+            glassesDebugSameNetwork = GlassesDebug.phoneOnSameNetwork(BandStore.debug.address),
             dictation = DictationUiState(
                 engine = SpeechSettings.engine(this),
                 language = SpeechSettings.language(this),
@@ -239,6 +242,17 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     }
 
     override fun dismissPackageTransfer() = PackageShare.dismiss()
+
+    override fun setWirelessDebug(on: Boolean) {
+        if (!GlassesDebug.request(on)) say(getString(R.string.band_waiting))
+        refresh()
+    }
+
+    override fun copyAdbCommand() = GlassesDebug.copy(this, BandStore.debug.command)
+
+    override fun shareAdbCommand() {
+        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, BandStore.debug.command), null))
+    }
 
     override fun setPhoneSetting(key: String, value: String) {
         if (PhoneSettings.set(this, key, value)) PhoneBand.applyMapping(this)

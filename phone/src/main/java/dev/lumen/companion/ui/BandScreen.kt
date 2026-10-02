@@ -72,7 +72,7 @@ internal fun BandScreen(state: CompanionUiState, actions: CompanionActions) {
             visible.forEach { setting ->
                 val title = BandLabels.setting(setting.key)?.let { stringResource(it) } ?: setting.label
                 when (setting.kind) {
-                    Setting.Kind.TOGGLE -> SwitchRow(title, null, setting.checked) { actions.setBandSetting(setting.key, it.toString()) }
+                    Setting.Kind.TOGGLE -> SwitchRow(title, null, setting.checked, { actions.setBandSetting(setting.key, it.toString()) })
                     Setting.Kind.CHOICE -> ListRow(title = title, value = optionLabel(setting, setting.value), onClick = { choosing = setting })
                 }
             }

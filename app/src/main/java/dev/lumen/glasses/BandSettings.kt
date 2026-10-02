@@ -132,7 +132,7 @@ object BandSettings {
             SettingsAction(ACTION_RECONNECT, "Reconnect"),
             SettingsAction(ACTION_FORGET, "Forget the band", destructive = true),
         )
-        return SettingsEvent.Schema(settings, actions, status())
+        return SettingsEvent.Schema(settings, actions, status(), WirelessDebug.current)
     }
 
     /** Null when applied, else why not (in English, for the log and the phone's fallback). */
@@ -168,6 +168,10 @@ object BandSettings {
             }
             key == KEY_POWER_SAVING -> {
                 setPowerSaving(context, value == "true")
+                return null
+            }
+            key == SettingsOps.KEY_WIRELESS_DEBUG -> {
+                WirelessDebug.setEnabled(context, value == "true")
                 return null
             }
             key == KEY_PAUSED -> {

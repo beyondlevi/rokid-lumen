@@ -51,6 +51,7 @@ object PhoneLink {
         appContext = context.applicationContext
         BandSettings.start(context)
         GridApi.start(context)
+        WirelessDebug.start(context)
         if (ensure() != null) requestSync(attempt = 1)
     }
 

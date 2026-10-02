@@ -249,6 +249,7 @@ class CompanionService : Service() {
                 main.post {
                     BandStore.onEvent(event)
                     PhoneBand.onGlassesStatus(this, BandStore.status)
+                    if (event is SettingsEvent.Debug || event is SettingsEvent.Schema) GlassesDebug.onStatus(this, BandStore.debug)
                 }
             }
             Link.GRID_EVENT -> GridEvent.from(json)?.let { event ->

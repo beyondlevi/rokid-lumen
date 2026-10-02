@@ -85,6 +85,9 @@
         </service>
 
         <receiver
+            android:name=".GlassesDebug$CopyReceiver"
+            android:exported="false" />
+        <receiver
             android:name=".BootReceiver"
             android:exported="false">
             <intent-filter>

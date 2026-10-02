@@ -337,4 +337,20 @@
     <string name="speech_error_timeout">%1$s took too long to answer</string>
     <string name="speech_error_language">%1$s doesn\'t support this language</string>
     <string name="speech_error_other">%1$s: %2$s</string>
+    <string name="debug_section">Developer</string>
+    <string name="debug_switch">Wireless debugging on the glasses</string>
+    <string name="debug_switch_hint">Keeps the glasses\' Wi-Fi on and awake and shows where adb finds them</string>
+    <string name="debug_where">On the network %1$s</string>
+    <string name="debug_where_unnamed">On Wi-Fi</string>
+    <string name="debug_copy">Copy</string>
+    <string name="debug_share">Share</string>
+    <string name="debug_copied">Command copied</string>
+    <string name="debug_wifi_off">The glasses\' Wi-Fi is off; it is being turned on.</string>
+    <string name="debug_no_network">The glasses aren\'t on a Wi-Fi network yet. They join a saved one in range.</string>
+    <string name="debug_on_hotspot">The glasses are on this phone\'s hotspot for the internet; they go back to their network when no app needs it.</string>
+    <string name="debug_port_closed">adb doesn\'t answer on port %1$d: run the self-arm on the glasses again.</string>
+    <string name="debug_other_network">This phone is on another network; the computer has to be on the glasses\' one.</string>
+    <string name="debug_notification_hint">When the glasses come back at a new address, a notification brings the new command.</string>
+    <string name="debug_channel">Glasses debugging</string>
+    <string name="debug_notification_title">Glasses at %1$s</string>
 </resources>
