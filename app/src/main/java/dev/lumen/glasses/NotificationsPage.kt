@@ -444,18 +444,20 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
             swipeLeft()
             return HomeResult.HANDLED
         }
-        // Anything else puts a shown bin away first; Back does only that.
+        // Anything else puts a shown bin away first; Back and right (its way back) do only that.
         if (revealed >= 0) {
             conceal()
-            if (command == BandCommand.BACK) return HomeResult.HANDLED
+            if (command == BandCommand.BACK || command == BandCommand.RIGHT) return HomeResult.HANDLED
         }
+        // Right is left's opposite: left dismisses, right goes on to the next tab (the apps).
+        if (command == BandCommand.RIGHT) return HomeResult.RIGHT_OUT
         when (command) {
             BandCommand.BACK -> when (level) {
                 is Level.App -> { level = Level.Apps; render() }
                 else -> return HomeResult.CLOSE
             }
             BandCommand.ACTIVATE -> rows.getOrNull(focus)?.activate?.invoke()
-            BandCommand.RIGHT, BandCommand.DOWN, BandCommand.FORWARD -> step(1)
+            BandCommand.DOWN, BandCommand.FORWARD -> step(1)
             BandCommand.UP, BandCommand.BACKWARD -> {
                 // Above the first row of the first level: the tabs.
                 if (level == Level.Apps && focus == 0) return HomeResult.UP_OUT

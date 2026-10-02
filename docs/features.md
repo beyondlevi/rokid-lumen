@@ -195,7 +195,7 @@ notification stays.
 app with the newest one first, with its count). The index tap expands an app, then opens one
 notification in full; the middle tap goes back a level. A left swipe on a row shows the bin, a
 second one dismisses it (a whole app at the first level), on the glasses and in the phone's
-shade. The last row of the first level is the banners' snooze. The inbox and the banner follow
+shade; a right swipe puts the bin away or, with none shown, goes on to the Apps tab. The last row of the first level is the banners' snooze. The inbox and the banner follow
 the Meta Ray-Ban Display UI Toolkit's look.
 
 What the phone sends:
