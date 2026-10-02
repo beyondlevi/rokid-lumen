@@ -145,7 +145,10 @@ class AppsPage(private val activity: Activity, private val onOpen: (Entry) -> Un
     private fun icon(entry: Entry): View {
         val size = px(REST)
         val view: View = when (entry) {
-            is Entry.App -> WebAppIcons.load(entry.app)?.let { image(it) } ?: fallback(initial = entry.app.name)
+            is Entry.App -> WebAppIcons.load(entry.app)?.let { bitmap ->
+                // Artwork without its own background (a glyph) goes on the toolkit's material.
+                if (isGlyph(bitmap)) fallback(artwork = bitmap) else image(bitmap)
+            } ?: fallback(initial = entry.app.name)
             is Entry.Native -> runCatching { activity.packageManager.getApplicationIcon(entry.pkg) }.getOrNull()?.let { image(it) }
                 ?: fallback(initial = entry.label)
             Entry.Settings -> fallback(glyph = R.drawable.ic_settings)
@@ -169,8 +172,12 @@ class AppsPage(private val activity: Activity, private val onOpen: (Entry) -> Un
         scaleType = ImageView.ScaleType.FIT_CENTER
     }
 
-    /** The toolkit's fallback material (WebAppIconMaterial): its radial from the top-left. */
-    private fun fallback(initial: String? = null, glyph: Int = 0): View {
+    /**
+     * The toolkit's fallback material (WebAppIconMaterial): its radial from the top-left, with
+     * [artwork] (a transparent glyph, in the toolkit's 64-in-112 box), a [glyph] drawable, or
+     * the [initial].
+     */
+    private fun fallback(initial: String? = null, glyph: Int = 0, artwork: Bitmap? = null): View {
         val size = px(REST)
         val frame = FrameLayout(activity).apply {
             background = GradientDrawable().apply {
@@ -180,7 +187,12 @@ class AppsPage(private val activity: Activity, private val onOpen: (Entry) -> Un
                 setColors(FALLBACK_COLORS, floatArrayOf(0f, 1f / 3, 2f / 3, 1f))
             }
         }
-        if (glyph != 0) {
+        if (artwork != null) {
+            frame.addView(ImageView(activity).apply {
+                setImageBitmap(artwork)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }, FrameLayout.LayoutParams(size * 64 / 112, size * 64 / 112, Gravity.CENTER))
+        } else if (glyph != 0) {
             frame.addView(ImageView(activity).apply {
                 setImageResource(glyph)
                 setColorFilter(MetaStyle.TEXT, PorterDuff.Mode.SRC_IN)
@@ -196,6 +208,17 @@ class AppsPage(private val activity: Activity, private val onOpen: (Entry) -> Un
             }, FrameLayout.LayoutParams(size, size, Gravity.CENTER))
         }
         return frame
+    }
+
+    /**
+     * Whether [bitmap] is a glyph on transparency rather than a full icon: more than
+     * [GLYPH_TRANSPARENCY] of it is see-through (a full icon's rounded corners are far less).
+     */
+    private fun isGlyph(bitmap: Bitmap): Boolean {
+        val sample = Bitmap.createScaledBitmap(bitmap, 24, 24, true)
+        var clear = 0
+        for (y in 0 until 24) for (x in 0 until 24) if (Color.alpha(sample.getPixel(x, y)) < 128) clear++
+        return clear > 24 * 24 * GLYPH_TRANSPARENCY
     }
 
     private fun applyFocus(animate: Boolean) {
@@ -256,6 +279,7 @@ class AppsPage(private val activity: Activity, private val onOpen: (Entry) -> Un
         private const val BOTTOM_PAD = 64f
         private const val LABEL_GAP = 8f
         private const val ROW_GAP = 16f
+        private const val GLYPH_TRANSPARENCY = 0.3f
         private val FALLBACK_COLORS = intArrayOf(
             Color.parseColor("#7F93B5"), Color.parseColor("#495E84"), Color.parseColor("#27344A"), Color.parseColor("#181F2D"),
         )
