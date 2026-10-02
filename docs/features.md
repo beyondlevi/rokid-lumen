@@ -320,7 +320,32 @@ tabs:
 - **Settings**: the Hi Rokid authorization, the dictation engine, its language, patience and
   key (also what web apps' transcriptions use), the offline voice model, **wireless debugging**
   on the glasses (keeps their Wi-Fi on and awake, shows the `adb connect` command with Copy and
-  Share, and notifies when they come back at a new address), and the version.
+  Share, and notifies when they come back at a new address), the version and **Updates**.
+
+### Updates
+
+The companion updates itself and the glasses app from this repository's GitHub releases (the
+technique comes from Rokid Nexus, Apache-2.0).
+
+- **Checking**: GitHub's list of releases (`/repos/beyondlevi/rokid-lumen/releases`, with its
+  ETag, so a check that finds nothing new costs no quota), when the app opens and every four
+  hours from the service, or **Check now**. Only published releases tagged `vX.Y.Z[-pre]`
+  count; pre-releases only with **Include beta versions** (off by default). A newer version
+  shows a card on Home and one notification.
+- **What's new**: the release's notes (its CHANGELOG section), in Settings > Updates and on the
+  card, with the earlier versions.
+- **Checks before installing**: each APK's SHA-256 must match GitHub's digest of the asset, its
+  package and version must be the release's, and its signer the installed companion's (both
+  apps share a key). Anything else installs nothing.
+- **Glasses first**: the companion downloads `rokid-lumen-glasses-<version>.apk` and hands it to
+  Rokid's link (CXR-L `appUploadAndInstall`, over the phone's **Wi-Fi**, which must be on), asks
+  the link whether it's installed, then waits for the glasses to report the new version (the
+  self-arm's watchdog brings the band service back). Then `rokid-lumen-companion-<version>.apk`
+  through Android's installer, which asks to confirm (and, the first time, to allow this app
+  to install apps). Installing the companion restarts it, hence the order.
+- On the glasses, the first start of a new version shows a banner: *Lumen updated · version*.
+- A release's `versionCode` comes from its tag (`v0.2.0-beta.5` → 20005, `v0.2.0` → 20099), so an
+  update is never a downgrade. Drafts are invisible to the updater until published.
 
 ### The band on the phone
 

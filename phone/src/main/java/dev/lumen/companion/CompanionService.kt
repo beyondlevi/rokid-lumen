@@ -142,6 +142,15 @@ class CompanionService : Service() {
         PhoneBand.resume(this)
         registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         main.postDelayed(batteryHeartbeat, BATTERY_RESEND_MS)
+        main.postDelayed(updateTick, 60_000)
+    }
+
+    /** The automatic update check, hourly; [dev.lumen.companion.update.UpdateManager] keeps it to every four hours. */
+    private val updateTick = object : Runnable {
+        override fun run() {
+            dev.lumen.companion.update.UpdateManager.checkIfDue(this@CompanionService)
+            main.postDelayed(this, 60 * 60_000L)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -718,6 +727,55 @@ class CompanionService : Service() {
             if (service.link == null) return false
             service.main.post { service.sendGrid(json) }
             return true
+        }
+
+        /** Rokid's link to the glasses is up (a session the glasses app can be reached on). */
+        val linkReady: Boolean get() = instance?.link != null && state.healthy
+
+        /**
+         * Uploads [apk] to the glasses and installs it there, through Rokid's link (CXR-L
+         * `appUploadAndInstall`, which goes over Wi-Fi), then asks the link whether the app is
+         * installed (its success alone isn't trusted, as Rokid Nexus found). Blocks up to 15
+         * minutes: call it off the main thread.
+         */
+        fun installOnGlasses(apk: java.io.File): Boolean {
+            val service = instance ?: return false
+            val cxr = service.link ?: return false
+            val installed = java.util.concurrent.CountDownLatch(1)
+            var ok = false
+            val callback = object : IGlassAppCbk {
+                override fun onInstallAppResult(result: Boolean) {
+                    Log.d(TAG, "glasses app install=$result")
+                    ok = result
+                    installed.countDown()
+                }
+                override fun onUnInstallAppResult(result: Boolean) = Unit
+                override fun onOpenAppResult(result: Boolean) = Unit
+                override fun onStopAppResult(result: Boolean) = Unit
+                override fun onGlassAppResume(resumed: Boolean) = Unit
+                override fun onQueryAppResult(result: Boolean) = Unit
+            }
+            service.main.post {
+                runCatching { cxr.appUploadAndInstall(apk.absolutePath, callback) }
+                    .onFailure { Log.w(TAG, "appUploadAndInstall", it); installed.countDown() }
+            }
+            if (!installed.await(15, java.util.concurrent.TimeUnit.MINUTES) || !ok) return false
+            val queried = java.util.concurrent.CountDownLatch(1)
+            var present = false
+            val query = object : IGlassAppCbk {
+                override fun onInstallAppResult(result: Boolean) = Unit
+                override fun onUnInstallAppResult(result: Boolean) = Unit
+                override fun onOpenAppResult(result: Boolean) = Unit
+                override fun onStopAppResult(result: Boolean) = Unit
+                override fun onGlassAppResume(resumed: Boolean) = Unit
+                override fun onQueryAppResult(result: Boolean) {
+                    present = result
+                    queried.countDown()
+                }
+            }
+            service.main.post { runCatching { cxr.appIsInstalled(query) }.onFailure { queried.countDown() } }
+            // An answer that doesn't come doesn't undo what the install said.
+            return if (queried.await(30, java.util.concurrent.TimeUnit.SECONDS)) present else true
         }
 
         /** One notification sync shortly, however many ask for it (listener, link, glasses). */

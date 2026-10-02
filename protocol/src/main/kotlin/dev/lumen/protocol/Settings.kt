@@ -191,12 +191,15 @@ sealed class SettingsEvent {
         val actions: List<SettingsAction>,
         val status: BandStatus,
         val debug: DebugStatus = DebugStatus(),
+        /** The glasses app's versionName ("" from an app older than the updater). */
+        val appVersion: String = "",
     ) : SettingsEvent() {
         fun toJson(request: JSONObject? = null): JSONObject = (request?.let { Link.reply(it) } ?: Link.message()).put("type", "schema")
             .put("settings", JSONArray().apply { settings.forEach { put(it.toJson()) } })
             .put("actions", JSONArray().apply { actions.forEach { put(it.toJson()) } })
             .put("status", status.toJson())
             .put("debug", debug.toJson())
+            .put("app_version", appVersion)
     }
 
     data class Debug(val debug: DebugStatus) : SettingsEvent() {
@@ -224,6 +227,7 @@ sealed class SettingsEvent {
                     (0 until (actions?.length() ?: 0)).map { SettingsAction.from(actions!!.getJSONObject(it)) },
                     BandStatus.from(json.optJSONObject("status")),
                     DebugStatus.from(json.optJSONObject("debug")),
+                    json.optString("app_version"),
                 )
             }
             "debug" -> Debug(DebugStatus.from(json.optJSONObject("debug")))

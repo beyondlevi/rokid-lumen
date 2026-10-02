@@ -49,6 +49,11 @@ object LumenIcons {
     val trash = icon("trash", "M4 7h16", "M10 11v6", "M14 11v6", "M6 7l1 13h10l1-13", "M9 7V4h6v3")
     /** Six dots: a row's drag handle (round caps on zero-length lines, drawn thicker). */
     val grip = icon("grip", "M9 6h.01", "M15 6h.01", "M9 12h.01", "M15 12h.01", "M9 18h.01", "M15 18h.01", width = 3.2f)
+    val phone = icon("phone", "M9 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z", "M11 18h2")
+    val back = icon("back", "M15 6l-6 6 6 6")
+    val check = icon("check", "M5 12.5l4.5 4.5L19 7.5", width = 2.4f)
+    val wifi = icon("wifi", "M2 9a15 15 0 0 1 20 0", "M5.5 12.5a10 10 0 0 1 13 0", "M9 16a5 5 0 0 1 6 0", "M12 19.5h.01")
+    val shield = icon("shield", "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z", "M9 12l2 2 4-4")
     val band = icon("band", "M10 7h4a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3h-4a3 3 0 0 1-3-3v-4a3 3 0 0 1 3-3z", "M9 7V3h6v4", "M9 17v4h6v-4")
 
     private fun icon(name: String, vararg paths: String, width: Float = 1.8f): ImageVector {

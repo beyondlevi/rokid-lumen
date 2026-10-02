@@ -13,6 +13,19 @@ val keystorePath: String? = System.getenv("KEYSTORE_PATH")?.takeIf { it.isNotBla
 // A GitHub Actions run for a tag (v0.1.0) names the version after it.
 val releaseTag: String? = System.getenv("GITHUB_REF_NAME")?.takeIf { System.getenv("GITHUB_REF_TYPE") == "tag" }
 
+/**
+ * The versionCode of a release tag, growing with the version as Android needs for an update:
+ * (major*10000 + minor*100 + patch)*100, plus the pre-release's last number (beta.5 → 5) or 99 for
+ * the release itself (v0.2.0-beta.5 → 20005, v0.2.0 → 20099). Null for a tag that isn't one.
+ */
+fun versionCodeOf(tag: String?): Int? {
+    val match = Regex("""^v?(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.]*?(\d+)?)?$""").matchEntire(tag ?: return null) ?: return null
+    val (major, minor, patch, pre) = match.destructured
+    val base = (major.toInt() * 10000 + minor.toInt() * 100 + patch.toInt()) * 100
+    val prerelease = tag.contains('-')
+    return base + if (prerelease) (pre.toIntOrNull() ?: 0).coerceAtMost(98) else 99
+}
+
 android {
     // A missing translation falls back to English (AGENTS.md): not a build error.
     lint {
@@ -29,7 +42,7 @@ android {
         // CXR-L 1.0.3+ needs 31.
         minSdk = 31
         targetSdk = 36
-        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
+        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: versionCodeOf(releaseTag) ?: 1
         // Release builds take the tag (v0.3.9 → 0.3.9); a local build is the work after the last release.
         versionName = releaseTag?.removePrefix("v") ?: "0.1.0-dev"
         ndk { abiFilters += listOf("arm64-v8a") }
@@ -98,4 +111,6 @@ dependencies {
     // The cloud dictation engines: REST and WebSocket (as Rokid Nexus).
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     testImplementation("junit:junit:4.13.2")
+    // The real org.json (android.jar's is a stub here): the release list is parsed in tests.
+    testImplementation("org.json:json:20260814")
 }

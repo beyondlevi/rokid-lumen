@@ -267,6 +267,8 @@
     <string name="controls_battery_phone">Bateria do celular</string>
     <string name="controls_battery_unknown">–</string>
     <string name="status_wifi">Wi-Fi conectado</string>
+    <string name="update_banner_title">Lumen atualizado · %1$s</string>
+    <string name="update_banner_text">As novidades estão no celular</string>
     <string name="controls_level">%1$d%%</string>
     <string name="controls_dnd_on">Não perturbe ligado: sem banners por 15 minutos</string>
     <string name="controls_dnd_off">Não perturbe desligado</string>

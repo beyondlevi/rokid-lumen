@@ -100,6 +100,8 @@ data class CompanionUiState(
     /** Whether this phone's Wi-Fi is on the glasses' network; null when unknown. */
     val glassesDebugSameNetwork: Boolean? = null,
     val dictation: DictationUiState = DictationUiState(),
+    /** Updates from GitHub's releases, for this companion and the glasses app. */
+    val update: dev.lumen.companion.update.UpdateManager.State = dev.lumen.companion.update.UpdateManager.State(),
 )
 
 /** What the screens can ask for. */
@@ -155,7 +157,20 @@ interface CompanionActions {
     fun saveAzureRegion(region: String)
     /** The phone's microphone permission (the Android recognizer checks it). */
     fun allowMicrophone()
+    fun checkUpdates()
+    fun updateAll()
+    fun cancelUpdate()
+    fun dismissUpdate()
+    fun setAutoUpdate(on: Boolean)
+    fun setBetaUpdates(on: Boolean)
+    /** Android's "install unknown apps" for this app (its own updates). */
+    fun allowInstalls()
+    fun openWifiSettings()
 }
+
+/** A page over the tabs: the updates, or one release's notes (`notes:<tag>`). */
+const val PAGE_UPDATES = "updates"
+const val PAGE_NOTES = "notes"
 
 /** Set while a list row is dragged: the page doesn't scroll under the finger meanwhile. */
 internal val LocalScrollLock = androidx.compose.runtime.staticCompositionLocalOf { mutableStateOf(false) }
@@ -169,8 +184,12 @@ private enum class Tab(@StringRes val label: Int, val icon: ImageVector) {
 }
 
 @Composable
-fun CompanionApp(state: CompanionUiState, actions: CompanionActions) {
-    var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
+fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: String? = null) {
+    var tab by rememberSaveable { mutableStateOf(if (startPage != null) Tab.SETTINGS else Tab.HOME) }
+    var page by rememberSaveable(startPage) { mutableStateOf(startPage) }
+    androidx.activity.compose.BackHandler(enabled = page != null) {
+        page = if (page?.startsWith(PAGE_NOTES) == true && tab == Tab.SETTINGS) PAGE_UPDATES else null
+    }
     val scrollLock = remember { mutableStateOf(false) }
     Scaffold(
         containerColor = Lumen.window,
@@ -181,6 +200,7 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions) {
                         selected = tab == entry,
                         onClick = {
                             tab = entry
+                            page = null
                             if (entry == Tab.BAND) actions.refreshBand()
                             if (entry == Tab.APPS) actions.refreshGrid()
                         },
@@ -207,12 +227,21 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions) {
             verticalArrangement = Arrangement.spacedBy(Lumen.spacingMedium),
         ) {
             androidx.compose.runtime.CompositionLocalProvider(LocalScrollLock provides scrollLock) {
-            when (tab) {
-                Tab.HOME -> HomeScreen(state, actions)
+            val current = page
+            when {
+                current == PAGE_UPDATES -> UpdatesPage(state.update, actions, onNotes = { page = PAGE_NOTES }, onBack = { page = null })
+                current != null && current.startsWith(PAGE_NOTES) -> NotesPage(
+                    state.update, current.substringAfter(':', "").ifEmpty { null }, actions,
+                    onPick = { page = "$PAGE_NOTES:$it" },
+                    onBack = { page = if (tab == Tab.SETTINGS) PAGE_UPDATES else null },
+                )
+                else -> when (tab) {
+                Tab.HOME -> HomeScreen(state, actions) { page = PAGE_NOTES }
                 Tab.APPS -> AppsScreen(state.gridItems, state.gridAvailable, state.gridKnown, state.gridIcons, state.gridError, state.packageTransfer, actions)
                 Tab.BAND -> BandScreen(state, actions)
                 Tab.NOTIFICATIONS -> NotificationsScreen(state, actions)
-                Tab.SETTINGS -> SettingsScreen(state, actions)
+                Tab.SETTINGS -> SettingsScreen(state, actions) { page = PAGE_UPDATES }
+                }
             }
             }
             state.message?.let {
@@ -223,8 +252,9 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions) {
 }
 
 @Composable
-private fun HomeScreen(state: CompanionUiState, actions: CompanionActions) {
+private fun HomeScreen(state: CompanionUiState, actions: CompanionActions, onUpdate: () -> Unit) {
     Header(stringResource(R.string.home_title), stringResource(R.string.home_subtitle))
+    state.update.offered?.let { UpdateCard(it, onUpdate) }
     Card {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Lumen.spacingMedium)) {
             Box(
@@ -315,7 +345,7 @@ private fun NotificationsScreen(state: CompanionUiState, actions: CompanionActio
 }
 
 @Composable
-private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions) {
+private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions, onUpdates: () -> Unit) {
     Header(stringResource(R.string.settings_title), null)
     SectionTitle(stringResource(R.string.settings_link))
     Group {
@@ -337,6 +367,13 @@ private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions) {
     SectionTitle(stringResource(R.string.settings_about))
     Group {
         ListRow(title = stringResource(R.string.app_name), subtitle = stringResource(R.string.settings_version, state.version))
+        ListRow(
+            title = stringResource(R.string.updates_title),
+            subtitle = state.update.offered?.let { stringResource(R.string.updates_available, it.version.toString()) }
+                ?: stringResource(R.string.updates_up_to_date),
+            icon = LumenIcons.download,
+            onClick = onUpdates,
+        )
     }
 }
 

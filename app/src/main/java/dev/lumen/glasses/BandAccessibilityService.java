@@ -141,6 +141,7 @@ public final class BandAccessibilityService extends AccessibilityService {
         batteryOverlay = new BandBatteryOverlay(this);
         batteryOverlay.start();
         PhoneLink.setAlertListener(notification -> banner.show(notification));
+        AppUpdateNotice.showIfUpdated(this, banner);
         PhoneLink.start(this);
         String problem = BandRuntime.start(this, this::onBandAction);
         Log.d(TAG, "Accessibility service connected band=" + (problem == null ? "starting" : problem));

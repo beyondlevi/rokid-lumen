@@ -47,14 +47,23 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     private val gridListener: () -> Unit = { refresh() }
     private val snoozeListener: () -> Unit = { refresh() }
     private val snoozeEnded = Runnable { refresh() }
+    private val updateListener: () -> Unit = { refresh() }
+    /** The page the launching intent asks for (the update notification's). */
+    private val startPage = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            LumenTheme { CompanionApp(state.value, this) }
+            LumenTheme { CompanionApp(state.value, this, startPage.value) }
         }
+        startPage.value = intent?.getStringExtra(EXTRA_PAGE)
         askRuntimePermissions()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        startPage.value = intent.getStringExtra(EXTRA_PAGE)
     }
 
     override fun onResume() {
@@ -64,6 +73,8 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         PhoneBand.listeners += bandListener
         GridCache.listeners += gridListener
         PhoneSnooze.listeners += snoozeListener
+        dev.lumen.companion.update.UpdateManager.listeners += updateListener
+        dev.lumen.companion.update.UpdateManager.checkIfDue(this)
         if (CompanionPrefs.token(this) != null) CompanionService.start(this)
         refresh()
     }
@@ -74,6 +85,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         PhoneBand.listeners -= bandListener
         GridCache.listeners -= gridListener
         PhoneSnooze.listeners -= snoozeListener
+        dev.lumen.companion.update.UpdateManager.listeners -= updateListener
         window.decorView.removeCallbacks(snoozeEnded)
         super.onPause()
     }
@@ -128,6 +140,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
                 azureRegion = SpeechSecrets.azureRegion(this),
                 missing = SpeechSettings.missing(this),
             ),
+            update = dev.lumen.companion.update.UpdateManager.state(this),
         )
         // The switch turns off by itself when the snooze runs out.
         window.decorView.removeCallbacks(snoozeEnded)
@@ -177,6 +190,27 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     }
 
     override fun reconnect() = CompanionService.start(this, reconnect = true)
+
+    override fun checkUpdates() = dev.lumen.companion.update.UpdateManager.check(this)
+
+    override fun updateAll() = dev.lumen.companion.update.UpdateManager.updateAll(this)
+
+    override fun cancelUpdate() = dev.lumen.companion.update.UpdateManager.cancel()
+
+    override fun dismissUpdate() = dev.lumen.companion.update.UpdateManager.dismiss()
+
+    override fun setAutoUpdate(on: Boolean) = dev.lumen.companion.update.UpdateManager.setAutoCheck(this, on)
+
+    override fun setBetaUpdates(on: Boolean) {
+        dev.lumen.companion.update.UpdateManager.setIncludeBeta(this, on)
+        dev.lumen.companion.update.UpdateManager.check(this)
+    }
+
+    override fun allowInstalls() {
+        startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:$packageName")))
+    }
+
+    override fun openWifiSettings() = startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
 
     override fun stop() {
         stopService(Intent(this, CompanionService::class.java))
@@ -414,6 +448,10 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     }
 
     companion object {
+        /** Opens a page over the tabs ([dev.lumen.companion.ui.PAGE_UPDATES]): the update notification. */
+        const val EXTRA_PAGE = "page"
+        const val PAGE_UPDATES = dev.lumen.companion.ui.PAGE_UPDATES
+
         private const val REQUEST_AUTH = 7
         private const val REQUEST_MICROPHONE = 8
         private const val REQUEST_PERMISSIONS = 8

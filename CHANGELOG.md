@@ -3,6 +3,28 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.5]
+
+### Companion
+
+- **Updates from GitHub**, for the companion and the glasses app: Settings > Updates shows both
+  versions and what's new, and **Update both** installs the glasses first (over the phone's
+  Wi-Fi), then the companion. It checks on open and every four hours; betas only when asked.
+- Each download is checked (SHA-256, package, version, signer) before anything installs.
+
+### Glasses
+
+- A banner after an update: *Lumen updated*.
+- The glasses tell the companion their version.
+
+### Earlier in 0.2.0
+
+- **Controls tab** (right of Apps): the batteries of the glasses, the band and the phone;
+  camera, gallery and music; volume and brightness; do not disturb; Rokid settings; and the
+  way back to the Rokid launcher. Back no longer leaves Lumen.
+- The time and Wi-Fi at the top right of the home.
+- The Notifications tab follows the band again; a right swipe goes to Apps.
+
 ## [0.1.0] (unreleased)
 
 The first public release of Rokid Lumen: the glasses app (`dev.lumen.glasses`) and Rokid Lumen

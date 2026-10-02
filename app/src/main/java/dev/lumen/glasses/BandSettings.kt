@@ -132,7 +132,8 @@ object BandSettings {
             SettingsAction(ACTION_RECONNECT, "Reconnect"),
             SettingsAction(ACTION_FORGET, "Forget the band", destructive = true),
         )
-        return SettingsEvent.Schema(settings, actions, status(), WirelessDebug.current)
+        val version = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
+        return SettingsEvent.Schema(settings, actions, status(), WirelessDebug.current, version)
     }
 
     /** Null when applied, else why not (in English, for the log and the phone's fallback). */

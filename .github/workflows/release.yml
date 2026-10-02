@@ -1,5 +1,6 @@
 # A tag v<version> builds both apps signed with the release key and drafts a GitHub release
-# with the APKs and their SHA-256. Publishing the draft is a person's decision.
+# with the APKs and their SHA-256. Publishing the draft is a person's decision; once published,
+# the companion's updater offers it (UpdateManager).
 #
 # Secrets: KEYSTORE_BASE64 (the release keystore, base64), KEYSTORE_PASSWORD, KEY_ALIAS,
 # KEY_PASSWORD.
@@ -56,8 +57,8 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          # Grows with every release run, so an update always installs over the previous one.
-          VERSION_CODE: ${{ github.run_number }}
+          # No VERSION_CODE: it comes from the tag (versionCodeOf in the build scripts), so it grows with
+          # the version and the in-app updater's installs are never downgrades.
         run: ./gradlew --no-daemon :app:testDebugUnitTest :phone:testDebugUnitTest :app:assembleRelease :phone:assembleRelease
 
       - name: APKs and checksums
@@ -75,7 +76,10 @@ jobs:
         run: |
           # The notes are the CHANGELOG section of this version ("## [0.1.0] ..." up to the next "## ").
           awk -v v="${GITHUB_REF_NAME#v}" 'index($0, "## [" v "]") == 1 { on = 1; next } on && /^## / { exit } on' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
-          gh release create "$GITHUB_REF_NAME" dist/* --draft --title "Rokid Lumen ${GITHUB_REF_NAME#v}" --notes-file "$RUNNER_TEMP/notes.md"
+          # A tag with a suffix (v0.2.0-beta.5) is a pre-release: the companion offers it only with
+          # "Include beta versions" on. Drafts aren't seen by the updater until published.
+          pre=""; case "$GITHUB_REF_NAME" in *-*) pre="--prerelease";; esac
+          gh release create "$GITHUB_REF_NAME" dist/* --draft $pre --title "Rokid Lumen ${GITHUB_REF_NAME#v}" --notes-file "$RUNNER_TEMP/notes.md"
 
       - name: Remove the key
         if: always()

@@ -19,6 +19,8 @@
         android:usesPermissionFlags="neverForLocation" />
     <!-- Bringing the link back after a reboot, when the companion is authorized. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Its own updates, from the repository's GitHub releases (UpdateManager); Android asks first. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- The band's brightness steps on the phone ("Modify system settings", granted in Settings). -->
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
 
@@ -95,5 +97,9 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+            <!-- The companion update's installer session reports here (PhoneInstaller). -->
+        <receiver
+            android:name=".update.PhoneInstaller$StatusReceiver"
+            android:exported="false" />
     </application>
 </manifest>
