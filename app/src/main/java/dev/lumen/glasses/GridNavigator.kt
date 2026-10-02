@@ -6,8 +6,8 @@ package dev.lumen.glasses
  * Up and down move between rows (down to a shorter last row takes its last item). Right and
  * left walk the items in order, across rows, as forward and backward do: the band's and the
  * touchpad's forward and back swipes arrive as right and left, and must reach every app.
- * Leaving the grid upward (from the first row) or leftward (from the first app) is the home's
- * business: [move] answers [OUT_UP] or [OUT_LEFT] then.
+ * Leaving the grid upward (from the first row), leftward (from the first app) or rightward (from
+ * the last app) is the home's business: [move] answers [OUT_UP], [OUT_LEFT] or [OUT_RIGHT] then.
  */
 class GridNavigator(val columns: Int = 3) {
     fun rowOf(index: Int) = index / columns
@@ -15,12 +15,17 @@ class GridNavigator(val columns: Int = 3) {
 
     /** Where [command] moves the focus from [index] among [count] items, or [OUT_UP] / [OUT_LEFT]. */
     fun move(index: Int, count: Int, command: String): Int {
-        if (count <= 0) return if (command == BandCommand.UP) OUT_UP else if (command == BandCommand.LEFT) OUT_LEFT else 0
+        if (count <= 0) return when (command) {
+            BandCommand.UP -> OUT_UP
+            BandCommand.LEFT -> OUT_LEFT
+            BandCommand.RIGHT -> OUT_RIGHT
+            else -> 0
+        }
         val current = index.coerceIn(0, count - 1)
         return when (command) {
             BandCommand.FORWARD -> (current + 1).coerceAtMost(count - 1)
             BandCommand.BACKWARD -> (current - 1).coerceAtLeast(0)
-            BandCommand.RIGHT -> (current + 1).coerceAtMost(count - 1)
+            BandCommand.RIGHT -> if (current < count - 1) current + 1 else OUT_RIGHT
             BandCommand.LEFT -> if (current > 0) current - 1 else OUT_LEFT
             BandCommand.DOWN -> when {
                 current + columns < count -> current + columns
@@ -38,5 +43,7 @@ class GridNavigator(val columns: Int = 3) {
         const val OUT_UP = -1
         /** Left from the first app: the previous tab. */
         const val OUT_LEFT = -2
+        /** Right from the last app: the next tab (the controls). */
+        const val OUT_RIGHT = -3
     }
 }

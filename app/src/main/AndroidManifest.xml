@@ -77,8 +77,7 @@
             android:screenOrientation="portrait"
             tools:ignore="DiscouragedApi,LockedOrientationActivity" />
 
-        <!-- The app's home: its icon on the Rokid launcher and, once the user picks it in
-             Android's "Default home app" (HomeRole), the glasses' home screen. -->
+        <!-- The app's home and its one icon on the Rokid launcher: the apps grid. -->
         <activity
             android:name=".LauncherActivity"
             android:exported="true"
@@ -90,11 +89,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 
@@ -147,7 +141,6 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 

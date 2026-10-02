@@ -50,9 +50,6 @@
     <string name="engine_system">WebView do sistema</string>
     <string name="system_accessibility">Acessibilidade</string>
     <string name="system_accessibility_detail">Ativar o serviço da banda</string>
-    <string name="system_home">App de início</string>
-    <string name="system_home_lumen">O Lumen é a tela inicial</string>
-    <string name="system_home_other">Tornar o Lumen a tela inicial dos óculos</string>
     <string name="system_bluetooth">Ajustes de Bluetooth</string>
     <string name="system_bluetooth_detail">Pareamento e aparelhos pareados</string>
     <string name="system_app">Ajustes do app</string>
@@ -256,4 +253,17 @@
     <string name="settings_title">Ajustes do Lumen</string>
     <string name="home_tab_notifications">Notificações</string>
     <string name="home_tab_apps">Apps</string>
+    <string name="home_tab_controls">Controles</string>
+    <string name="controls_camera">Câmera</string>
+    <string name="controls_gallery">Galeria</string>
+    <string name="controls_music">Música</string>
+    <string name="controls_volume">Volume</string>
+    <string name="controls_brightness">Brilho</string>
+    <string name="controls_dnd">Não perturbe</string>
+    <string name="controls_settings">Ajustes da Rokid</string>
+    <string name="controls_rokid">Launcher da Rokid</string>
+    <string name="controls_level">%1$d%%</string>
+    <string name="controls_dnd_on">Não perturbe ligado: sem banners por 15 minutos</string>
+    <string name="controls_dnd_off">Não perturbe desligado</string>
+    <string name="controls_unavailable">Não disponível nestes óculos</string>
 </resources>

@@ -20,7 +20,6 @@ import android.provider.Settings;
 import android.util.Log;
 import android.view.Display;
 import android.view.accessibility.AccessibilityEvent;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Toast;
 
 /**
@@ -144,8 +143,6 @@ public final class BandAccessibilityService extends AccessibilityService {
         PhoneLink.setAlertListener(notification -> banner.show(notification));
         PhoneLink.start(this);
         String problem = BandRuntime.start(this, this::onBandAction);
-        AccessibilityNodeInfo front = getRootInActiveWindow();
-        HomeRole.onServiceConnected(this, front == null ? null : front.getPackageName());
         Log.d(TAG, "Accessibility service connected band=" + (problem == null ? "starting" : problem));
     }
 
@@ -176,7 +173,7 @@ public final class BandAccessibilityService extends AccessibilityService {
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         AccessibilityWindowRoots.noteEvent(event, getPackageName());
-        HomeRole.onAccessibilityEvent(this, event);
+        SystemControls.onAccessibilityEvent(this, event);
         if (batteryOverlay != null) {
             batteryOverlay.onAccessibilityEvent(event);
         }

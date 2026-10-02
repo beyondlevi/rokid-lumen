@@ -290,9 +290,6 @@ public final class MainActivity extends Activity
                 }
                 break;
             case SYSTEM:
-                action(getString(R.string.system_home), getString(HomeRole.isDefault(this)
-                                ? R.string.system_home_lumen : R.string.system_home_other),
-                        v -> HomeRole.openChooser(this));
                 action(getString(R.string.system_accessibility), getString(R.string.system_accessibility_detail),
                         v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
                 action(getString(R.string.system_bluetooth), getString(R.string.system_bluetooth_detail),

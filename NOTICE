@@ -42,8 +42,8 @@ Apache License, Version 2.0 (LICENSES/Apache-2.0.txt):
   downloaded on first use from https://alphacephei.com/vosk/models
 - OkHttp (com.squareup.okhttp3), Kotlin coroutines (org.jetbrains.kotlinx), AndroidX and
   Jetpack Compose
-- Material Design icons (Google): the glasses' home tab icons (app/src/main/res/drawable/
-  ic_bell.xml, ic_apps.xml)
+- Material Design icons (Google): the glasses' home tab and control icons
+  (app/src/main/res/drawable/ic_bell.xml, ic_apps.xml, ic_controls.xml, ic_ctl_*.xml)
 - JNA (net.java.dev.jna), used by Vosk, dual-licensed under the LGPL 2.1 and the Apache
   License 2.0; used here under the Apache License 2.0
 

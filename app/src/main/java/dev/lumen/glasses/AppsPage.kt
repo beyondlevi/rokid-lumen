@@ -253,6 +253,7 @@ class AppsPage(private val activity: Activity, private val onOpen: (Entry) -> Un
                 when (val next = grid.move(focus, entries.size, command)) {
                     GridNavigator.OUT_UP -> return HomeResult.UP_OUT
                     GridNavigator.OUT_LEFT -> return HomeResult.LEFT_OUT
+                    GridNavigator.OUT_RIGHT -> return HomeResult.RIGHT_OUT
                     focus -> Unit
                     else -> {
                         focus = next

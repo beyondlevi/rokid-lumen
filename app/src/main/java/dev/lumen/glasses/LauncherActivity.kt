@@ -18,8 +18,9 @@ import dev.lumen.protocol.GridItem
 import java.util.concurrent.Executors
 
 /**
- * The home: the toolkit's SubNavigationPager, natively. Two tabs, Notifications and Apps, in a
- * pill at the top ([SubNavigationView]); each a page ([NotificationsPage], [AppsPage]) in a pager
+ * The home: the toolkit's SubNavigationPager, natively. Three tabs, Notifications, Apps and
+ * Controls, in a pill at the top ([SubNavigationView]); each a page ([NotificationsPage],
+ * [AppsPage], [ControlsPage]) in a pager
  * that slides between them as the toolkit's does (the new page from the side, 50 px of overlap,
  * 400 ms, the old one fading in 300). Opened on top of the Rokid launcher (from its icon or a
  * mapped gesture); a banner's index tap opens the Notifications tab on that notification.
@@ -27,9 +28,8 @@ import java.util.concurrent.Executors
  * Focus: on the pill, left and right change the tab and down (or the index tap) goes into the
  * page; in a page, up from its top and left (or right) from its edge come back out, as the
  * toolkit's focus handoff does. While the pill has the focus, the toolkit's scrim darkens the
- * page from the top. The middle tap goes back a level, then closes the home back to the Rokid
- * launcher; when Lumen is the glasses' home app ([HomeRole]) there is nothing below it, so the
- * home stays.
+ * page from the top. The middle tap goes back a level, then to the tabs: it never leaves Lumen
+ * (the Rokid's touchpad Back neither). Only the Controls tab's Rokid launcher tile does.
  *
  * Packages pushed to [WebAppPackages.dropFolder] are installed when the home opens; one from an
  * HTTPS URL goes through [InstallConfirmActivity].
@@ -44,6 +44,7 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
     private lateinit var status: TextView
     private lateinit var notifications: NotificationsPage
     private lateinit var apps: AppsPage
+    private lateinit var controls: ControlsPage
     private lateinit var pages: List<HomePage>
     private var tab = TAB_APPS
     private var onPill = false
@@ -66,7 +67,8 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
 
         notifications = NotificationsPage(this)
         apps = AppsPage(this) { open(it) }
-        pages = listOf(notifications, apps)
+        controls = ControlsPage(this) { say(it) }
+        pages = listOf(notifications, apps, controls)
         pages.forEach { square.addView(it.view, FrameLayout.LayoutParams(side, side)) }
 
         // The toolkit's navigation scrim: black over the top tenth, fading out down the page.
@@ -81,6 +83,7 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         pill = SubNavigationView(this, listOf(
             SubNavigationView.Tab(R.drawable.ic_bell, getString(R.string.home_tab_notifications)),
             SubNavigationView.Tab(R.drawable.ic_apps, getString(R.string.home_tab_apps)),
+            SubNavigationView.Tab(R.drawable.ic_controls, getString(R.string.home_tab_controls)),
         ))
         square.addView(pill, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, px(44f), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
             topMargin = px(20f)
@@ -126,6 +129,7 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         when (intent.getStringExtra(EXTRA_TAB)) {
             TAB_NAME_NOTIFICATIONS -> wanted = TAB_NOTIFICATIONS
             TAB_NAME_APPS -> wanted = TAB_APPS
+            TAB_NAME_CONTROLS -> wanted = TAB_CONTROLS
         }
         return wanted
     }
@@ -236,6 +240,7 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         new.view.animate().alpha(1f).setDuration(FADE_MS).start()
         old.view.animate().translationX(-direction * offset).alpha(0f).setDuration(SLIDE_MS).setInterpolator(EASE)
             .withEndAction { if (tab != from) old.view.visibility = View.INVISIBLE }.start()
+        if (new === controls) controls.resetFocus()
         new.onShow()
         pill.setActive(to)
         refreshDot()
@@ -292,9 +297,12 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         return true
     }
 
-    /** Back from the top level: back to the Rokid launcher, unless Lumen is the home app. */
+    /**
+     * Back from the top level: the focus goes to the tabs and the home stays. Leaving Lumen for
+     * the Rokid launcher is the Controls tab's tile ([SystemControls.openRokidLauncher]).
+     */
     private fun close() {
-        if (HomeRole.isDefault(this)) setPillFocus(true) else finish()
+        if (!onPill) setPillFocus(true)
     }
 
     private fun open(entry: AppsPage.Entry) {
@@ -330,12 +338,14 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         private const val PERMISSION_REQUEST = 43
         const val TAB_NOTIFICATIONS = 0
         const val TAB_APPS = 1
+        const val TAB_CONTROLS = 2
         /** A notification to open in full on the Notifications tab (a banner's index tap). */
         const val EXTRA_KEY = "key"
-        /** "notifications" or "apps". */
+        /** "notifications", "apps" or "controls". */
         const val EXTRA_TAB = "tab"
         const val TAB_NAME_NOTIFICATIONS = "notifications"
         const val TAB_NAME_APPS = "apps"
+        const val TAB_NAME_CONTROLS = "controls"
         /** The toolkit Pager's page transition: transform 400 ms, opacity 300 ms, CSS `ease`. */
         private const val SLIDE_MS = 400L
         private const val FADE_MS = 300L

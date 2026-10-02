@@ -52,10 +52,11 @@ Rokid Lumen is not affiliated with Meta or Rokid. "Rokid" names the glasses it r
   double tap turns the screen off and on, the middle hold turns the controls off and on, and
   pinch and turn changes the volume (or navigates). The index double tap can be mapped to an
   action or an app.
-- **Home with two tabs.** Notifications (the phone's notification inbox) and Apps: the web
+- **Home with three tabs.** Notifications (the phone's notification inbox), Apps (the web
   apps and any native apps you add, three across in rows that scroll, the glasses' settings
-  last, the focused app's icon bigger. You arrange the apps from the phone. It can replace the
-  Rokid launcher as the glasses' home screen.
+  last, the focused app's icon bigger; you arrange them from the phone) and Controls (volume,
+  brightness, do not disturb, the Rokid's camera, gallery, music and settings, and the way back
+  to the Rokid launcher).
 - **Web apps.** Offline `.mrbd.zip` packages, served from a loopback server, and online HTTPS
   apps. Each app has its own origin and, on GeckoView, its own cookies and storage. Apps can
   declare settings (a server URL, an API key) that you fill in from the phone.
@@ -89,10 +90,9 @@ self-arm.
 
 ## Recommended use
 
-- **Make Lumen your main screen.** Pick it as the glasses' home app in Settings > System >
-  Home app, so the glasses start on it and Home comes back to it. Or keep the Rokid launcher and
-  open the grid from Rokid Lumen's icon, or map the index double tap to *MRBD apps* in the
-  companion's Band tab. Add the native apps
+- **Make Lumen your main screen.** Open it from Rokid Lumen's icon on the Rokid launcher, or map
+  the index double tap to *MRBD apps* in the companion's Band tab; Back keeps you in it, and the
+  Controls tab's last tile goes back to the Rokid launcher. Add the native apps
   you use to the grid from the companion's Apps tab, so everything is a swipe away.
 - **Keep the screen on and turn it off with the band.** The middle double tap turns the HUD off
   and on again, as on Meta's glasses. With the screen off it is the only gesture that does

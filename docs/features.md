@@ -96,8 +96,8 @@ An official API, if Meta publishes one, would be a third implementation of the s
 <!-- media: grid (to retake: the home's Apps tab) -->
 ![The apps grid on the HUD](media/grid.png)
 
-Rokid Lumen's icon on the Rokid launcher opens the home, on top of the Rokid launcher, or the
-home *is* the glasses' home screen (below). It is the UI Toolkit's SubNavigationPager: a pill of two tabs at the top, **Notifications** and
+Rokid Lumen's icon on the Rokid launcher opens the home, on top of the Rokid launcher. It is the
+UI Toolkit's SubNavigationPager: a pill of two tabs at the top, **Notifications** and
 **Apps**, over a page that slides from one to the other.
 
 - **Notifications**: the phone's notification inbox (below). A dot on its tab icon says
@@ -112,37 +112,43 @@ home *is* the glasses' home screen (below). It is the UI Toolkit's SubNavigation
 
 On the pill, left and right change the tab and down (or the index tap) goes into the page; up
 from a page's top, or left (right) from its edge, comes back out, as the toolkit's focus
-handoff does. The middle tap goes back a level, then to the Rokid launcher (when Lumen is the
-home screen there's nothing below it: it goes back to the tabs). A banner's index tap opens the
-Notifications tab on that notification.
+handoff does. The middle tap goes back a level, then to the tabs; it never leaves Lumen (the
+Controls tab's Rokid launcher tile does). A banner's index tap opens the Notifications tab on that
+notification.
 
-### Lumen as the home screen
+### The Controls tab
 
-Lumen's home is an Android home app, so it can replace the Rokid launcher: in **Settings >
-System > Home app** (or Android's own *Default home app* screen), pick **Rokid Lumen**. From
-then on the glasses start on Lumen's home, and the Home action and the end of any app come
-back to it. The same row shows which one is the home; picking **Sprite launcher** (Rokid's)
-there puts it back. From a computer: `adb shell cmd package set-home-activity
-dev.lumen.glasses/.LauncherActivity` (or `com.rokid.os.sprite.launcher/.main.SpriteMainActivity`
-to undo).
+Right of Apps (right from the last app, or the tabs), the toolkit's control tiles:
 
-- The Rokid launcher's own screens (brightness, translation, navigation, teleprompter) live in
-  its task and return to its main screen when closed, even when it isn't the home. While Lumen
-  is the home, the accessibility service brings Lumen's home back in front of it.
-- Home closes the web app that was open, as reopening the home always did: one web app runs at
-  a time, and its phone internet is released when it closes.
-- Those Rokid screens aren't reachable from Lumen yet; a third tab is planned
-  ([ROADMAP](../ROADMAP.md)). Until then, switch the home back to reach them.
-- **What the Rokid firmware does when the home changes** (measured on RG glasses, Android 12):
-  with another app as the home it uninstalls Rokid's assistant, `com.rokid.os.sprite.assistserver`
-  (Rokid AI, its TTS voice, the photo and video scenes, the phone's remote keyboard), for the
-  user; picking the Rokid launcher again reinstalls it. So while Lumen is the home, the Rokid
-  AI and capture actions don't answer.
-- Reinstalled, the assistant can also set `persist.vendor.adb` to `false`, and Rokid's adbd then
-  refuses `adb install`, `push`/`pull` and shell commands that start with `cmd`, `pm`,
-  `dumpsys` or `logcat` ("RKD-- not allow cmd"). That also stops the phone internet for web
-  apps, which joins the phone's network through the self-arm's local ADB (`cmd wifi`). It
-  survives reboots; `adb shell setprop persist.vendor.adb true` lifts it.
+- **Camera**, **Gallery** and **Music**: the Rokid launcher's own screens. Closing one comes back
+  to Lumen (they live in the Rokid launcher's task, which would otherwise show its main screen).
+- **Volume** and **Brightness**, with a ring for the level: the index tap starts adjusting, the
+  swipes change it a fifteenth at a time, the index or middle tap ends. Brightness is a system
+  setting: the self-arm's shell grants Lumen the right to write it the first time; without the
+  self-arm the Rokid's brightness screen opens instead.
+- **Do not disturb**: the banners' snooze (15 minutes), lit while it's on.
+- **Rokid settings**, and last, full width, **Rokid launcher**: the only way out of Lumen. Back
+  (the band's middle tap, the touchpad's) never leaves the home: at its top level it goes to the
+  tabs.
+
+### Why Lumen isn't the home screen
+
+Lumen stays an app opened from the Rokid launcher. It was tried as Android's home app (as EKHome
+does, through *Default home app*), and the Rokid firmware answers that by taking features away
+(measured on RG glasses, Android 12, 2026-10):
+
+- `RokidSysConfig` watches the home role and, with another app as the home, uninstalls Rokid's
+  assistant (`com.rokid.os.sprite.assistserver`) for the user; picking the Rokid launcher again
+  reinstalls it. Without it: Rokid AI (voice and chat), translation, navigation and the Rokid
+  accessibility page close as they open (`MasterAssistService: not found`), the photo and video
+  actions don't answer, and the glasses are left with no text-to-speech engine and no keyboard.
+- The Rokid launcher's status row, app list and pages are gone with it; its camera, gallery,
+  music, brightness, volume and settings screens still open by name.
+- Reinstalled, the assistant can set `persist.vendor.adb` to `false`, and Rokid's adbd then
+  refuses `adb install`, `push`/`pull` and shell commands that start with `cmd`, `pm`, `dumpsys`
+  or `logcat` ("RKD-- not allow cmd"). That also stops the phone internet for web apps, which
+  joins the phone's network through the self-arm's local ADB (`cmd wifi`). It survives reboots;
+  `adb shell setprop persist.vendor.adb true` lifts it.
 
 The grid is arranged from the companion's Apps tab. A web app installed later joins the end on
 its own; a native app shows only once added.
