@@ -212,7 +212,6 @@
     <string name="install_updates">Atualiza %1$s</string>
     <string name="install_installing">Instalando…</string>
     <string name="install_hint">Deslize: escolher · Indicador: selecionar · Médio: cancelar</string>
-    <string name="launcher_notifications">Notificações</string>
     <string name="package_https_only">Só pacotes por HTTPS</string>
     <string name="package_download_failed">O download falhou (HTTP %1$s)</string>
     <string name="package_no_index">Sem index.html no pacote</string>
@@ -252,4 +251,6 @@
     <string name="dictation_mic_error">Erro no microfone</string>
     <string name="launcher_settings">Ajustes</string>
     <string name="settings_title">Ajustes do Lumen</string>
+    <string name="home_tab_notifications">Notificações</string>
+    <string name="home_tab_apps">Apps</string>
 </resources>

@@ -37,7 +37,7 @@ object GridStore {
     @JvmStatic
     fun notifyChanged() = listeners.toList().forEach { it.onGridChanged() }
 
-    /** The grid's ids, in order: what the launcher shows (9 per page). */
+    /** The grid's ids, in order: what the home's Apps tab shows. */
     @JvmStatic
     fun layout(context: Context): List<String> = resolve(
         stored(context, KEY_ORDER),
@@ -65,7 +65,6 @@ object GridStore {
     @JvmStatic
     fun items(context: Context): Map<String, GridItem> {
         val out = LinkedHashMap<String, GridItem>()
-        out[GridItem.NOTIFICATIONS_ID] = GridItem(GridItem.NOTIFICATIONS_ID, GridItem.Kind.NOTIFICATIONS, context.getString(R.string.launcher_notifications))
         WebAppLibrary.all(context).forEach { app ->
             val id = GridItem.WEB_PREFIX + app.id
             out[id] = GridItem(id, GridItem.Kind.WEB, app.name, if (app.offline) "" else app.remoteUrl, app.offline, app.engine.name,
@@ -95,16 +94,14 @@ object GridStore {
 
     /**
      * The grid from the stored [order] and [hidden] and what exists now: the order's ids that
-     * still exist; then web apps and Notifications that were neither placed nor hidden (a new
-     * install shows up); Settings last unless placed. With nothing stored: Notifications, the web
-     * apps, Settings.
+     * still exist; then web apps that were neither placed nor hidden (a new install shows up);
+     * Settings last unless placed. With nothing stored: the web apps, Settings. Notifications
+     * are the home's own tab now, not a grid item: an order from before drops them.
      */
     @JvmStatic
     fun resolve(order: List<String>, hidden: Set<String>, webIds: List<String>, nativeIds: Set<String>): List<String> {
-        fun exists(id: String) = id == GridItem.NOTIFICATIONS_ID || id == GridItem.SETTINGS_ID ||
-            id in webIds || id in nativeIds
+        fun exists(id: String) = id == GridItem.SETTINGS_ID || id in webIds || id in nativeIds
         val out = order.filter(::exists).distinct().toMutableList()
-        if (GridItem.NOTIFICATIONS_ID !in out && GridItem.NOTIFICATIONS_ID !in hidden) out.add(0, GridItem.NOTIFICATIONS_ID)
         val settingsAt = out.indexOf(GridItem.SETTINGS_ID)
         val newcomers = webIds.filter { it !in out && it !in hidden }
         if (settingsAt >= 0 && settingsAt == out.lastIndex) out.addAll(settingsAt, newcomers) else out.addAll(newcomers)

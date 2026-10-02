@@ -85,24 +85,29 @@ exist:
 
 An official API, if Meta publishes one, would be a third implementation of the same interface.
 
-## The apps grid
+## The home
 
-<!-- media: grid -->
-![The apps grid on the HUD: a 3x3 page with notifications, web apps and Settings](media/grid.png)
+<!-- media: grid (to retake: the home's Apps tab) -->
+![The apps grid on the HUD](media/grid.png)
 
-Rokid Lumen's icon on the Rokid launcher opens the apps grid, on top of the Rokid launcher. It
-shows 3x3 items per page:
+Rokid Lumen's icon on the Rokid launcher opens the home, on top of the Rokid launcher. It is
+the UI Toolkit's SubNavigationPager: a pill of two tabs at the top, **Notifications** and
+**Apps**, over a page that slides from one to the other.
 
-- **Notifications** first: the phone's notification inbox.
-- **Web apps**, offline and online, and any **native apps** of the glasses you added from the
-  phone (opened with their launch intent).
-- **Settings** last: the glasses' own settings (pairing, the self-arm, the band's key and
-  log, the web apps list, accessibility and Bluetooth). Settings can't be hidden, so the glasses
-  can't lock you out of them.
+- **Notifications**: the phone's notification inbox (below). A dot on its tab icon says
+  there's something new.
+- **Apps**: three across, in rows that scroll vertically, each the toolkit's WebAppIcon look
+  (the app's artwork in a squircle, its name under it). The focused app is the bigger one: its
+  icon grows, with no outline. Web apps, offline and online, any **native apps** of the glasses
+  you added from the phone (opened with their launch intent), and **Settings** last: the
+  glasses' own settings (pairing, the self-arm, the band's key and log, the web apps list,
+  accessibility and Bluetooth). Settings can't be hidden, so the glasses can't lock you out of
+  them.
 
-Swipes move the focus in two dimensions and cross to the next page at the edges; the index tap
-opens; the middle tap goes back to the Rokid launcher. The bar shows a clock and a count of
-unread notifications.
+On the pill, left and right change the tab and down (or the index tap) goes into the page; up
+from a page's top, or left (right) from its edge, comes back out, as the toolkit's focus
+handoff does. The middle tap goes back a level, then to the Rokid launcher. A banner's index
+tap opens the Notifications tab on that notification.
 
 The grid is arranged from the companion's Apps tab. A web app installed later joins the end on
 its own; a native app shows only once added.
@@ -151,7 +156,7 @@ notification stays.
 <!-- media: inbox -->
 ![The notification inbox, grouped by app](media/inbox.png)
 
-**The inbox** is the grid's first item. It holds up to 50 notifications, grouped by app (the
+**The inbox** is the home's Notifications tab. It holds up to 50 notifications, grouped by app (the
 app with the newest one first, with its count). The index tap expands an app, then opens one
 notification in full; the middle tap goes back a level. A left swipe on a row shows the bin, a
 second one dismisses it (a whole app at the first level), on the glasses and in the phone's

@@ -52,8 +52,9 @@ Rokid Lumen is not affiliated with Meta or Rokid. "Rokid" names the glasses it r
   double tap turns the screen off and on, the middle hold turns the controls off and on, and
   pinch and turn changes the volume (or navigates). The index double tap can be mapped to an
   action or an app.
-- **Apps grid.** A 3x3 grid in pages: the phone's notifications first, then the web apps and
-  any native apps you add, and the glasses' settings last. You arrange it from the phone.
+- **Home with two tabs.** Notifications (the phone's notification inbox) and Apps: the web
+  apps and any native apps you add, three across in rows that scroll, the glasses' settings
+  last, the focused app's icon bigger. You arrange the apps from the phone.
 - **Web apps.** Offline `.mrbd.zip` packages, served from a loopback server, and online HTTPS
   apps. Each app has its own origin and, on GeckoView, its own cookies and storage. Apps can
   declare settings (a server URL, an API key) that you fill in from the phone.

@@ -3,67 +3,52 @@ package dev.lumen.glasses
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
-import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.TextUtils
-import android.text.format.DateFormat
 import android.util.Log
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.widget.FrameLayout
-import android.widget.GridLayout
-import android.widget.ImageView
-import android.widget.LinearLayout
 import android.widget.TextView
-import java.util.Date
+import dev.lumen.protocol.GridItem
 import java.util.concurrent.Executors
 
 /**
- * The MRBD apps grid: the web apps in a 3x3 grid, as Meta Ray-Ban Display's launcher shows them,
- * opened on top of the Rokid launcher (from its icon or a mapped gesture). The first item is
- * the phone's notifications. The band moves the focus in two dimensions, the index tap opens,
- * the middle tap goes back to the Rokid launcher.
+ * The home: the toolkit's SubNavigationPager, natively. Two tabs, Notifications and Apps, in a
+ * pill at the top ([SubNavigationView]); each a page ([NotificationsPage], [AppsPage]) in a pager
+ * that slides between them as the toolkit's does (the new page from the side, 50 px of overlap,
+ * 400 ms, the old one fading in 300). Opened on top of the Rokid launcher (from its icon or a
+ * mapped gesture); a banner's index tap opens the Notifications tab on that notification.
  *
- * Packages pushed to [WebAppPackages.dropFolder] are installed when the grid opens; one from
- * an HTTPS URL goes through [InstallConfirmActivity].
+ * Focus: on the pill, left and right change the tab and down (or the index tap) goes into the
+ * page; in a page, up from its top and left (or right) from its edge come back out, as the
+ * toolkit's focus handoff does. While the pill has the focus, the toolkit's scrim darkens the
+ * page from the top. The middle tap goes back a level, then to the Rokid launcher.
+ *
+ * Packages pushed to [WebAppPackages.dropFolder] are installed when the home opens; one from an
+ * HTTPS URL goes through [InstallConfirmActivity].
  */
 class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, NotificationInbox.Listener, GridStore.Listener {
-    private sealed class Entry {
-        object Notifications : Entry()
-        data class App(val app: WebApp) : Entry()
-        /** One of the glasses' Android apps, added to the grid from the phone. */
-        data class Native(val pkg: String, val label: String) : Entry()
-        /** The glasses' own settings (MainActivity): pairing, self-arm, the band's key and log. */
-        object Settings : Entry()
-    }
-
     private val main = Handler(Looper.getMainLooper())
     private val io = Executors.newSingleThreadExecutor()
-    private val grid = GridNavigator()
-    private var entries: List<Entry> = emptyList()
-    private var focused = 0
-    private var shownPage = -1
-
-    private lateinit var clock: TextView
-    private lateinit var counter: TextView
-    private lateinit var cells: GridLayout
-    private lateinit var dots: LinearLayout
-    private lateinit var status: TextView
     private var side = 0
 
-    private val tick = object : Runnable {
-        override fun run() {
-            clock.text = DateFormat.getTimeFormat(this@LauncherActivity).format(Date())
-            main.postDelayed(this, 20_000)
-        }
-    }
+    private lateinit var pill: SubNavigationView
+    private lateinit var scrim: View
+    private lateinit var status: TextView
+    private lateinit var notifications: NotificationsPage
+    private lateinit var apps: AppsPage
+    private lateinit var pages: List<HomePage>
+    private var tab = TAB_APPS
+    private var onPill = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The grid is the app's entry now: what opening the app used to do, it does here.
+        // The home is the app's entry: what opening the app used to do, it does here.
         PrivilegedShortcutBridge.ensureReady(this)
         // Shell helpers die with a reboot; opening the app restarts them (R08's launch trigger).
         SelfArmController.armOnLaunch(this)
@@ -71,59 +56,76 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         val metrics = resources.displayMetrics
         side = minOf(metrics.widthPixels, metrics.heightPixels)
         val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
-        val square = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            val pad = dp(10f)
-            setPadding(pad, pad, pad, pad)
+        val square = FrameLayout(this).apply {
+            setBackgroundColor(Color.BLACK)
+            clipChildren = true
         }
         root.addView(square, FrameLayout.LayoutParams(side, side, Gravity.CENTER))
 
-        val bar = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        bar.addView(TextView(this).apply {
-            text = getString(R.string.launcher_apps)
-            setTextColor(HudStyle.TEXT)
-            textSize = 15f
-            typeface = Typeface.DEFAULT_BOLD
-        }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        counter = TextView(this).apply {
-            setTextColor(HudStyle.ACCENT)
-            textSize = 11f
-            typeface = Typeface.DEFAULT_BOLD
-            setPadding(dp(6f), dp(1f), dp(6f), dp(1f))
-            background = HudStyle.badge(this@LauncherActivity, HudStyle.ACCENT)
+        notifications = NotificationsPage(this)
+        apps = AppsPage(this) { open(it) }
+        pages = listOf(notifications, apps)
+        pages.forEach { square.addView(it.view, FrameLayout.LayoutParams(side, side)) }
+
+        // The toolkit's navigation scrim: black over the top tenth, fading out down the page.
+        scrim = View(this).apply {
+            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(Color.BLACK, Color.BLACK, Color.TRANSPARENT)).apply {
+                setGradientCenter(0.5f, 0.1f)
+            }
+            alpha = 0f
+        }
+        square.addView(scrim, FrameLayout.LayoutParams(side, side))
+
+        pill = SubNavigationView(this, listOf(
+            SubNavigationView.Tab(R.drawable.ic_bell, getString(R.string.home_tab_notifications)),
+            SubNavigationView.Tab(R.drawable.ic_apps, getString(R.string.home_tab_apps)),
+        ))
+        square.addView(pill, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, px(44f), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
+            topMargin = px(20f)
+        })
+
+        status = TextView(this).apply {
+            setTextColor(MetaStyle.TEXT)
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, MetaStyle.textPx(context, 20f))
+            gravity = Gravity.CENTER
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
+            setPadding(px(16f), px(8f), px(16f), px(8f))
+            background = MetaStyle.pill(context)
             visibility = View.GONE
         }
-        bar.addView(counter)
-        clock = TextView(this).apply {
-            setTextColor(HudStyle.DETAIL)
-            textSize = 13f
-            setPadding(dp(8f), 0, 0, 0)
-        }
-        bar.addView(clock)
-        square.addView(bar)
-
-        cells = GridLayout(this).apply {
-            columnCount = 3
-            rowCount = 3
-            // The focused cell grows a little past its bounds.
-            clipChildren = false
-        }
-        square.clipChildren = false
-        square.clipToPadding = false
-        square.addView(cells, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply {
-            topMargin = dp(6f)
+        square.addView(status, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+            bottomMargin = px(20f)
+            marginStart = px(24f)
+            marginEnd = px(24f)
         })
-        status = TextView(this).apply {
-            setTextColor(HudStyle.DETAIL)
-            textSize = 10f
-            gravity = Gravity.CENTER
-            maxLines = 1
-            ellipsize = TextUtils.TruncateAt.END
-        }
-        dots = LinearLayout(this).apply { gravity = Gravity.CENTER }
-        square.addView(dots, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(10f)))
-        square.addView(status)
         setContentView(root)
+
+        tab = lastTab
+        openFromIntent(intent)
+        showTab(tab, animate = false)
+        setPillFocus(false, animate = false)
+    }
+
+    /** A banner's notification ([EXTRA_KEY]), or a tab ([EXTRA_TAB]). */
+    private fun openFromIntent(intent: Intent?) {
+        intent ?: return
+        intent.getStringExtra(EXTRA_KEY)?.let { key ->
+            tab = TAB_NOTIFICATIONS
+            notifications.openKey(key)
+        }
+        when (intent.getStringExtra(EXTRA_TAB)) {
+            TAB_NAME_NOTIFICATIONS -> tab = TAB_NOTIFICATIONS
+            TAB_NAME_APPS -> tab = TAB_APPS
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        val before = tab
+        openFromIntent(intent)
+        if (tab != before) switchTo(tab, intoPage = true)
+        else setPillFocus(false)
     }
 
     override fun onResume() {
@@ -131,13 +133,14 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         BandAccessibilityService.setInputTarget(this)
         NotificationInbox.addListener(this)
         GridStore.addListener(this)
-        main.post(tick)
-        refresh()
+        pages[tab].onShow()
+        refreshApps()
+        refreshDot()
         io.execute {
             val lines = WebAppPackages.importFromDropFolder(this)
             if (lines.isNotEmpty()) main.post {
-                status.text = lines.joinToString(" · ")
-                refresh()
+                say(lines.joinToString(" · "))
+                refreshApps()
             }
         }
     }
@@ -146,187 +149,120 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         BandAccessibilityService.clearInputTarget(this)
         NotificationInbox.removeListener(this)
         GridStore.removeListener(this)
-        main.removeCallbacks(tick)
+        pages[tab].onHide()
         super.onPause()
     }
 
-    override fun onInboxChanged() = refresh()
+    override fun onInboxChanged() = refreshDot()
 
-    override fun onGridChanged() = refresh()
+    override fun onGridChanged() = refreshApps()
 
-    private fun refresh() {
-        val apps = WebAppLibrary.all(this)
+    private fun refreshDot() = pill.setDot(TAB_NOTIFICATIONS, tab != TAB_NOTIFICATIONS && NotificationInbox.unread() > 0)
+
+    private fun refreshApps() {
+        val webApps = WebAppLibrary.all(this)
         // The phone arranges the grid (GridStore); ids that no longer resolve are skipped.
-        val web = apps.associateBy { dev.lumen.protocol.GridItem.WEB_PREFIX + it.id }
+        val web = webApps.associateBy { GridItem.WEB_PREFIX + it.id }
         val native = GridStore.nativeApps(this)
-        entries = GridStore.layout(this).mapNotNull { id ->
+        val entries = GridStore.layout(this).mapNotNull { id ->
             when {
-                id == dev.lumen.protocol.GridItem.NOTIFICATIONS_ID -> Entry.Notifications
-                id == dev.lumen.protocol.GridItem.SETTINGS_ID -> Entry.Settings
-                id in web -> Entry.App(web.getValue(id))
-                id.startsWith(dev.lumen.protocol.GridItem.APP_PREFIX) -> id.removePrefix(dev.lumen.protocol.GridItem.APP_PREFIX)
-                    .let { pkg -> native[pkg]?.let { Entry.Native(pkg, it) } }
+                id == GridItem.SETTINGS_ID -> AppsPage.Entry.Settings
+                id in web -> AppsPage.Entry.App(web.getValue(id))
+                id.startsWith(GridItem.APP_PREFIX) -> id.removePrefix(GridItem.APP_PREFIX)
+                    .let { pkg -> native[pkg]?.let { AppsPage.Entry.Native(pkg, it) } }
                 else -> null
             }
         }
-        focused = focused.coerceIn(0, entries.size - 1)
-        val unread = NotificationInbox.unread()
-        Log.d(TAG, "refresh apps=${apps.size} notifications=${NotificationInbox.all().size} unread=$unread")
-        counter.visibility = if (unread > 0) View.VISIBLE else View.GONE
-        counter.text = unread.toString()
-        if (status.text.isNullOrEmpty() && apps.isEmpty()) {
-            status.text = getString(R.string.launcher_empty, WebAppPackages.dropFolder(this)?.path.orEmpty())
+        Log.d(TAG, "apps=${entries.size} notifications=${NotificationInbox.all().size} unread=${NotificationInbox.unread()}")
+        apps.setEntries(entries)
+        if (webApps.isEmpty() && status.visibility != View.VISIBLE) {
+            say(getString(R.string.launcher_empty, WebAppPackages.dropFolder(this)?.path.orEmpty()))
         }
-        shownPage = -1
-        render()
-        WebAppIcons.fetchMissing(this, apps) { main.post { refresh() } }
+        WebAppIcons.fetchMissing(this, webApps) { main.post { refreshApps() } }
     }
 
-    private fun render() {
-        val page = grid.pageOf(focused)
-        if (page != shownPage) {
-            shownPage = page
-            cells.removeAllViews()
-            val start = page * grid.pageSize
-            val cellSide = (side - dp(20f)) / 3
-            val cellHeight = (side - dp(20f) - dp(44f)) / 3
-            for (i in 0 until grid.pageSize) {
-                val params = GridLayout.LayoutParams(
-                    GridLayout.spec(i / 3), GridLayout.spec(i % 3),
-                ).apply {
-                    width = cellSide
-                    height = cellHeight
-                }
-                val entry = entries.getOrNull(start + i)
-                cells.addView(if (entry == null) View(this) else cell(entry), params)
-            }
-            renderDots(page)
-        }
-        val start = page * grid.pageSize
-        for (i in 0 until cells.childCount) {
-            val view = cells.getChildAt(i)
-            val isFocused = start + i == focused
-            if (view is LinearLayout) {
-                view.background = HudStyle.outline(this, isFocused)
-                view.scaleX = if (isFocused) 1.06f else 1f
-                view.scaleY = view.scaleX
-            }
-        }
+    private val hideStatus = Runnable { status.animate().alpha(0f).setDuration(MetaStyle.FOCUS_MS).withEndAction { status.visibility = View.GONE }.start() }
+
+    private fun say(text: String) {
+        status.text = text
+        status.alpha = 1f
+        status.visibility = View.VISIBLE
+        main.removeCallbacks(hideStatus)
+        main.postDelayed(hideStatus, STATUS_MS)
     }
 
-    private fun renderDots(page: Int) {
-        dots.removeAllViews()
-        val pages = grid.pageCount(entries.size)
-        if (pages < 2) return
-        for (p in 0 until pages) {
-            dots.addView(View(this).apply {
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    shape = android.graphics.drawable.GradientDrawable.OVAL
-                    setColor(if (p == page) HudStyle.TEXT else HudStyle.MUTED)
-                }
-            }, LinearLayout.LayoutParams(dp(6f), dp(6f)).apply { marginStart = dp(3f); marginEnd = dp(3f) })
+    // ---- Tabs and focus ----
+
+    private fun showTab(index: Int, animate: Boolean) {
+        pages.forEachIndexed { i, page ->
+            page.view.animate().cancel()
+            page.view.translationX = 0f
+            page.view.alpha = if (i == index) 1f else 0f
+            page.view.visibility = if (i == index) View.VISIBLE else View.INVISIBLE
         }
+        pill.setActive(index, animate)
+        refreshDot()
     }
 
-    private fun cell(entry: Entry): View {
-        val cell = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(4f), dp(4f), dp(4f), dp(4f))
-        }
-        val iconSide = dp(52f)
-        val iconFrame = FrameLayout(this)
-        val label: String
-        when (entry) {
-            is Entry.Notifications -> {
-                label = getString(R.string.launcher_notifications)
-                iconFrame.addView(TextView(this).apply {
-                    text = "N"
-                    gravity = Gravity.CENTER
-                    setTextColor(Color.BLACK)
-                    textSize = 22f
-                    typeface = Typeface.DEFAULT_BOLD
-                    background = android.graphics.drawable.GradientDrawable().apply {
-                        setColor(HudStyle.ACCENT)
-                        cornerRadius = dp(14f).toFloat()
-                    }
-                }, FrameLayout.LayoutParams(iconSide, iconSide))
-                val unread = NotificationInbox.unread()
-                if (unread > 0) iconFrame.addView(corner(unread.toString(), HudStyle.WARN), cornerParams())
-            }
-            is Entry.Settings -> {
-                label = getString(R.string.launcher_settings)
-                iconFrame.addView(ImageView(this).apply {
-                    setImageResource(R.drawable.ic_settings)
-                    imageTintList = android.content.res.ColorStateList.valueOf(HudStyle.TEXT)
-                    scaleType = ImageView.ScaleType.CENTER_INSIDE
-                    setPadding(dp(12f), dp(12f), dp(12f), dp(12f))
-                    background = HudStyle.badge(this@LauncherActivity, HudStyle.DETAIL)
-                }, FrameLayout.LayoutParams(iconSide, iconSide))
-            }
-            is Entry.Native -> {
-                label = entry.label
-                iconFrame.addView(ImageView(this).apply {
-                    runCatching { setImageDrawable(packageManager.getApplicationIcon(entry.pkg)) }
-                    scaleType = ImageView.ScaleType.FIT_CENTER
-                }, FrameLayout.LayoutParams(iconSide, iconSide))
-            }
-            is Entry.App -> {
-                val app = entry.app
-                label = app.name
-                val bitmap = WebAppIcons.load(app)
-                iconFrame.addView(if (bitmap != null) {
-                    ImageView(this).apply {
-                        setImageBitmap(bitmap)
-                        scaleType = ImageView.ScaleType.FIT_CENTER
-                    }
-                } else {
-                    TextView(this).apply {
-                        text = app.name.trim().take(1).uppercase()
-                        gravity = Gravity.CENTER
-                        setTextColor(HudStyle.TEXT)
-                        textSize = 22f
-                        typeface = Typeface.DEFAULT_BOLD
-                        background = HudStyle.letterTile(this@LauncherActivity, app.name)
-                    }
-                }, FrameLayout.LayoutParams(iconSide, iconSide))
-            }
-        }
-        cell.addView(iconFrame, LinearLayout.LayoutParams(iconSide + dp(10f), iconSide + dp(6f)).apply {
-            gravity = Gravity.CENTER_HORIZONTAL
-        })
-        (iconFrame.getChildAt(0).layoutParams as FrameLayout.LayoutParams).gravity = Gravity.CENTER
-        cell.addView(TextView(this).apply {
-            text = label
-            setTextColor(HudStyle.TEXT)
-            textSize = 11f
-            gravity = Gravity.CENTER
-            maxLines = 2
-            ellipsize = TextUtils.TruncateAt.END
-            setPadding(0, dp(3f), 0, 0)
-        })
-        return cell
+    /**
+     * Slides to tab [to]: the new page in from its side, the old out the other way (offset by the
+     * width less 50), as the toolkit's Pager. [intoPage]: the focus lands in the new page (a
+     * handoff from the old page's edge); otherwise it stays on the pill.
+     */
+    private fun switchTo(to: Int, intoPage: Boolean) {
+        if (to == tab || to !in pages.indices) return
+        val from = tab
+        val direction = if (to > from) 1 else -1
+        val offset = (side - px(50f)).toFloat()
+        val old = pages[from]
+        val new = pages[to]
+        old.active = false
+        old.onHide()
+        tab = to
+        lastTab = to
+        new.view.visibility = View.VISIBLE
+        new.view.translationX = direction * offset
+        new.view.alpha = 0f
+        new.view.animate().translationX(0f).setDuration(SLIDE_MS).setInterpolator(EASE).start()
+        new.view.animate().alpha(1f).setDuration(FADE_MS).start()
+        old.view.animate().translationX(-direction * offset).alpha(0f).setDuration(SLIDE_MS).setInterpolator(EASE)
+            .withEndAction { if (tab != from) old.view.visibility = View.INVISIBLE }.start()
+        new.onShow()
+        pill.setActive(to)
+        refreshDot()
+        if (intoPage) setPillFocus(false) else new.active = false
     }
 
-    private fun corner(text: String, color: Int) = TextView(this).apply {
-        this.text = text
-        setTextColor(color)
-        textSize = 8f
-        typeface = Typeface.DEFAULT_BOLD
-        setPadding(dp(3f), 0, dp(3f), 0)
-        background = HudStyle.badge(this@LauncherActivity, color)
+    /** The focus on the pill (the scrim darkens the page) or in the page in front. */
+    private fun setPillFocus(focused: Boolean, animate: Boolean = true) {
+        onPill = focused
+        pill.setPillFocused(focused, animate)
+        pages.forEachIndexed { i, page -> page.active = !focused && i == tab }
+        val alpha = if (focused) 1f else 0f
+        if (animate) scrim.animate().alpha(alpha).setDuration(MetaStyle.FOCUS_MS).setInterpolator(MetaStyle.FOCUS_EASING).start()
+        else scrim.alpha = alpha
     }
 
-    private fun cornerParams() = FrameLayout.LayoutParams(
-        FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.END,
-    )
-
-    override fun onBandCommand(command: String): Boolean = when (command) {
-        BandCommand.ACTIVATE -> { open(); true }
-        BandCommand.BACK -> { finish(); true }
-        BandCommand.FORWARD, BandCommand.BACKWARD, BandCommand.UP, BandCommand.DOWN,
-        BandCommand.LEFT, BandCommand.RIGHT -> { move(command); true }
-        else -> false
+    override fun onBandCommand(command: String): Boolean {
+        if (onPill) {
+            when (command) {
+                BandCommand.LEFT, BandCommand.BACKWARD -> switchTo(tab - 1, intoPage = false)
+                BandCommand.RIGHT, BandCommand.FORWARD -> switchTo(tab + 1, intoPage = false)
+                BandCommand.DOWN, BandCommand.ACTIVATE -> setPillFocus(false)
+                BandCommand.BACK -> finish()
+                BandCommand.UP -> Unit
+                else -> return false
+            }
+            return true
+        }
+        return when (pages[tab].onCommand(command)) {
+            HomeResult.HANDLED -> true
+            HomeResult.UP_OUT -> { setPillFocus(true); true }
+            HomeResult.LEFT_OUT -> { if (tab > 0) switchTo(tab - 1, intoPage = true); true }
+            HomeResult.RIGHT_OUT -> { if (tab < pages.lastIndex) switchTo(tab + 1, intoPage = true); true }
+            HomeResult.CLOSE -> { finish(); true }
+            HomeResult.UNHANDLED -> false
+        }
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -344,26 +280,17 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         return true
     }
 
-    private fun move(command: String) {
-        val next = grid.move(focused, entries.size, command)
-        if (next != focused) {
-            focused = next
-            render()
-        }
-    }
-
-    private fun open() {
-        when (val entry = entries.getOrNull(focused) ?: return) {
-            is Entry.Notifications -> startActivity(Intent(this, NotificationInboxActivity::class.java))
-            is Entry.App -> WebAppActivity.open(this, entry.app)
-            is Entry.Settings -> startActivity(Intent(this, MainActivity::class.java))
-            is Entry.Native -> packageManager.getLaunchIntentForPackage(entry.pkg)
+    private fun open(entry: AppsPage.Entry) {
+        when (entry) {
+            is AppsPage.Entry.App -> WebAppActivity.open(this, entry.app)
+            is AppsPage.Entry.Settings -> startActivity(Intent(this, MainActivity::class.java))
+            is AppsPage.Entry.Native -> packageManager.getLaunchIntentForPackage(entry.pkg)
                 ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 ?.let { runCatching { startActivity(it) } }
         }
     }
 
-    /** The band needs Bluetooth; the grid is the first screen, so it asks (as MainActivity did). */
+    /** The band needs Bluetooth; the home is the first screen, so it asks (as MainActivity did). */
     private fun requestBluetoothIfMissing() {
         if (BandRuntime.bluetoothGranted(this)) return
         val needed = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
@@ -379,10 +306,25 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         if (requestCode == PERMISSION_REQUEST && BandAccessibilityService.isServiceActive()) BandRuntime.restart(this)
     }
 
-    private fun dp(value: Float) = HudStyle.dp(this, value)
+    private fun px(value: Float) = MetaStyle.px(this, value)
 
     companion object {
         private const val TAG = "BandLauncher"
         private const val PERMISSION_REQUEST = 43
+        const val TAB_NOTIFICATIONS = 0
+        const val TAB_APPS = 1
+        /** A notification to open in full on the Notifications tab (a banner's index tap). */
+        const val EXTRA_KEY = "key"
+        /** "notifications" or "apps". */
+        const val EXTRA_TAB = "tab"
+        const val TAB_NAME_NOTIFICATIONS = "notifications"
+        const val TAB_NAME_APPS = "apps"
+        /** The toolkit Pager's page transition: transform 400 ms, opacity 300 ms, CSS `ease`. */
+        private const val SLIDE_MS = 400L
+        private const val FADE_MS = 300L
+        private val EASE = android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f)
+        private const val STATUS_MS = 6_000L
+        /** The tab the home was last on, while the process lives. */
+        private var lastTab = TAB_APPS
     }
 }

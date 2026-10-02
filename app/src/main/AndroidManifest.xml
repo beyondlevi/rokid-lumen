@@ -119,14 +119,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".NotificationInboxActivity"
-            android:exported="false"
-            android:launchMode="singleTop"
-            android:taskAffinity="dev.lumen.glasses.apps"
-            android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
-
         <!-- Meta Ray-Ban Display web apps, opened from the grid (an app of the library, by id).
              Not exported: adding one goes through InstallConfirmActivity. -->
         <activity

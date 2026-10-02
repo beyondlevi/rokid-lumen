@@ -219,7 +219,6 @@
         <item quantity="other">%1$d disponíveis</item>
     </plurals>
     <string name="apps_preview">Como aparece nos óculos</string>
-    <string name="apps_page_of">Página %1$d de %2$d</string>
     <string name="apps_on_grid">Na grade</string>
     <string name="apps_drag_hint">Segure e arraste para reordenar</string>
     <string name="apps_reorder">Reordenar %1$s</string>

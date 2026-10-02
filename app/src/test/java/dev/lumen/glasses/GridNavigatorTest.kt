@@ -7,49 +7,41 @@ class GridNavigatorTest {
     private val grid = GridNavigator()
 
     @Test
-    fun movesInsideAPage() {
-        assertEquals(1, grid.move(0, 9, BandCommand.RIGHT))
-        assertEquals(3, grid.move(0, 9, BandCommand.DOWN))
-        assertEquals(1, grid.move(4, 9, BandCommand.UP))
-        assertEquals(3, grid.move(4, 9, BandCommand.LEFT))
+    fun movesInTwoDimensionsAcrossRows() {
+        assertEquals(1, grid.move(0, 11, BandCommand.RIGHT))
+        assertEquals(3, grid.move(0, 11, BandCommand.DOWN))
+        assertEquals(10, grid.move(7, 11, BandCommand.DOWN))
+        assertEquals(4, grid.move(7, 11, BandCommand.UP))
+        assertEquals(2, grid.move(2, 11, BandCommand.RIGHT))
     }
 
     @Test
-    fun stopsAtTheEdgesOfTheOnlyPage() {
-        assertEquals(0, grid.move(0, 9, BandCommand.LEFT))
-        assertEquals(0, grid.move(0, 9, BandCommand.UP))
-        assertEquals(8, grid.move(8, 9, BandCommand.RIGHT))
-        assertEquals(8, grid.move(8, 9, BandCommand.DOWN))
+    fun leavingTheGridIsTheHomesBusiness() {
+        assertEquals(GridNavigator.OUT_UP, grid.move(1, 11, BandCommand.UP))
+        assertEquals(GridNavigator.OUT_LEFT, grid.move(6, 11, BandCommand.LEFT))
+        assertEquals(GridNavigator.OUT_UP, grid.move(0, 0, BandCommand.UP))
+        assertEquals(GridNavigator.OUT_LEFT, grid.move(0, 0, BandCommand.LEFT))
     }
 
     @Test
-    fun crossesPagesOnTheSameRow() {
-        // Row 1, last column of page 0 → row 1, first column of page 1.
-        assertEquals(12, grid.move(5, 20, BandCommand.RIGHT))
-        assertEquals(5, grid.move(12, 20, BandCommand.LEFT))
-        // The next page is shorter than the row: its last item.
-        assertEquals(10, grid.move(8, 11, BandCommand.RIGHT))
-    }
-
-    @Test
-    fun downToAShorterRowTakesItsLastItem() {
-        // Items 0..4: row 1 has 3 and 4 only.
-        assertEquals(4, grid.move(2, 5, BandCommand.DOWN))
-        assertEquals(2, grid.move(2, 3, BandCommand.DOWN))
+    fun downToAShorterRowTakesItsLastItemAndStopsAtTheEnd() {
+        assertEquals(9, grid.move(8, 10, BandCommand.DOWN))
+        assertEquals(9, grid.move(9, 10, BandCommand.DOWN))
+        assertEquals(4, grid.move(4, 5, BandCommand.DOWN))
     }
 
     @Test
     fun forwardAndBackwardWalkInOrder() {
-        assertEquals(9, grid.move(8, 12, BandCommand.FORWARD))
-        assertEquals(11, grid.move(11, 12, BandCommand.FORWARD))
-        assertEquals(0, grid.move(0, 12, BandCommand.BACKWARD))
+        assertEquals(3, grid.move(2, 11, BandCommand.FORWARD))
+        assertEquals(10, grid.move(10, 11, BandCommand.FORWARD))
+        assertEquals(0, grid.move(0, 11, BandCommand.BACKWARD))
     }
 
     @Test
-    fun pages() {
-        assertEquals(1, grid.pageCount(0))
-        assertEquals(1, grid.pageCount(9))
-        assertEquals(2, grid.pageCount(10))
-        assertEquals(1, grid.pageOf(9))
+    fun rows() {
+        assertEquals(0, grid.rowCount(0))
+        assertEquals(1, grid.rowCount(3))
+        assertEquals(4, grid.rowCount(10))
+        assertEquals(3, grid.rowOf(9))
     }
 }

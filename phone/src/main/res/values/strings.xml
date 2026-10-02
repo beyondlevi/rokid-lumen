@@ -226,7 +226,6 @@
         <item quantity="other">%1$d available</item>
     </plurals>
     <string name="apps_preview">How it looks on the glasses</string>
-    <string name="apps_page_of">Page %1$d of %2$d</string>
     <string name="apps_on_grid">On the grid</string>
     <string name="apps_drag_hint">Hold and drag to reorder</string>
     <string name="apps_reorder">Reorder %1$s</string>

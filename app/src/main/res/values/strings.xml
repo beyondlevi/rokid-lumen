@@ -200,7 +200,6 @@
     <string name="webapp_error_code">error %1$d (category %2$d)</string>
     <string name="webapp_no_internet">No internet: the app didn\'t load.</string>
     <string name="webapp_navigation_blocked">This app can\'t open other sites</string>
-    <string name="launcher_apps" translatable="false">Apps</string>
     <string name="launcher_downloading">Downloading the package…</string>
     <string name="launcher_installed">Installed: %1$s</string>
     <string name="launcher_updated">Updated: %1$s</string>
@@ -220,7 +219,6 @@
     <string name="install_updates">Updates %1$s</string>
     <string name="install_installing">Installing…</string>
     <string name="install_hint">Swipe: choose · Index: select · Middle: cancel</string>
-    <string name="launcher_notifications">Notifications</string>
     <string name="package_https_only">Packages only over HTTPS</string>
     <string name="package_download_failed">Download failed (HTTP %1$s)</string>
     <string name="package_no_index">No index.html in the package</string>
@@ -265,4 +263,6 @@
     <string name="battery_overlay_charging" translatable="false">%1$d%%+</string>
     <string name="launcher_settings">Settings</string>
     <string name="settings_title">Lumen settings</string>
+    <string name="home_tab_notifications">Notifications</string>
+    <string name="home_tab_apps">Apps</string>
 </resources>

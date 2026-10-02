@@ -1,50 +1,42 @@
 package dev.lumen.glasses
 
 /**
- * Focus movement in a paged grid (3x3 on the glasses), kept apart from the view so it can be
- * tested. Items fill pages left to right, top to bottom. Up and down stay on the page; left and
- * right step through a row and cross to the neighbouring page at its edges, landing on the same
- * row there (or the last item, when that page is shorter). Forward and backward (the dial, the
- * touchpad) walk the items in order.
+ * Focus movement in the apps grid: [columns] across, as many rows as it takes (it scrolls
+ * vertically), kept apart from the view so it can be tested. Items fill rows left to right.
+ * Up, down, left and right move in two dimensions; down to a shorter last row takes its last
+ * item. Leaving the grid upward (from the first row) or leftward (from the first column) is
+ * the home's business: [move] answers [OUT_UP] or [OUT_LEFT] then. Forward and backward (the
+ * dial, the touchpad) walk the items in order.
  */
-class GridNavigator(private val columns: Int = 3, private val rows: Int = 3) {
-    val pageSize get() = columns * rows
+class GridNavigator(val columns: Int = 3) {
+    fun rowOf(index: Int) = index / columns
+    fun rowCount(count: Int) = if (count <= 0) 0 else (count - 1) / columns + 1
 
-    fun pageOf(index: Int) = index / pageSize
-    fun pageCount(count: Int) = if (count <= 0) 1 else (count - 1) / pageSize + 1
-
-    /** Where [command] moves the focus from [index] among [count] items. */
+    /** Where [command] moves the focus from [index] among [count] items, or [OUT_UP] / [OUT_LEFT]. */
     fun move(index: Int, count: Int, command: String): Int {
-        if (count <= 0) return 0
+        if (count <= 0) return if (command == BandCommand.UP) OUT_UP else if (command == BandCommand.LEFT) OUT_LEFT else 0
         val current = index.coerceIn(0, count - 1)
-        val page = current / pageSize
-        val slot = current % pageSize
-        val row = slot / columns
-        val column = slot % columns
+        val column = current % columns
         return when (command) {
             BandCommand.FORWARD -> (current + 1).coerceAtMost(count - 1)
             BandCommand.BACKWARD -> (current - 1).coerceAtLeast(0)
-            BandCommand.RIGHT -> when {
-                column < columns - 1 && current + 1 < count -> current + 1
-                page + 1 < pageCount(count) -> landOn(page + 1, row, 0, count)
-                else -> current
-            }
-            BandCommand.LEFT -> when {
-                column > 0 -> current - 1
-                page > 0 -> landOn(page - 1, row, columns - 1, count)
-                else -> current
-            }
+            BandCommand.RIGHT -> if (column < columns - 1 && current + 1 < count) current + 1 else current
+            BandCommand.LEFT -> if (column > 0) current - 1 else OUT_LEFT
             BandCommand.DOWN -> when {
-                row < rows - 1 && current + columns < count -> current + columns
+                current + columns < count -> current + columns
                 // The row below is shorter: its last item.
-                row < rows - 1 && page * pageSize + (row + 1) * columns < count -> count - 1
+                rowOf(current) < rowOf(count - 1) -> count - 1
                 else -> current
             }
-            BandCommand.UP -> if (row > 0) current - columns else current
+            BandCommand.UP -> if (current >= columns) current - columns else OUT_UP
             else -> current
         }
     }
 
-    private fun landOn(page: Int, row: Int, column: Int, count: Int): Int =
-        (page * pageSize + row * columns + column).coerceAtMost(count - 1)
+    companion object {
+        /** Up from the first row: the focus goes to the home's tabs. */
+        const val OUT_UP = -1
+        /** Left from the first column: the previous tab. */
+        const val OUT_LEFT = -2
+    }
 }

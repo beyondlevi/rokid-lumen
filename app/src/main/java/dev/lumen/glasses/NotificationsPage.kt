@@ -4,10 +4,8 @@ import android.app.Activity
 import android.graphics.Color
 import android.graphics.PorterDuff
 import android.graphics.drawable.GradientDrawable
-import android.os.Bundle
 import android.text.TextUtils
 import android.view.Gravity
-import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -19,13 +17,17 @@ import dev.lumen.protocol.Link
 import dev.lumen.protocol.NotifyCommand
 
 /**
- * The phone's notifications on the glasses, in the Meta Ray-Ban Display look ([MetaStyle]):
- * grouped by app (newest app first, with its count), the index tap expands an app, and again
- * opens one notification in full; the middle tap goes back a level. A left swipe on a row shows
- * the bin, a second one dismisses it (a whole app on the first level), here and on the phone.
- * The banners' snooze is the last row of the first level.
+ * The home's Notifications tab: the phone's notifications in the Meta Ray-Ban Display look
+ * ([MetaStyle]), grouped by app (newest app first, with its count); the index tap expands an
+ * app, and again opens one notification in full; the middle tap goes back a level. A left swipe
+ * on a row shows the bin, a second one dismisses it (a whole app on the first level), here and
+ * on the phone. The banners' snooze is the last row of the first level.
+ *
+ * [view] goes in the home's pager; the home ([LauncherActivity]) passes the band's commands to
+ * [onCommand] while the focus is in the page, and gets back what the page leaves to it.
  */
-class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarget, NotificationInbox.Listener {
+class NotificationsPage(private val activity: Activity) : HomePage, NotificationInbox.Listener {
+
     private sealed class Level {
         object Apps : Level()
         data class App(val packageName: String) : Level()
@@ -35,10 +37,11 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
     /** One focusable row: its view, what it dismisses, and what the index tap does. */
     private class Row(val frame: FrameLayout, val pill: LinearLayout, val bin: View, val keys: List<String>, val activate: () -> Unit)
 
-    private lateinit var scroll: ScrollView
-    private lateinit var list: LinearLayout
-    private lateinit var chip: TextView
-    private lateinit var toast: TextView
+    override val view: FrameLayout
+    private val scroll: ScrollView
+    private val list: LinearLayout
+    private val chip: TextView
+    private val toast: TextView
     private var level: Level = Level.Apps
     private var rows: List<Row> = emptyList()
     private var focus = 0
@@ -51,16 +54,23 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
     private val snoozeListener: () -> Unit = { render() }
     private val rerender = Runnable { render() }
-    private var side = 0
+    private val side: Int
+    private var shown = false
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        val metrics = resources.displayMetrics
+    /** Whether the focus is in this page (rows show it) or on the home's tabs. */
+    override var active = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (!value) conceal()
+            applyFocus(animate = true)
+        }
+
+    init {
+        val metrics = activity.resources.displayMetrics
         side = minOf(metrics.widthPixels, metrics.heightPixels)
-        val root = FrameLayout(this).apply { setBackgroundColor(MetaStyle.WINDOW) }
-        val square = FrameLayout(this).apply { setBackgroundColor(MetaStyle.WINDOW) }
-        root.addView(square, FrameLayout.LayoutParams(side, side, Gravity.CENTER))
-        scroll = ScrollView(this).apply {
+        view = FrameLayout(activity).apply { setBackgroundColor(MetaStyle.WINDOW) }
+        scroll = ScrollView(activity).apply {
             isVerticalScrollBarEnabled = false
             setBackgroundColor(MetaStyle.WINDOW)
             // The band's commands come through the activity: the list never takes focus. Focused,
@@ -71,18 +81,18 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
             defaultFocusHighlightEnabled = false
             overScrollMode = View.OVER_SCROLL_NEVER
             clipToPadding = false
-            setPadding(0, px(92f), 0, px(64f))
+            setPadding(0, px(TOP_PAD), 0, px(64f))
         }
-        list = LinearLayout(this).apply {
+        list = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(px(24f), 0, px(24f), 0)
         }
         scroll.addView(list)
-        square.addView(scroll, FrameLayout.LayoutParams(side, side))
+        view.addView(scroll, FrameLayout.LayoutParams(side, side))
         // The toolkit's fading edges: black (see-through on the HUD) over the list's ends.
-        square.addView(fade(GradientDrawable.Orientation.TOP_BOTTOM), FrameLayout.LayoutParams(side, px(96f), Gravity.TOP))
-        square.addView(fade(GradientDrawable.Orientation.BOTTOM_TOP), FrameLayout.LayoutParams(side, px(64f), Gravity.BOTTOM))
-        chip = TextView(this).apply {
+        view.addView(fade(GradientDrawable.Orientation.TOP_BOTTOM), FrameLayout.LayoutParams(side, px(96f), Gravity.TOP))
+        view.addView(fade(GradientDrawable.Orientation.BOTTOM_TOP), FrameLayout.LayoutParams(side, px(64f), Gravity.BOTTOM))
+        chip = TextView(activity).apply {
             setTextColor(MetaStyle.TEXT)
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, MetaStyle.textPx(context, 22f))
             typeface = MetaStyle.MEDIUM
@@ -90,9 +100,10 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
             minHeight = px(44f)
             setPadding(px(16f), 0, px(16f), 0)
             background = MetaStyle.pill(context)
+            visibility = View.GONE
         }
-        square.addView(chip, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, px(44f), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = px(24f) })
-        toast = TextView(this).apply {
+        view.addView(chip, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, px(44f), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = px(76f) })
+        toast = TextView(activity).apply {
             setTextColor(MetaStyle.TEXT)
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, MetaStyle.textPx(context, 22f))
             gravity = Gravity.CENTER
@@ -101,48 +112,43 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
             background = MetaStyle.pill(context)
             visibility = View.GONE
         }
-        square.addView(toast, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, px(44f), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = px(24f) })
-        setContentView(root)
-        openFromIntent(intent)
+        view.addView(toast, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, px(44f), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = px(24f) })
     }
 
-    private fun fade(orientation: GradientDrawable.Orientation) = View(this).apply {
+    private fun fade(orientation: GradientDrawable.Orientation) = View(activity).apply {
         background = GradientDrawable(orientation, intArrayOf(Color.BLACK, Color.TRANSPARENT))
     }
 
-    private fun openFromIntent(intent: android.content.Intent?) {
-        val key = intent?.getStringExtra(EXTRA_KEY) ?: return
+    /** Opens one notification in full (a banner's index tap). */
+    fun openKey(key: String) {
         val item = NotificationInbox.find(key) ?: return
         level = Level.Detail(key, item.packageName)
+        if (shown) render()
     }
 
-    override fun onNewIntent(intent: android.content.Intent) {
-        super.onNewIntent(intent)
-        openFromIntent(intent)
-        render()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        BandAccessibilityService.setInputTarget(this)
+    /** The tab came into view: what's new keeps its accent while it's shown, and is seen. */
+    override fun onShow() {
+        if (shown) return
+        shown = true
         NotificationInbox.addListener(this)
         NotificationSnooze.listeners += snoozeListener
-        // What was new when the inbox opened keeps its accent while it's open.
         unread = unread + NotificationInbox.unreadKeys()
         NotificationInbox.markSeen()
         render()
     }
 
-    override fun onPause() {
-        BandAccessibilityService.clearInputTarget(this)
+    override fun onHide() {
+        if (!shown) return
+        shown = false
         NotificationInbox.removeListener(this)
         NotificationSnooze.listeners -= snoozeListener
         handler.removeCallbacks(rerender)
-        super.onPause()
+        conceal()
     }
 
     override fun onInboxChanged() {
         unread = unread + NotificationInbox.unreadKeys()
+        NotificationInbox.markSeen()
         render()
     }
 
@@ -154,10 +160,13 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
         (level as? Level.App)?.let { app -> if (groups.none { it.packageName == app.packageName }) level = Level.Apps }
         list.removeAllViews()
         revealed = -1
+        // The tab's pill names the first level; deeper ones get their own chip under it.
+        chip.visibility = if (level == Level.Apps) View.GONE else View.VISIBLE
+        scroll.setPadding(0, px(if (level == Level.Apps) TOP_PAD else TOP_PAD_CHIP), 0, px(64f))
         toast.visibility = View.GONE
         when (val current = level) {
             Level.Apps -> {
-                chip.text = if (items.isEmpty()) getString(R.string.inbox_title) else getString(R.string.inbox_chip, getString(R.string.inbox_title), items.size)
+                chip.text = if (items.isEmpty()) activity.getString(R.string.inbox_title) else activity.getString(R.string.inbox_chip, activity.getString(R.string.inbox_title), items.size)
                 rows = groups.map { group ->
                     val newest = group.newest
                     val subtitle = listOf(newest.title, preview(newest, lines = 1)).filter { it.isNotBlank() }.joinToString(": ")
@@ -175,7 +184,7 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
             }
             is Level.App -> {
                 val group = groups.first { it.packageName == current.packageName }
-                chip.text = getString(R.string.inbox_chip, group.appName, group.items.size)
+                chip.text = activity.getString(R.string.inbox_chip, group.appName, group.items.size)
                 rows = group.items.map { item ->
                     row(avatar(item.icon, item.title.ifEmpty { item.appName }), item.title.ifEmpty { item.appName }, preview(item), item.postedAt,
                         unread = item.key in unread, badge = null, keys = listOf(item.key)) {
@@ -188,7 +197,7 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
             }
             is Level.Detail -> {
                 val item = NotificationInbox.find(current.key)!!
-                chip.text = item.appName.ifEmpty { getString(R.string.notification_title) }
+                chip.text = item.appName.ifEmpty { activity.getString(R.string.notification_title) }
                 rows = emptyList()
                 list.addView(detail(item))
                 scroll.scrollTo(0, 0)
@@ -201,36 +210,36 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
 
     /** The newest [lines] of what it says (its last messages), oldest first. */
     private fun preview(item: PhoneNotification, lines: Int = 2): String =
-        if (item.redacted) getString(R.string.notification_hidden) else PhoneNotification.lastLines(item.text, lines)
+        if (item.redacted) activity.getString(R.string.notification_hidden) else PhoneNotification.lastLines(item.text, lines)
 
-    private fun empty() = text(getString(R.string.inbox_empty), 22f, MetaStyle.TEXT_SECONDARY, MetaStyle.REGULAR, 4).apply {
+    private fun empty() = text(activity.getString(R.string.inbox_empty), 22f, MetaStyle.TEXT_SECONDARY, MetaStyle.REGULAR, 4).apply {
         setPadding(px(12f), px(8f), px(12f), px(24f))
     }
 
     private fun snoozeRow(): Row {
-        val until = NotificationSnooze.until(this)
+        val until = NotificationSnooze.until(activity)
         handler.removeCallbacks(rerender)
         if (until > 0) handler.postDelayed(rerender, until - System.currentTimeMillis() + 500)
         val state = if (until > 0) {
-            getString(R.string.inbox_snooze_until, android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date(until)))
+            activity.getString(R.string.inbox_snooze_until, android.text.format.DateFormat.getTimeFormat(activity).format(java.util.Date(until)))
         } else {
-            getString(R.string.inbox_snooze_off)
+            activity.getString(R.string.inbox_snooze_off)
         }
-        val icon = ImageView(this).apply {
+        val icon = ImageView(activity).apply {
             setImageResource(android.R.drawable.ic_lock_silent_mode)
             setColorFilter(MetaStyle.TEXT, PorterDuff.Mode.SRC_IN)
             setPadding(px(14f), px(14f), px(14f), px(14f))
             background = MetaStyle.circle(context)
         }
-        return row(icon, getString(R.string.inbox_snooze, NotificationSnooze.DURATION_MS / 60_000), state, 0L, unread = false, badge = null, keys = emptyList()) {
-            NotificationSnooze.set(this, !NotificationSnooze.isActive(this))
+        return row(icon, activity.getString(R.string.inbox_snooze, NotificationSnooze.DURATION_MS / 60_000), state, 0L, unread = false, badge = null, keys = emptyList()) {
+            NotificationSnooze.set(activity, !NotificationSnooze.isActive(activity))
         }
     }
 
     /** An app's icon in the toolkit's round avatar (64), or its initial. */
     private fun avatar(icon: android.graphics.Bitmap?, name: String): View =
         if (icon != null) {
-            ImageView(this).apply {
+            ImageView(activity).apply {
                 setImageBitmap(icon)
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 // The app's own icon, as it is: no plate behind it (it would light up).
@@ -245,8 +254,8 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
 
     /** A ListItem: avatar, title, subtitle, time (accent when new) and the count badge. */
     private fun row(avatar: View, title: String, subtitle: String, time: Long, unread: Boolean, badge: Int?, keys: List<String>, activate: () -> Unit): Row {
-        val frame = FrameLayout(this).apply { setPadding(0, px(6f), 0, px(6f)) }
-        val bin = ImageView(this).apply {
+        val frame = FrameLayout(activity).apply { setPadding(0, px(6f), 0, px(6f)) }
+        val bin = ImageView(activity).apply {
             setImageResource(android.R.drawable.ic_menu_delete)
             setColorFilter(MetaStyle.NEGATIVE, PorterDuff.Mode.SRC_IN)
             setPadding(px(22f), px(22f), px(22f), px(22f))
@@ -254,19 +263,19 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
             alpha = 0f
         }
         frame.addView(bin, FrameLayout.LayoutParams(px(88f), px(88f), Gravity.END or Gravity.CENTER_VERTICAL).apply { marginEnd = px(24f) })
-        val pill = LinearLayout(this).apply {
+        val pill = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             minimumHeight = px(104f)
             setPadding(px(20f), px(8f), px(32f), px(8f))
         }
         pill.addView(avatar, LinearLayout.LayoutParams(px(64f), px(64f)).apply { marginEnd = px(16f) })
-        val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val texts = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
         texts.addView(text(title, 24f, MetaStyle.TEXT, MetaStyle.REGULAR, 1))
         // Two lines of what it says, at least: one was too little to go by.
         if (subtitle.isNotBlank()) texts.addView(text(subtitle, 22f, MetaStyle.TEXT_SECONDARY, MetaStyle.REGULAR, 2))
         pill.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        val trailing = LinearLayout(this).apply {
+        val trailing = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             minimumWidth = px(88f)
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
@@ -295,21 +304,21 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
 
     /** One notification in full: who and when, then its lines as message bubbles. */
     private fun detail(item: PhoneNotification): View {
-        val card = LinearLayout(this).apply {
+        val card = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(px(12f), px(8f), px(12f), px(24f))
         }
-        val head = LinearLayout(this).apply {
+        val head = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
         head.addView(avatar(item.icon, item.title.ifEmpty { item.appName }), LinearLayout.LayoutParams(px(56f), px(56f)).apply { marginEnd = px(16f) })
-        val who = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val who = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
         who.addView(text(item.title.ifEmpty { item.appName }, 28f, MetaStyle.TEXT, MetaStyle.BOLD, 2))
         who.addView(text(android.text.format.DateUtils.getRelativeTimeSpanString(item.postedAt, System.currentTimeMillis(), android.text.format.DateUtils.MINUTE_IN_MILLIS).toString(), 22f, MetaStyle.TEXT_SECONDARY, MetaStyle.REGULAR, 1))
         head.addView(who, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         card.addView(head)
-        val lines = if (item.redacted) listOf(getString(R.string.inbox_hidden_on_phone)) else item.text.lines().filter { it.isNotBlank() }
+        val lines = if (item.redacted) listOf(activity.getString(R.string.inbox_hidden_on_phone)) else item.text.lines().filter { it.isNotBlank() }
         lines.forEach { line ->
             card.addView(text(line, 24f, MetaStyle.TEXT, MetaStyle.REGULAR, 12).apply {
                 setPadding(px(20f), px(12f), px(20f), px(12f))
@@ -319,7 +328,7 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
         return card
     }
 
-    private fun text(value: String, size: Float, color: Int, face: android.graphics.Typeface, lines: Int) = TextView(this).apply {
+    private fun text(value: String, size: Float, color: Int, face: android.graphics.Typeface, lines: Int) = TextView(activity).apply {
         text = value
         setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, MetaStyle.textPx(context, size))
         setTextColor(color)
@@ -334,10 +343,10 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
     private fun shortAgo(time: Long): String {
         val minutes = (System.currentTimeMillis() - time) / 60_000
         return when {
-            minutes < 1 -> getString(R.string.inbox_now)
-            minutes < 60 -> getString(R.string.inbox_minutes, minutes)
-            minutes < 24 * 60 -> getString(R.string.inbox_hours, minutes / 60)
-            else -> android.text.format.DateFormat.getDateFormat(this).format(java.util.Date(time))
+            minutes < 1 -> activity.getString(R.string.inbox_now)
+            minutes < 60 -> activity.getString(R.string.inbox_minutes, minutes)
+            minutes < 24 * 60 -> activity.getString(R.string.inbox_hours, minutes / 60)
+            else -> android.text.format.DateFormat.getDateFormat(activity).format(java.util.Date(time))
         }
     }
 
@@ -346,8 +355,9 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
         val width = side - px(48f)
         val rest = (width - px(16f)).toFloat() / width
         rows.forEachIndexed { index, row ->
-            val focused = index == focus
-            row.pill.background = if (focused) MetaStyle.focused(this, width) else MetaStyle.idle(this)
+            // While the tabs have the focus, no row has it.
+            val focused = active && index == focus
+            row.pill.background = if (focused) MetaStyle.focused(activity, width) else MetaStyle.idle(activity)
             val scale = if (focused) 1f else rest
             if (animate) {
                 row.pill.animate().scaleX(scale).scaleY(scale).setDuration(MetaStyle.FOCUS_MS).setInterpolator(MetaStyle.FOCUS_EASING).start()
@@ -357,7 +367,7 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
             }
         }
         rows.getOrNull(focus)?.frame?.let { target ->
-            scroll.post { scroll.requestChildRectangleOnScreen(target, android.graphics.Rect(0, -px(92f), target.width, target.height + px(64f)), !animate) }
+            scroll.post { scroll.requestChildRectangleOnScreen(target, android.graphics.Rect(0, -scroll.paddingTop, target.width, target.height + px(64f)), !animate) }
         }
     }
 
@@ -378,8 +388,8 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
             revealed = focus
             row.pill.animate().translationX(-px(148f).toFloat()).setDuration(MetaStyle.FOCUS_MS).setInterpolator(MetaStyle.FOCUS_EASING).start()
             row.bin.animate().alpha(1f).setDuration(MetaStyle.FOCUS_MS).start()
-            toast.text = if (row.keys.size == 1) getString(R.string.inbox_dismiss_confirm)
-            else resources.getQuantityString(R.plurals.inbox_dismiss_confirm_all, row.keys.size, row.keys.size)
+            toast.text = if (row.keys.size == 1) activity.getString(R.string.inbox_dismiss_confirm)
+            else activity.resources.getQuantityString(R.plurals.inbox_dismiss_confirm_all, row.keys.size, row.keys.size)
             toast.visibility = View.VISIBLE
             return
         }
@@ -392,28 +402,36 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
         keys.forEach { NotificationInbox.remove(it) }
     }
 
-    override fun onBandCommand(command: String): Boolean {
+    /** A band command while the focus is in this page. */
+    override fun onCommand(command: String): HomeResult {
         if (command == BandCommand.LEFT) {
             if (level !is Level.Detail) swipeLeft()
-            return true
+            return HomeResult.HANDLED
         }
         // Anything else puts a shown bin away first; Back does only that.
         if (revealed >= 0) {
             conceal()
-            if (command == BandCommand.BACK) return true
+            if (command == BandCommand.BACK) return HomeResult.HANDLED
         }
         when (command) {
             BandCommand.BACK -> when (val current = level) {
                 is Level.Detail -> { level = Level.App(current.packageName); render() }
                 is Level.App -> { level = Level.Apps; render() }
-                Level.Apps -> finish()
+                Level.Apps -> return HomeResult.CLOSE
             }
             BandCommand.ACTIVATE -> rows.getOrNull(focus)?.activate?.invoke()
-            BandCommand.DOWN, BandCommand.RIGHT, BandCommand.FORWARD -> step(1)
-            BandCommand.UP, BandCommand.BACKWARD -> step(-1)
-            else -> return false
+            // The first level's right is the next tab (the toolkit's pager); deeper, it walks on.
+            BandCommand.RIGHT -> if (level == Level.Apps) return HomeResult.RIGHT_OUT else step(1)
+            BandCommand.DOWN, BandCommand.FORWARD -> step(1)
+            BandCommand.UP -> {
+                // Above the first row of the first level: the tabs.
+                if (level == Level.Apps && focus == 0) return HomeResult.UP_OUT
+                step(-1)
+            }
+            BandCommand.BACKWARD -> step(-1)
+            else -> return HomeResult.UNHANDLED
         }
-        return true
+        return HomeResult.HANDLED
     }
 
     private fun step(delta: Int) {
@@ -428,22 +446,12 @@ class NotificationInboxActivity : Activity(), BandAccessibilityService.InputTarg
         }
     }
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val command = when (event.keyCode) {
-            KeyEvent.KEYCODE_DPAD_UP -> BandCommand.UP
-            KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT -> BandCommand.DOWN
-            KeyEvent.KEYCODE_DPAD_LEFT -> BandCommand.LEFT
-            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> BandCommand.ACTIVATE
-            KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> BandCommand.BACK
-            else -> return super.dispatchKeyEvent(event)
-        }
-        if (event.action == KeyEvent.ACTION_UP) onBandCommand(command)
-        return true
-    }
-
-    private fun px(value: Float) = MetaStyle.px(this, value)
+    private fun px(value: Float) = MetaStyle.px(activity, value)
 
     companion object {
-        const val EXTRA_KEY = "key"
+        /** Below the home's tabs (20 + 44), with room. */
+        private const val TOP_PAD = 92f
+        /** Below the tabs and a level's chip. */
+        private const val TOP_PAD_CHIP = 132f
     }
 }

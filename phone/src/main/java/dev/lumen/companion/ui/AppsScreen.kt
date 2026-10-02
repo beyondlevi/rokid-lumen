@@ -43,7 +43,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -186,7 +185,6 @@ internal fun AppsScreen(
 
 private enum class AddDialog { WEB, PACKAGE }
 
-private const val PAGE = 9
 private const val COLUMNS = 3
 private const val ENGINE_GECKO = "GECKO"
 private const val ENGINE_SYSTEM = "SYSTEM"
@@ -244,45 +242,24 @@ private fun MenuText(title: Int, hint: Int) {
     }
 }
 
-/** The HUD's grid, small: the page with the selected app (or the first), and which page it is. */
+/** The HUD's Apps tab, small: every app in rows of three, as the glasses scroll through them. */
 @Composable
 private fun GridPreview(items: List<GridItem>, icons: Map<String, Bitmap>, selected: String?) {
-    val pages = maxOf(1, (items.size + PAGE - 1) / PAGE)
-    val selectedPage = items.indexOfFirst { it.id == selected }.takeIf { it >= 0 }?.div(PAGE)
-    var page by remember { mutableIntStateOf(0) }
-    val shown = (selectedPage ?: page).coerceIn(0, pages - 1)
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(Lumen.radiusCard)).background(Lumen.surface).padding(Lumen.spacingMedium),
         verticalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.apps_preview), style = MaterialTheme.typography.labelMedium, color = Lumen.textSecondary, modifier = Modifier.weight(1f))
-            Text(stringResource(R.string.apps_page_of, shown + 1, pages), style = MaterialTheme.typography.labelSmall, color = Lumen.textPlaceholder)
-            if (pages > 1) {
-                (0 until pages).forEach { index ->
-                    Box(
-                        Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .clickable(role = Role.Tab) { page = index }
-                            .semantics { contentDescription = "${index + 1}" },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Box(Modifier.size(6.dp).clip(CircleShape).background(if (index == shown) Lumen.textPrimary else Lumen.elevation2))
-                    }
-                }
-            }
-        }
+        Text(stringResource(R.string.apps_preview), style = MaterialTheme.typography.labelMedium, color = Lumen.textSecondary)
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(Lumen.radiusRow)).background(Lumen.window).padding(Lumen.spacingSmMed),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            val pageItems = items.drop(shown * PAGE).take(PAGE)
-            (0 until PAGE / COLUMNS).forEach { row ->
+            val shown = items.filter { it.kind != GridItem.Kind.NOTIFICATIONS }
+            shown.chunked(COLUMNS).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     (0 until COLUMNS).forEach { column ->
-                        val item = pageItems.getOrNull(row * COLUMNS + column)
-                        Box(Modifier.weight(1f)) { MiniTile(item, item?.let { icons[it.id] }, item != null && item.id == selected) }
+                        val item = row.getOrNull(column)
+                        Box(Modifier.weight(1f)) { if (item != null) MiniTile(item, icons[item.id], item.id == selected) }
                     }
                 }
             }

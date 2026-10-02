@@ -99,8 +99,8 @@ class NotificationBanner(private val service: AccessibilityService) {
                 onUserActivity()
                 dismiss()
                 service.startActivity(
-                    Intent(service, NotificationInboxActivity::class.java)
-                        .putExtra(NotificationInboxActivity.EXTRA_KEY, current.key)
+                    Intent(service, LauncherActivity::class.java)
+                        .putExtra(LauncherActivity.EXTRA_KEY, current.key)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
                 )
                 true
