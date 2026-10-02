@@ -410,4 +410,6 @@
     <string name="update_open_wifi">Abrir Wi-Fi</string>
     <string name="update_allow_installs">Permitir</string>
     <string name="update_try_again">Tentar de novo</string>
+    <string name="notifications_test_reply">Responder</string>
+    <string name="notifications_test_replied">Respondida pelos óculos: %1$s</string>
 </resources>

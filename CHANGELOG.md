@@ -16,11 +16,15 @@
 
 - Replies from the glasses go through the notification's own reply action, as typing in the
   shade would (reactions as their emoji).
+- The test notification (Notifications tab) has a reply action, so quick replies can be tried
+  without messaging anyone: the answer shows in it.
 
 ### Web apps
 
 - `lumen_notifications` in an offline app's manifest: the phone notifications it opens, and the
   page to open (`/chat/{shortcut}`).
+- An offline app's routes may contain dots (`/chat/…@g.us`): only a missing file of a known type
+  is a 404 now.
 
 ## [0.2.0-beta.5]
 

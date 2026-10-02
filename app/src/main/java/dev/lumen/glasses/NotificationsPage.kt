@@ -45,6 +45,7 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
     private val toast: TextView
     /** Under an open notification: its web app and quick replies ([QuickReplyBar]). */
     private val bar = QuickReplyBar(activity)
+    private val barShade: View
     private val hideToast = Runnable { toast.visibility = View.GONE }
     private val replyListener = NotificationReplies.Listener { _, ok ->
         say(activity.getString(if (ok) R.string.quick_reply_sent else R.string.quick_reply_failed))
@@ -123,7 +124,14 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
             visibility = View.GONE
         }
         view.addView(toast, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, px(44f), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = px(24f) })
+        // Black behind the bar (see-through on the HUD), fading up into the text it covers.
+        barShade = View(activity).apply {
+            background = GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, intArrayOf(Color.BLACK, Color.BLACK, Color.TRANSPARENT))
+            visibility = View.GONE
+        }
+        view.addView(barShade, FrameLayout.LayoutParams(side, px(BAR_BOTTOM + QuickReplyBar.HEIGHT + 40f), Gravity.BOTTOM))
         view.addView(bar.view, FrameLayout.LayoutParams(side, px(QuickReplyBar.HEIGHT), Gravity.BOTTOM).apply { bottomMargin = px(BAR_BOTTOM) })
+        toast.bringToFront()
     }
 
     private fun fade(orientation: GradientDrawable.Orientation) = View(activity).apply {
@@ -245,6 +253,7 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
 
     /** Room under the text for the bar, and the toast above it, while it shows. */
     private fun placeBar() {
+        barShade.visibility = if (bar.shown) View.VISIBLE else View.GONE
         scroll.setPadding(0, scroll.paddingTop, 0, px(if (bar.shown) 64f + QuickReplyBar.HEIGHT + BAR_BOTTOM else 64f))
         (toast.layoutParams as FrameLayout.LayoutParams).bottomMargin = px(if (bar.shown) BAR_BOTTOM + QuickReplyBar.HEIGHT + 12f else 24f)
         toast.requestLayout()

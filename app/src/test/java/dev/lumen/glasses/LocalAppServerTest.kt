@@ -34,6 +34,16 @@ class LocalAppServerTest {
     }
 
     @Test
+    fun aRouteWithADotIsStillARouteButAMissingAssetIsNot() {
+        val root = java.io.File(context.cacheDir, "spa-test").apply { deleteRecursively(); mkdirs() }
+        java.io.File(root, "index.html").writeText("<html></html>")
+        assertEquals(200, LocalAppServer.resolve("/chat/5511999990000%40g.us", root, null).status)
+        assertEquals(200, LocalAppServer.resolve("/chat/5511999990000@s.whatsapp.net", root, null).status)
+        assertEquals(404, LocalAppServer.resolve("/assets/missing.js", root, null).status)
+        assertEquals(404, LocalAppServer.resolve("/icon.png", root, null).status)
+    }
+
+    @Test
     fun onlyTheServersOwnAddressesPassTheHostCheck() {
         assertTrue(LocalAppServer.hostAllowed("127.0.0.1:47100", 47100))
         assertTrue(LocalAppServer.hostAllowed(" LocalHost:47100 ", 47100))

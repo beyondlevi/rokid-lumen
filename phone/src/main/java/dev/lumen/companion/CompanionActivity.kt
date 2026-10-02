@@ -340,16 +340,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
 
     /** A notification of this app's own, which the forwarder lets through (test category). */
     override fun sendTestNotification() {
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(TEST_CHANNEL, getString(R.string.notifications_test_channel), NotificationManager.IMPORTANCE_DEFAULT))
-        val notification = Notification.Builder(this, TEST_CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle(getString(R.string.notifications_test_title, getString(R.string.app_name)))
-            .setContentText(getString(R.string.notifications_test_text))
-            .setCategory(NotificationForwarder.CATEGORY_TEST)
-            .setAutoCancel(true)
-            .build()
-        manager.notify(TEST_ID, notification)
+        TestReplyReceiver.post(this)
         say(getString(if (hasNotificationAccess()) R.string.notifications_test_sent else R.string.notifications_test_needs_access))
     }
 
@@ -455,7 +446,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         private const val REQUEST_AUTH = 7
         private const val REQUEST_MICROPHONE = 8
         private const val REQUEST_PERMISSIONS = 8
-        private const val TEST_CHANNEL = "test"
-        private const val TEST_ID = 42
+        const val TEST_CHANNEL = "test"
+        const val TEST_ID = 42
     }
 }

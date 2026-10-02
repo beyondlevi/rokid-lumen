@@ -165,6 +165,7 @@ class CompanionService : Service() {
             ACTION_NET_UP -> network.up(intent.getLongExtra("lease_ms", PhoneNetwork.LEASE_MS))
             ACTION_NET_DOWN -> network.down()
             ACTION_BENCH -> bench(intent.getIntExtra("size", 4096), intent.getIntExtra("count", 64))
+            ACTION_TEST_NOTIFICATION -> TestReplyReceiver.post(this)
             ACTION_DICTATE_FILE -> dictateFile(File(filesDir, intent.getStringExtra("file") ?: "speech.pcm"))
         }
         // Not sticky: a crash here must not become a restart loop.
@@ -694,6 +695,7 @@ class CompanionService : Service() {
         const val ACTION_RECONNECT = "dev.lumen.companion.RECONNECT"
         const val ACTION_NET_UP = "dev.lumen.companion.NET_UP"
         const val ACTION_NET_DOWN = "dev.lumen.companion.NET_DOWN"
+        const val ACTION_TEST_NOTIFICATION = "dev.lumen.companion.TEST_NOTIFICATION"
         const val ACTION_BENCH = "dev.lumen.companion.BENCH"
         const val ACTION_DICTATE_FILE = "dev.lumen.companion.DICTATE_FILE"
 

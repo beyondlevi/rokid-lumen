@@ -194,8 +194,9 @@ object LocalAppServer {
         }
         if (file.isDirectory) file = File(file, "index.html")
         if (!file.isFile) {
-            // A file-looking path that's missing is a 404; anything else is a route of the SPA.
-            if (relative.substringAfterLast('/').contains('.')) return notFound()
+            // A missing file of a known type (a script, an image) is a 404; anything else is a route
+            // of the SPA, dots included: a WhatsApp chat's route ends in its JID, "…@g.us".
+            if (mimeType(relative.substringAfterLast('/')) != "application/octet-stream") return notFound()
             file = File(canonicalRoot, "index.html")
             if (!file.isFile) return notFound()
         }

@@ -419,4 +419,6 @@
     <string name="update_open_wifi">Open Wi-Fi</string>
     <string name="update_allow_installs">Allow</string>
     <string name="update_try_again">Try again</string>
+    <string name="notifications_test_reply">Reply</string>
+    <string name="notifications_test_replied">Answered from the glasses: %1$s</string>
 </resources>

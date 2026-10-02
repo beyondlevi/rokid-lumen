@@ -101,5 +101,9 @@
         <receiver
             android:name=".update.PhoneInstaller$StatusReceiver"
             android:exported="false" />
+            <!-- The test notification's reply action (TestReplyReceiver). -->
+        <receiver
+            android:name=".TestReplyReceiver"
+            android:exported="false" />
     </application>
 </manifest>
