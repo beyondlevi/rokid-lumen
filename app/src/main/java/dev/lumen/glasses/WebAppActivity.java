@@ -230,6 +230,25 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         engine.configResult(id, values, origin);
     }
 
+    /**
+     * A `window.lumen.audio` request (GlassesAudio). Only the app's own page: what it records and
+     * hears are the user's. Events go back to that origin only.
+     */
+    @Override
+    public void onAudio(JSONObject message, String pageUrl) {
+        WebApp current = WebAppLibrary.find(this, appId);
+        String origin = current == null ? "" : originOf(current.getUrl());
+        if (current == null || origin.isEmpty() || !origin.equals(originOf(pageUrl))) {
+            Log.w(TAG, "Audio refused to " + originOf(pageUrl) + " (the app is " + origin + ")");
+            return;
+        }
+        GlassesAudio.request(this, message, event -> {
+            if (engine != null) {
+                engine.audioEvent(event, origin);
+            }
+        });
+    }
+
     /** The app to open, by id; nothing is added here (see InstallConfirmActivity). */
     private WebApp appFrom(Intent intent) {
         return intent == null ? null : WebAppLibrary.find(this, intent.getStringExtra(EXTRA_APP_ID));
@@ -261,6 +280,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
 
     @Override
     protected void onDestroy() {
+        GlassesAudio.closeAll(this);
         WebAppConfig.removeListener(configListener);
         if (internet != null) {
             PhoneInternet.release(internet);

@@ -15,6 +15,7 @@
     if (data.type === 'keyboardWanted' && window.__mrbdKeyboardWanted) window.__mrbdKeyboardWanted();
     if (data.type === 'config' && window.__lumenConfig) window.__lumenConfig(data.id, data.values);
     if (data.type === 'configChanged' && window.__lumenConfigChanged) window.__lumenConfigChanged(data.values);
+    if (data.type === 'audio' && window.__lumenAudio) window.__lumenAudio(data.event);
   });
   window.MrbdHost = {
     canGoBack: function () { return back; },
@@ -24,6 +25,7 @@
     backResult: function (handled) { send({ type: 'backResult', handled: !!handled }); },
     openComposer: function (value, multiline) { send({ type: 'openComposer', value: value, multiline: !!multiline }); },
     noTextField: function () { send({ type: 'noTextField' }); },
-    getConfig: function (id) { send({ type: 'getConfig', id: id }); }
+    getConfig: function (id) { send({ type: 'getConfig', id: id }); },
+    audio: function (json) { send({ type: 'audio', message: JSON.parse(json) }); }
   };
 })();

@@ -187,6 +187,9 @@ class SystemWebEngine(
     override fun configChanged(values: JSONObject, origin: String) =
         evaluateOnAppPage("window.__lumenConfigChanged && window.__lumenConfigChanged($values)")
 
+    override fun audioEvent(event: JSONObject, origin: String) =
+        evaluateOnAppPage("window.__lumenAudio && window.__lumenAudio($event)")
+
     /** Whether the page in front is the app's own. Main thread (WebView's rule for [WebView.getUrl]). */
     private fun onAppPage(): Boolean = WebOrigin.matches(web.url, appOrigin)
 
@@ -237,6 +240,12 @@ class SystemWebEngine(
 
         @JavascriptInterface
         fun getConfig(id: Int) = fromAppPage("getConfig") { host.onGetConfig(id, web.url) }
+
+        /** A `window.lumen.audio` request, as JSON (a transcription carries its audio in base64). */
+        @JavascriptInterface
+        fun audio(message: String?) = fromAppPage("audio") {
+            runCatching { JSONObject(message.orEmpty()) }.getOrNull()?.let { host.onAudio(it, web.url) }
+        }
 
         @JavascriptInterface
         fun backResult(handled: Boolean) = fromAppPage("backResult") {

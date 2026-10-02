@@ -179,6 +179,10 @@ class GeckoWebEngine(
         post(JSONObject().put("type", "config").put("id", id).put("values", values).put("origin", origin))
     }
 
+    override fun audioEvent(event: JSONObject, origin: String) {
+        post(JSONObject().put("type", "audio").put("event", event).put("origin", origin))
+    }
+
     override fun configChanged(values: JSONObject, origin: String) {
         post(JSONObject().put("type", "configChanged").put("values", values).put("origin", origin))
     }
@@ -224,6 +228,7 @@ class GeckoWebEngine(
             )
             "cancelSpeech" -> host.onCancelSpeech()
             "getConfig" -> host.onGetConfig(json.optInt("id"), sender)
+            "audio" -> json.optJSONObject("message")?.let { host.onAudio(it, sender) }
             else -> Log.d(TAG, "Host message $type")
         }
     }

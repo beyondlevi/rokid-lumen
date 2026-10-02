@@ -21,6 +21,13 @@ object Protocol {
         JSONObject(caps.at(0).string)
     }.getOrDefault(JSONObject())
 
+    /** The bytes after the JSON in a Caps (a chunk of a file), or null. */
+    fun binary(data: ByteArray?): ByteArray? = runCatching {
+        val caps = Caps.fromBytes(data ?: return null)
+        val binary = caps.at(1).binary
+        binary.data.copyOfRange(binary.offset, binary.offset + binary.length)
+    }.getOrNull()
+
     fun field(json: String?, key: String): String =
         runCatching { JSONObject(json ?: "{}").optString(key) }.getOrDefault("")
 

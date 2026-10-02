@@ -98,6 +98,7 @@
     <string name="dictation_error_no_link">Sem conexão com o Hi Rokid</string>
     <string name="dictation_error_no_model">Modelo de voz indisponível</string>
     <string name="dictation_error_mic_refused">Os óculos não abriram o microfone</string>
+    <string name="dictation_error_mic_busy">O microfone está gravando para um app; tente de novo quando terminar</string>
     <string name="net_error_nearby">Permita \"Dispositivos por perto\" no companion</string>
     <string name="net_error_unavailable">Rede local indisponível: %1$s</string>
     <string name="net_error_no_address">Rede local sem endereço</string>

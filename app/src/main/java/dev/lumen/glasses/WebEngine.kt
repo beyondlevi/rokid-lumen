@@ -26,6 +26,9 @@ interface WebEngine {
          * (the values may be secrets).
          */
         fun onGetConfig(id: Int, pageUrl: String?)
+
+        /** A `window.lumen.audio` request from the page at [pageUrl] ([GlassesAudio]). */
+        fun onAudio(message: org.json.JSONObject, pageUrl: String?)
     }
 
     /** The view to place in the HUD's square (the engine sizes itself inside it). */
@@ -51,6 +54,9 @@ interface WebEngine {
 
     /** The configuration changed while the app is open (`window.lumen.config.onChange`). */
     fun configChanged(values: org.json.JSONObject, origin: String)
+
+    /** A `window.lumen.audio` event to the app's page at [origin]. */
+    fun audioEvent(event: org.json.JSONObject, origin: String)
 
     fun onResume()
     fun onPause()

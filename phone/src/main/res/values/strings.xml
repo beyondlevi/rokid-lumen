@@ -101,6 +101,7 @@
     <string name="dictation_error_no_link">No connection to Hi Rokid</string>
     <string name="dictation_error_no_model">Voice model unavailable</string>
     <string name="dictation_error_mic_refused">The glasses didn\'t open the microphone</string>
+    <string name="dictation_error_mic_busy">The microphone is recording for an app; try again when it\'s done</string>
     <string name="net_error_nearby">Allow \"Nearby devices\" in the companion</string>
     <string name="net_error_unavailable">Local network unavailable: %1$s</string>
     <string name="net_error_no_address">Local network without an address</string>

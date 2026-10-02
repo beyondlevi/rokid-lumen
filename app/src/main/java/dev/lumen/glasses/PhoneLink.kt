@@ -84,6 +84,13 @@ object PhoneLink {
             CXRServiceBridge().also { cxr ->
                 val callback = CXRServiceBridge.MsgCallback { name, args, bytes ->
                     if (name == Link.BENCH) return@MsgCallback onBench(args, bytes)
+                    if (name == Link.AUDIO_EVENT) {
+                        val json = runCatching { JSONObject(args.at(0).string) }.getOrDefault(JSONObject())
+                        // A chunk's bytes ride in the Caps after the JSON.
+                        val piece = runCatching { args.at(1).binary.let { it.data.copyOfRange(it.offset, it.offset + it.length) } }.getOrNull()
+                        main.post { GlassesAudio.onPhoneEvent(json, piece) }
+                        return@MsgCallback
+                    }
                     val json = runCatching { JSONObject(args.at(0).string) }.getOrDefault(JSONObject())
                     main.post { onMessage(name, json) }
                 }
@@ -93,11 +100,15 @@ object PhoneLink {
         }.onFailure { Log.w(TAG, "CXR bridge unavailable", it) }.getOrNull()
     }
 
-    fun send(name: String, json: JSONObject): Boolean {
+    @JvmOverloads
+    fun send(name: String, json: JSONObject, bytes: ByteArray? = null): Boolean {
         val cxr = bridge ?: return false
-        val caps = Caps().apply { write(json.toString()) }
+        val caps = Caps().apply {
+            write(json.toString())
+            if (bytes != null) write(bytes)
+        }
         val code = runCatching { cxr.sendMessage(name, caps) }.getOrElse { -99 }
-        Log.d(TAG, "→ phone $name ${json.optString("action")} = $code")
+        if (bytes == null) Log.d(TAG, "→ phone $name ${json.optString("action").ifEmpty { json.optString("op") }} = $code")
         return code == 0
     }
 

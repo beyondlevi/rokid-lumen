@@ -73,6 +73,8 @@ added only when the page doesn't have it already, and only where the host bridge
 | --- | --- |
 | `window.lumen.config.get()` | Resolves to `{key: value}`: the app's settings, set from the phone. A key that isn't set is missing. |
 | `window.lumen.config.onChange(cb)` | Calls `cb(values)` whenever the phone changes a setting while the app is open. Returns a function that removes `cb`. |
+| `window.lumen.audio.record(options)` | Records the glasses' microphone (see [Audio](#audio)). |
+| `window.lumen.audio.transcribe(blob, options)` | Transcribes an audio with the dictation engine chosen in the companion (see [Audio](#audio)). |
 | `navigator.install(url, {name})` | Asks the glasses to add the online app at `url` (default: the current page). The wearer confirms on the glasses. |
 | `navigation.canGoBack` | Whether there is history behind the page. Added only when the engine has no Navigation API: an `EventTarget` with no current entry, so React DOM 19 uses its History API path. |
 | `speechSynthesis`, `SpeechSynthesisUtterance` | Added when the engine has none (the system WebView): speaks through Android's TextToSpeech. One voice (`Android TTS`), `speak()` queues, `cancel()` stops, and `start`, `end` and `error` events fire; `pause()` and `resume()` do nothing. |
@@ -86,9 +88,36 @@ const server = settings['server.url'] || 'https://example.com';
 window.lumen?.config.onChange((values) => reconnect(values['server.url']));
 ```
 
+### Audio
+
+The Rokid glasses silence a page's microphone (`getUserMedia` gets nothing), so Lumen records
+on the phone: the companion takes the glasses' microphone over Rokid's link, as the dictation
+does, and hands the page an Ogg Opus voice note (mono, 16 kHz). It also transcribes an audio
+the page passes, with the dictation engine chosen in the companion (Vosk, Android or a cloud
+engine), at the audio's own pace. One recording or transcription at a time, never during a
+dictation. Files cross Rokid's link in acknowledged pieces, which takes a few seconds.
+
+```js
+const audio = window.lumen?.audio; // absent on older Lumen versions and in a desktop browser
+
+// Record: resolves once the microphone is on.
+const recording = await audio.record({ maxMs: 120000 }); // 2 minutes at most, the default
+recording.onLevel = (level, elapsedMs) => meter(level); // 0..1, about 5 times a second
+recording.onEnd = (reason, result, error) => {}; // 'max' (result has the audio) or 'error'
+const { blob, mimeType, durationMs } = await recording.stop(); // or recording.cancel()
+
+// Transcribe: OGG/Opus, MP3, M4A/AAC, WAV…; up to 5 MB and 5 minutes.
+const { text } = await audio.transcribe(blob, { onPartial: (soFar) => show(soFar), signal });
+```
+
+Failures are `Error`s with a `code`: `busy` (another recording, transcription or dictation),
+`no-phone` (no link to the phone), `unavailable` (the phone couldn't get the microphone),
+`too-large`, `unsupported-format`, `no-speech`, `engine` (the engine's message in `message`),
+`cancelled` and `timeout`.
+
 **The host bridge answers the app's own origin only.** An offline app's origin is its loopback
 server (`http://127.0.0.1:<port>`), an online app's is the origin of its URL. A page on any
-other origin gets nothing: no settings, no install, no speech, no composer.
+other origin gets nothing: no settings, no install, no speech, no composer, no audio.
 
 ## The manifest
 
@@ -176,9 +205,11 @@ Limits and rules:
 
   The glasses download it, show what it is, and install only when the wearer selects
   Install.
-- **From the phone:** companion, Apps tab, **Add > Offline package**, with the package's HTTPS
-  address. The glasses download it (through the phone's internet when they have none) and
-  install it without asking again.
+- **From the phone:** companion, Apps tab, **Add > Offline package from a file** picks a `.zip`
+  on the phone; the glasses join the phone's network, fetch it from the phone and check it
+  (size and SHA-256). **Add > Offline package from a link** takes an HTTPS address instead. An
+  offline app's details have **Replace the package (.zip)**, which updates that app only. The
+  glasses install without asking again.
 
 An update from adb or the phone keeps the app's saved settings. An update downloaded on the
 glasses from another origin than the installed app's forgets its secrets, and the confirmation

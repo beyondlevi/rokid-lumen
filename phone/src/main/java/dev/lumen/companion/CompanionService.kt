@@ -15,6 +15,7 @@ import android.util.Log
 import com.rokid.cxr.Caps
 import com.rokid.cxr.link.CXRLink
 import com.rokid.cxr.link.callbacks.IAudioStreamCbk
+import dev.lumen.companion.audio.PhoneAudio
 import com.rokid.cxr.link.callbacks.ICXRLinkCbk
 import com.rokid.cxr.link.callbacks.ICustomViewCbk
 import com.rokid.cxr.link.callbacks.IGlassAppCbk
@@ -30,6 +31,7 @@ import dev.lumen.protocol.NetCommand
 import dev.lumen.protocol.NetEvent
 import dev.lumen.protocol.NotifyCommand
 import dev.lumen.protocol.NotifyEvent
+import dev.lumen.protocol.AudioOps
 import dev.lumen.protocol.GridEvent
 import dev.lumen.protocol.GridOps
 import dev.lumen.protocol.SettingsEvent
@@ -63,6 +65,66 @@ class CompanionService : Service() {
     private var dictation: DictationSession? = null
     private val finishing = mutableSetOf<DictationSession>()
     private var streaming = false
+
+    /** Where the glasses' microphone goes while a web app records ([PhoneAudio]); null otherwise. */
+    @Volatile private var recorderPcm: ((ByteArray) -> Unit)? = null
+
+    private val audio by lazy { PhoneAudio(this, audioHost) }
+
+    private val audioHost = object : PhoneAudio.Host {
+        override fun sendAudio(json: JSONObject, bytes: ByteArray?): Boolean {
+            val cxr = link ?: return false
+            val caps = Protocol.encode(json).apply { if (bytes != null) write(bytes) }
+            val result = runCatching { cxr.sendCustomCmd(Link.AUDIO_EVENT, caps) }
+            if (json.optString("type") != AudioOps.LEVEL && json.optString("type") != AudioOps.CHUNK) {
+                Log.d(TAG, "→ glasses audio ${json.optString("type")} = ${result.getOrNull() ?: result.exceptionOrNull()?.message}")
+            }
+            return result.getOrNull() == 0
+        }
+
+        override fun dictating() = dictation != null || finishing.isNotEmpty()
+
+        override fun startMicrophone(onPcm: (ByteArray) -> Unit, done: (Boolean) -> Unit) {
+            val cxr = link ?: return done(false)
+            recorderPcm = onPcm
+            cxr.setInterruptAiWake(true)
+            startRecorderAudio(cxr, attempt = 1, done)
+        }
+
+        override fun stopMicrophone() {
+            recorderPcm = null
+            if (dictation == null) stopAudio()
+        }
+
+        override fun openSession(sink: DictationSession.Sink, ready: (DictationSession?, String?) -> Unit) {
+            val own = object : DictationSession.Sink by sink {
+                override fun stopped() {
+                    sink.stopped()
+                    main.post { if (dictation == null && finishing.isEmpty()) useMicrophoneForeground(false) }
+                }
+            }
+            this@CompanionService.openSession(own, ready = ready)
+        }
+
+        override fun errorText(error: SttError) = this@CompanionService.errorText(error)
+    }
+
+    /** [tryStartAudio] for a web app's recording. */
+    private fun startRecorderAudio(cxr: CXRLink, attempt: Int, done: (Boolean) -> Unit) {
+        if (recorderPcm == null || link !== cxr) return
+        if (attempt == 2) runCatching { cxr.stopAudioStream() }
+        streaming = cxr.startAudioStream(Protocol.CODEC_PCM)
+        Log.d(TAG, "startAudioStream (recording) attempt $attempt = $streaming")
+        when {
+            streaming -> done(true)
+            attempt < AUDIO_START_ATTEMPTS -> main.postDelayed({ startRecorderAudio(cxr, attempt + 1, done) }, 400)
+            else -> {
+                recorderPcm = null
+                cxr.setInterruptAiWake(false)
+                done(false)
+            }
+        }
+    }
     private var microphoneForeground = false
     private val network by lazy { PhoneNetwork(this, ::sendNet) }
 
@@ -129,7 +191,10 @@ class CompanionService : Service() {
                 override fun onSessionPause(reason: CxrDefs.CXRSessionReason) = report(LinkState.SESSION_PAUSED, reason.toString())
                 override fun onSessionUnavailable(reason: CxrDefs.CXRSessionReason) {
                     report(LinkState.SESSION_UNAVAILABLE, reason.toString())
-                    main.post { cancelListening("session unavailable") }
+                    main.post {
+                        cancelListening("session unavailable")
+                        audio.reset()
+                    }
                 }
             },
         )
@@ -240,6 +305,7 @@ class CompanionService : Service() {
                 NotifyCommand.snoozeUntil(json)?.let { until -> main.post { PhoneSnooze.onState(until) } }
                 NotifyCommand.dismissedKeys(json)?.let { keys -> NotificationForwarder.dismiss(keys) }
             }
+            Link.AUDIO -> audio.onMessage(json, Protocol.binary(data))
             Link.NET -> when (NetCommand.from(json)) {
                 NetCommand.UP -> main.post { network.up() }
                 NetCommand.DOWN -> main.post { network.down() }
@@ -274,44 +340,55 @@ class CompanionService : Service() {
 
     private fun startListening() {
         val cxr = link ?: return send(DictationEvent.ERROR, getString(R.string.dictation_error_no_link))
+        // A web app is recording or transcribing (window.lumen.audio): one microphone, one engine.
+        if (audio.busy()) return send(DictationEvent.ERROR, getString(R.string.dictation_error_mic_busy))
         stopListening("restart")
+        var session: DictationSession? = null
+        val sink = object : DictationSession.Sink {
+            override fun partial(text: String) { main.post { if (session != null && (session === dictation || session in finishing)) send(DictationEvent.PARTIAL, text) } }
+            override fun phrase(text: String) { main.post { send(DictationEvent.PHRASE, text) } }
+            override fun error(error: SttError) { main.post { send(DictationEvent.ERROR, errorText(error)) } }
+            override fun stopped() { main.post { session?.let { onDictationStopped(it) } } }
+        }
+        openSession(sink, onStatus = { send(DictationEvent.STATUS, it) }) { opened, problem ->
+            if (opened == null) return@openSession send(DictationEvent.ERROR, problem.orEmpty())
+            if (link !== cxr) return@openSession opened.cancel()
+            session = opened
+            dictation = opened
+            opened.start()
+            // Hi Rokid's own wake word would otherwise hold the glasses' microphone.
+            cxr.setInterruptAiWake(true)
+            tryStartAudio(cxr, attempt = 1)
+        }
+    }
+
+    /**
+     * A dictation session on the engine the user chose (its model loaded, its key read), not
+     * started; or null and why not. The dictation and web apps' transcriptions both use it.
+     */
+    private fun openSession(sink: DictationSession.Sink, onStatus: (String) -> Unit = {}, ready: (DictationSession?, String?) -> Unit) {
         val engine = SpeechSettings.engine(this)
-        SpeechSettings.missing(this, engine)?.let { return send(DictationEvent.ERROR, missingText(engine.provider, it)) }
+        SpeechSettings.missing(this, engine)?.let { return ready(null, missingText(engine.provider, it)) }
+        val language = SpeechSettings.language(this)
+        val patience = SpeechSettings.patience(this)
+        fun build(factory: (SttListener) -> SttSession) = DictationSession(this, engine, language, patience, factory, sink)
         when (engine.provider) {
-            SpeechProvider.VOSK -> PhoneModel.load(this, PhoneModel.chosen(this), onStatus = { send(DictationEvent.STATUS, it) }) { model, problem ->
-                if (model == null) send(DictationEvent.ERROR, problem ?: getString(R.string.dictation_error_no_model))
-                else begin(cxr) { listener -> VoskStt(model, listener) }
+            SpeechProvider.VOSK -> PhoneModel.load(this, PhoneModel.chosen(this), onStatus = onStatus) { model, problem ->
+                if (model == null) ready(null, problem ?: getString(R.string.dictation_error_no_model))
+                else ready(build { listener -> VoskStt(model, listener) }, null)
             }
             SpeechProvider.ANDROID -> {
                 // The recognizer checks the caller's microphone use: the service says it records.
                 useMicrophoneForeground(true)
-                val patience = SpeechSettings.patience(this)
-                begin(cxr) { listener -> AndroidStt(this, patience, listener) }
+                ready(build { listener -> AndroidStt(this, patience, listener) }, null)
             }
             else -> {
                 val key = SpeechSecrets.key(this, engine.provider)
-                    ?: return send(DictationEvent.ERROR, missingText(engine.provider, SpeechSettings.Missing.KEY))
+                    ?: return ready(null, missingText(engine.provider, SpeechSettings.Missing.KEY))
                 val region = SpeechSecrets.azureRegion(this)
-                val language = SpeechSettings.language(this)
-                begin(cxr) { listener -> CloudStt.create(engine, key, region, language, listener) }
+                ready(build { listener -> CloudStt.create(engine, key, region, language, listener) }, null)
             }
         }
-    }
-
-    private fun begin(cxr: CXRLink, factory: (SttListener) -> SttSession) {
-        val engine = SpeechSettings.engine(this)
-        lateinit var session: DictationSession
-        session = DictationSession(this, engine, SpeechSettings.language(this), SpeechSettings.patience(this), factory, object : DictationSession.Sink {
-            override fun partial(text: String) { main.post { if (session === dictation || session in finishing) send(DictationEvent.PARTIAL, text) } }
-            override fun phrase(text: String) { main.post { send(DictationEvent.PHRASE, text) } }
-            override fun error(error: SttError) { main.post { send(DictationEvent.ERROR, errorText(error)) } }
-            override fun stopped() { main.post { onDictationStopped(session) } }
-        })
-        dictation = session
-        session.start()
-        // Hi Rokid's own wake word would otherwise hold the glasses' microphone.
-        cxr.setInterruptAiWake(true)
-        tryStartAudio(cxr, attempt = 1)
     }
 
     /** A dictation is over: all its text is out (or it gave up). */
@@ -503,11 +580,15 @@ class CompanionService : Service() {
 
     /** 16 kHz mono PCM16 from the glasses, on the SDK's thread. */
     private fun onAudio(data: ByteArray, offset: Int, length: Int) {
-        val session = dictation ?: return
+        val recorder = recorderPcm
+        val session = dictation
+        if (recorder == null && session == null) return
         if (injecting) return
         val start = offset.coerceIn(0, data.size)
         val end = (start + length).coerceIn(start, data.size)
         val pcm = if (start == 0 && end == data.size) data else data.copyOfRange(start, end)
+        if (recorder != null) return recorder(pcm)
+        session ?: return
         if (++chunks % 250 == 1) Log.d(TAG, "audio chunk $chunks: ${pcm.size} bytes, level ${Protocol.level(pcm)}")
         session.onPcm(pcm)
     }

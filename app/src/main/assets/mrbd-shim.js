@@ -70,6 +70,127 @@
     };
   }
 
+  // Rokid Lumen's audio API: the glasses silence a page's microphone, so the phone records the
+  // glasses' mic and hands back an Ogg Opus voice note, and transcribes an audio with the
+  // dictation engine chosen in the companion. record(options) resolves to a recording (onLevel,
+  // onEnd, stop(), cancel()); transcribe(blob, options) to {text}, with options.onPartial(text)
+  // as it grows. Failures are Errors with a `code` (busy, no-phone, unavailable, too-large,
+  // unsupported-format, no-speech, engine, cancelled, timeout).
+  if (window.lumen && host && host.audio && !window.lumen.audio) {
+    var audioId = 1;
+    var audioJobs = {};
+    var MAX_RECORD_MS = 120000;
+    var MAX_TRANSCRIBE_BYTES = 5 * 1024 * 1024;
+    function audioError(code, message) {
+      var error = new Error(message || code);
+      error.code = code;
+      return error;
+    }
+    function audioSend(message) { host.audio(JSON.stringify(message)); }
+    function toBlob(base64, mime) {
+      var raw = atob(base64);
+      var bytes = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+      return new Blob([bytes], { type: mime });
+    }
+    function toBase64(blob) {
+      return new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function () { var url = String(reader.result); resolve(url.slice(url.indexOf(',') + 1)); };
+        reader.onerror = function () { reject(audioError('unsupported-format', 'unreadable audio')); };
+        reader.readAsDataURL(blob);
+      });
+    }
+    window.__lumenAudio = function (event) {
+      var job = event && audioJobs[event.id];
+      if (!job) return;
+      job.handle(event);
+    };
+    window.lumen.audio = {
+      record: function (options) {
+        var maxMs = Math.min(MAX_RECORD_MS, Math.max(1000, +(options && options.maxMs) || MAX_RECORD_MS));
+        var id = 'r' + audioId++;
+        return new Promise(function (resolve, reject) {
+          var started = false;
+          var stopping = null;
+          var recording = {
+            onLevel: null,
+            onEnd: null,
+            stop: function () {
+              if (stopping) return stopping.promise;
+              var d = {};
+              d.promise = new Promise(function (res, rej) { d.resolve = res; d.reject = rej; });
+              stopping = d;
+              audioSend({ op: 'stop', id: id });
+              return d.promise;
+            },
+            cancel: function () {
+              if (!audioJobs[id]) return;
+              delete audioJobs[id];
+              audioSend({ op: 'cancel', id: id });
+              if (stopping) stopping.reject(audioError('cancelled'));
+            }
+          };
+          audioJobs[id] = {
+            handle: function (event) {
+              if (event.type === 'started') {
+                if (!started) { started = true; resolve(recording); }
+              } else if (event.type === 'level') {
+                if (typeof recording.onLevel === 'function') recording.onLevel(+event.level || 0, +event.ms || 0);
+              } else if (event.type === 'result') {
+                delete audioJobs[id];
+                var result = { blob: toBlob(event.data, event.mime), mimeType: event.mime, durationMs: +event.durationMs || 0 };
+                if (stopping) stopping.resolve(result);
+                else if (typeof recording.onEnd === 'function') recording.onEnd(event.reason === 'max' ? 'max' : 'error', result);
+                if (!started) { started = true; resolve(recording); }
+              } else if (event.type === 'error') {
+                delete audioJobs[id];
+                var error = audioError(event.code, event.message);
+                if (!started) return reject(error);
+                if (stopping) stopping.reject(error);
+                else if (typeof recording.onEnd === 'function') recording.onEnd('error', undefined, error);
+              }
+            }
+          };
+          audioSend({ op: 'record', id: id, maxMs: maxMs });
+        });
+      },
+      transcribe: function (audio, options) {
+        options = options || {};
+        if (!(audio instanceof Blob)) return Promise.reject(audioError('unsupported-format', 'transcribe() takes a Blob'));
+        if (audio.size > MAX_TRANSCRIBE_BYTES) return Promise.reject(audioError('too-large'));
+        if (options.signal && options.signal.aborted) return Promise.reject(audioError('cancelled'));
+        var id = 't' + audioId++;
+        return toBase64(audio).then(function (data) {
+          return new Promise(function (resolve, reject) {
+            audioJobs[id] = {
+              handle: function (event) {
+                if (event.type === 'partial') {
+                  if (typeof options.onPartial === 'function') options.onPartial(String(event.text || ''));
+                } else if (event.type === 'transcript') {
+                  delete audioJobs[id];
+                  resolve({ text: String(event.text || '') });
+                } else if (event.type === 'error') {
+                  delete audioJobs[id];
+                  reject(audioError(event.code, event.message));
+                }
+              }
+            };
+            if (options.signal) {
+              options.signal.addEventListener('abort', function () {
+                if (!audioJobs[id]) return;
+                delete audioJobs[id];
+                audioSend({ op: 'cancel', id: id });
+                reject(audioError('cancelled'));
+              });
+            }
+            audioSend({ op: 'transcribe', id: id, data: data, mime: audio.type || '', language: options.language || '' });
+          });
+        });
+      }
+    };
+  }
+
   // Web Speech synthesis through Android's TextToSpeech (WebView has no speechSynthesis).
   if (!window.speechSynthesis && host) {
     var nextId = 1;

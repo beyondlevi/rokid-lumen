@@ -254,17 +254,22 @@ tabs:
   the state of dictation and notifications.
 - **Apps**: a small preview of the HUD's grid over the grid as a list, in the HUD's order.
   Drag a row to reorder it, take an app off the grid, or open its details: what it still
-  needs ("Set up"), its settings, its engine, deleting it. **Add** a web app by address (HTTPS)
-  or an offline package by address (a `.mrbd.zip`; the glasses download it, through the phone's
-  internet when they have none). A secret setting shows only whether it's set: its value stays
-  on the glasses.
+  needs ("Set up"), its settings, its engine, replacing an offline app's package (an update
+  that keeps its settings and data), deleting it. **Add** a web app by address (HTTPS), an
+  offline package from a file on the phone (the glasses fetch it over the phone's network and
+  check it), or an offline package by address (a `.mrbd.zip`; the glasses download it, through
+  the phone's internet when they have none). Icons come from each app: its manifest's icons,
+  its page's touch icon or favicon. A secret setting shows only whether it's set: its value
+  stays on the glasses.
 - **Band**: the band's state (connection, battery, charging), the glasses' gestures and band
   settings, which device the band controls, and the gestures on the phone.
 - **Notifications**: send to the glasses or not, banner only with the phone screen off, hide
   the text, darken behind the banner, snooze, blocked apps, notification access, a test
   notification.
 - **Settings**: the Hi Rokid authorization, the dictation engine, its language, patience and
-  key, the offline voice model, and the version.
+  key (also what web apps' transcriptions use), the offline voice model, **wireless debugging**
+  on the glasses (keeps their Wi-Fi on and awake, shows the `adb connect` command with Copy and
+  Share, and notifies when they come back at a new address), and the version.
 
 ### The band on the phone
 

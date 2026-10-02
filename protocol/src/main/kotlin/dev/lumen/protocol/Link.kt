@@ -49,11 +49,17 @@ object Link {
     /** glasses → phone: the grid's state, results and icons ([GridEvent]). */
     const val GRID_EVENT = "nb.grid.event"
 
+    /** glasses → phone: recording and transcription for web apps ([AudioOps]). */
+    const val AUDIO = "nb.audio"
+
+    /** phone → glasses: their progress, files and text ([AudioOps]). */
+    const val AUDIO_EVENT = "nb.audio.event"
+
     /** What the glasses subscribe to (phone → glasses). */
-    val TO_GLASSES = listOf(DICTATION_EVENT, NOTIFY_EVENT, NET_EVENT, BENCH, SETTINGS, GRID)
+    val TO_GLASSES = listOf(DICTATION_EVENT, NOTIFY_EVENT, NET_EVENT, BENCH, SETTINGS, GRID, AUDIO_EVENT)
 
     /** What the phone handles (glasses → phone). */
-    val TO_PHONE = listOf(DICTATION, NOTIFY, NET, SETTINGS_EVENT, GRID_EVENT)
+    val TO_PHONE = listOf(DICTATION, NOTIFY, NET, SETTINGS_EVENT, GRID_EVENT, AUDIO)
 
     private val ids = AtomicLong(System.currentTimeMillis())
 
