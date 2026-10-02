@@ -5,6 +5,11 @@
 
 ## [Unreleased]
 
+### Companion
+
+- **Share logs** (Settings): both apps' logs in `rokid-lumen-logs-<date>-<time>.zip`, through
+  Android's share sheet, no adb needed. The glasses send theirs over Rokid's link.
+
 ### Licensing
 
 - **R08 Access Bridge is now Apache-2.0**: Anezium licensed it on 2026-10-04, so the glasses'

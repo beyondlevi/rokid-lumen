@@ -429,4 +429,11 @@
     <string name="update_try_again">Try again</string>
     <string name="notifications_test_reply">Reply</string>
     <string name="notifications_test_replied">Answered from the glasses: %1$s</string>
+    <string name="logs_share">Share logs</string>
+    <string name="logs_share_hint">Both apps\' logs in a zip, for a bug report</string>
+    <string name="logs_asking">Asking the glasses…</string>
+    <string name="logs_receiving">Receiving the glasses\' logs · %1$d of %2$d</string>
+    <string name="logs_without_glasses">%1$s · without the glasses\' logs</string>
+    <string name="logs_failed">Couldn\'t make the logs zip</string>
+    <string name="logs_share_title">Share the logs</string>
 </resources>

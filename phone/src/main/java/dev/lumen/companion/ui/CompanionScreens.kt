@@ -102,6 +102,8 @@ data class CompanionUiState(
     val dictation: DictationUiState = DictationUiState(),
     /** Updates from GitHub's releases, for this companion and the glasses app. */
     val update: dev.lumen.companion.update.UpdateManager.State = dev.lumen.companion.update.UpdateManager.State(),
+    /** "Share logs" in progress, ready or failed. */
+    val logs: dev.lumen.companion.LogShare.State = dev.lumen.companion.LogShare.State.Idle,
 )
 
 /** What the screens can ask for. */
@@ -166,6 +168,8 @@ interface CompanionActions {
     /** Android's "install unknown apps" for this app (its own updates). */
     fun allowInstalls()
     fun openWifiSettings()
+    /** Gathers both apps' logs into a zip and shares it. */
+    fun shareLogs()
 }
 
 /** A page over the tabs: the updates, or one release's notes (`notes:<tag>`). */
@@ -373,6 +377,26 @@ private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions, o
                 ?: stringResource(R.string.updates_up_to_date),
             icon = LumenIcons.download,
             onClick = onUpdates,
+        )
+        val logs = state.logs
+        ListRow(
+            title = stringResource(R.string.logs_share),
+            subtitle = when (logs) {
+                is dev.lumen.companion.LogShare.State.Collecting ->
+                    if (logs.total == 0) stringResource(R.string.logs_asking) else stringResource(R.string.logs_receiving, logs.done, logs.total)
+                is dev.lumen.companion.LogShare.State.Ready ->
+                    if (logs.withGlasses) logs.file.name else stringResource(R.string.logs_without_glasses, logs.file.name)
+                dev.lumen.companion.LogShare.State.Failed -> stringResource(R.string.logs_failed)
+                else -> stringResource(R.string.logs_share_hint)
+            },
+            trailing = {
+                if (logs is dev.lumen.companion.LogShare.State.Collecting) {
+                    androidx.compose.material3.CircularProgressIndicator(Modifier.size(22.dp), color = Lumen.accent, strokeWidth = 2.dp)
+                } else {
+                    Icon(LumenIcons.download, contentDescription = null, modifier = Modifier.size(20.dp), tint = Lumen.textSecondary)
+                }
+            },
+            onClick = actions::shareLogs,
         )
     }
 }
