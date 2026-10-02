@@ -274,6 +274,11 @@
     <string name="controls_dnd">Do not disturb</string>
     <string name="controls_settings">Rokid settings</string>
     <string name="controls_rokid">Rokid launcher</string>
+    <string name="controls_battery_glasses">Glasses battery</string>
+    <string name="controls_battery_band">Band battery</string>
+    <string name="controls_battery_phone">Phone battery</string>
+    <string name="controls_battery_unknown">–</string>
+    <string name="status_wifi">Wi-Fi connected</string>
     <string name="controls_level">%1$d%%</string>
     <string name="controls_dnd_on">Do not disturb on: no banners for 15 minutes</string>
     <string name="controls_dnd_off">Do not disturb off</string>

@@ -55,8 +55,11 @@ object Link {
     /** phone → glasses: their progress, files and text ([AudioOps]). */
     const val AUDIO_EVENT = "nb.audio.event"
 
+    /** phone → glasses: the phone's own state, its battery ([PhoneEvent]). */
+    const val PHONE_EVENT = "nb.phone.event"
+
     /** What the glasses subscribe to (phone → glasses). */
-    val TO_GLASSES = listOf(DICTATION_EVENT, NOTIFY_EVENT, NET_EVENT, BENCH, SETTINGS, GRID, AUDIO_EVENT)
+    val TO_GLASSES = listOf(DICTATION_EVENT, NOTIFY_EVENT, NET_EVENT, BENCH, SETTINGS, GRID, AUDIO_EVENT, PHONE_EVENT)
 
     /** What the phone handles (glasses → phone). */
     val TO_PHONE = listOf(DICTATION, NOTIFY, NET, SETTINGS_EVENT, GRID_EVENT, AUDIO)

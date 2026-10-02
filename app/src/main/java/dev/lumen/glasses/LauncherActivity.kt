@@ -1,7 +1,14 @@
 package dev.lumen.glasses
 
 import android.app.Activity
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -13,6 +20,8 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import dev.lumen.protocol.GridItem
 import java.util.concurrent.Executors
@@ -42,6 +51,20 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
     private lateinit var pill: SubNavigationView
     private lateinit var scrim: View
     private lateinit var status: TextView
+    private lateinit var clock: TextView
+    private lateinit var wifi: ImageView
+    private val wifiNetworks = HashSet<Network>()
+    private val clockReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) = updateClock()
+    }
+    private val wifiCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            main.post { wifiNetworks += network; updateWifi() }
+        }
+        override fun onLost(network: Network) {
+            main.post { wifiNetworks -= network; updateWifi() }
+        }
+    }
     private lateinit var notifications: NotificationsPage
     private lateinit var apps: AppsPage
     private lateinit var controls: ControlsPage
@@ -87,6 +110,32 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         ))
         square.addView(pill, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, px(44f), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
             topMargin = px(20f)
+        })
+
+        // The time at the top right, level with the tabs, and Wi-Fi's icon left of it while
+        // connected (the phone's hotspot for a web app counts): as the glasses' status row.
+        clock = TextView(this).apply {
+            setTextColor(MetaStyle.TEXT)
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, MetaStyle.textPx(context, 24f))
+            typeface = MetaStyle.MEDIUM
+            includeFontPadding = false
+            isSingleLine = true
+        }
+        wifi = ImageView(this).apply {
+            setImageResource(R.drawable.ic_wifi)
+            setColorFilter(MetaStyle.TEXT, android.graphics.PorterDuff.Mode.SRC_IN)
+            contentDescription = getString(R.string.status_wifi)
+            visibility = View.GONE
+        }
+        val statusRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(wifi, LinearLayout.LayoutParams(px(24f), px(24f)).apply { marginEnd = px(8f) })
+            addView(clock)
+        }
+        square.addView(statusRow, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, px(44f), Gravity.TOP or Gravity.END).apply {
+            topMargin = px(20f)
+            marginEnd = px(32f)
         })
 
         status = TextView(this).apply {
@@ -143,6 +192,18 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
 
     override fun onResume() {
         super.onResume()
+        registerReceiver(clockReceiver, IntentFilter().apply {
+            addAction(Intent.ACTION_TIME_TICK)
+            addAction(Intent.ACTION_TIME_CHANGED)
+            addAction(Intent.ACTION_TIMEZONE_CHANGED)
+        })
+        updateClock()
+        wifiNetworks.clear()
+        updateWifi()
+        runCatching {
+            getSystemService(ConnectivityManager::class.java).registerNetworkCallback(
+                NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(), wifiCallback)
+        }
         BandAccessibilityService.setInputTarget(this)
         NotificationInbox.addListener(this)
         GridStore.addListener(this)
@@ -159,6 +220,8 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
     }
 
     override fun onPause() {
+        runCatching { unregisterReceiver(clockReceiver) }
+        runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(wifiCallback) }
         BandAccessibilityService.clearInputTarget(this)
         NotificationInbox.removeListener(this)
         GridStore.removeListener(this)
@@ -167,6 +230,14 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
     }
 
     override fun onInboxChanged() = refreshDot()
+
+    private fun updateClock() {
+        clock.text = android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date())
+    }
+
+    private fun updateWifi() {
+        wifi.visibility = if (wifiNetworks.isEmpty()) View.GONE else View.VISIBLE
+    }
 
     override fun onGridChanged() = refreshApps()
 

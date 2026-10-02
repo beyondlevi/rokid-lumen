@@ -122,6 +122,7 @@ object PhoneLink {
             Link.NET_EVENT -> PhoneInternet.onPhoneEvent(json)
             Link.SETTINGS -> BandSettings.onPhoneRequest(json)
             Link.GRID -> GridApi.onPhoneRequest(json)
+            Link.PHONE_EVENT -> dev.lumen.protocol.PhoneEvent.from(json)?.let { PhoneBattery.onEvent(it) }
         }
     }
 

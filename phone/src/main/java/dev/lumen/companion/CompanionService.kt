@@ -4,8 +4,11 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.content.pm.ApplicationInfo
 import android.content.pm.ServiceInfo
 import android.os.Handler
@@ -31,6 +34,7 @@ import dev.lumen.protocol.NetCommand
 import dev.lumen.protocol.NetEvent
 import dev.lumen.protocol.NotifyCommand
 import dev.lumen.protocol.NotifyEvent
+import dev.lumen.protocol.PhoneEvent
 import dev.lumen.protocol.AudioOps
 import dev.lumen.protocol.GridEvent
 import dev.lumen.protocol.GridOps
@@ -136,6 +140,8 @@ class CompanionService : Service() {
         startInForeground()
         connect()
         PhoneBand.resume(this)
+        registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        main.postDelayed(batteryHeartbeat, BATTERY_RESEND_MS)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -158,6 +164,7 @@ class CompanionService : Service() {
 
     override fun onDestroy() {
         if (instance === this) instance = null
+        runCatching { unregisterReceiver(batteryReceiver) }
         main.removeCallbacksAndMessages(null)
         PhoneBand.stop()
         cancelListening("service stopped")
@@ -457,6 +464,43 @@ class CompanionService : Service() {
     private fun scheduleSync() {
         main.removeCallbacks(sync)
         main.postDelayed(sync, 1_500)
+        // The glasses (re)started or the session came up: they want the phone's battery too.
+        main.postDelayed({ sendBattery(force = true) }, 2_500)
+    }
+
+    // ---- The phone's battery, for the glasses' Controls tab ----
+
+    private var battery: PhoneEvent? = null
+    private var batterySent: PhoneEvent? = null
+
+    private val batteryReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+            val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1)
+            if (level < 0) return
+            val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+            val charging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+            battery = PhoneEvent((level * 100 / scale).coerceIn(0, 100), charging)
+            sendBattery(force = false)
+        }
+    }
+
+    /** Rokid's link can drop a message: the battery again every few minutes. */
+    private val batteryHeartbeat = object : Runnable {
+        override fun run() {
+            sendBattery(force = true)
+            main.postDelayed(this, BATTERY_RESEND_MS)
+        }
+    }
+
+    /** The battery to the glasses when it changed (or [force]); nothing while the link is down. */
+    private fun sendBattery(force: Boolean) {
+        val now = battery ?: return
+        if (!force && now == batterySent) return
+        val cxr = link ?: return
+        val result = runCatching { cxr.sendCustomCmd(Link.PHONE_EVENT, Protocol.encode(now.toJson())) }
+        if (result.isSuccess) batterySent = now
+        Log.d(TAG, "→ glasses battery ${now.level}%${if (now.charging) " charging" else ""} = ${result.getOrNull() ?: result.exceptionOrNull()?.message}")
     }
 
     private val sync = Runnable {
@@ -633,6 +677,8 @@ class CompanionService : Service() {
     }
 
     companion object {
+        /** The battery's resend to the glasses, link drops aside. */
+        private const val BATTERY_RESEND_MS = 5 * 60_000L
         private const val TAG = "NbCompanion"
         private const val CHANNEL = "link"
         const val ACTION_RECONNECT = "dev.lumen.companion.RECONNECT"

@@ -1,27 +1,35 @@
 package dev.lumen.glasses
 
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PorterDuff
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
+import android.os.BatteryManager
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * The home's Controls tab, right of Apps: quick settings in the toolkit's tile look. A row of
- * AppControlTiles (two icon-only, one titled) for the Rokid launcher's camera, gallery and music
+ * The home's Controls tab, right of Apps: quick settings in the toolkit's tile look. At the top,
+ * the batteries of the glasses, the band and the phone (the companion reports it), each a ring
+ * with the device's icon and the percentage; not focusable. Then a row of AppControlTiles (two icon-only, one titled) for the Rokid launcher's camera, gallery and music
  * screens; ControlTiles two across for volume and brightness (a circular progress ring: the index
  * tap starts adjusting, the swipes change it, the index or middle tap ends), do not disturb (the
  * banners' snooze, checked when on) and the Rokid's settings; last, full width, the Rokid
@@ -52,6 +60,19 @@ class ControlsPage(private val activity: Activity, private val say: (String) -> 
     private var brightness = 0f
     private val snoozeListener: () -> Unit = { refresh() }
 
+    /** A battery reading at the top: the device's icon in a ring that shows the charge. */
+    private class BatteryCell(val ring: Ring, val label: TextView)
+
+    private val scroll: ScrollView
+    private lateinit var glassesBattery: BatteryCell
+    private lateinit var bandBattery: BatteryCell
+    private lateinit var phoneBattery: BatteryCell
+    private val batteryReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) = showGlassesBattery(intent)
+    }
+    private val bandListener = BandRuntime.StateListener { showBandBattery() }
+    private val phoneListener: () -> Unit = { showPhoneBattery() }
+
     override var active = false
         set(value) {
             if (field == value) return
@@ -64,16 +85,43 @@ class ControlsPage(private val activity: Activity, private val say: (String) -> 
         val metrics = activity.resources.displayMetrics
         side = minOf(metrics.widthPixels, metrics.heightPixels)
         view = FrameLayout(activity).apply { setBackgroundColor(MetaStyle.WINDOW) }
+        // Five rows don't fit the square: it scrolls, as the Apps tab does.
+        scroll = ScrollView(activity).apply {
+            isVerticalScrollBarEnabled = false
+            isFocusable = false
+            descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
+            defaultFocusHighlightEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            clipToPadding = false
+        }
         val content = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             clipChildren = false
-            setPadding(px(PAD_X), px(TOP_PAD), px(PAD_X), 0)
+            setPadding(px(PAD_X), px(TOP_PAD), px(PAD_X), px(BOTTOM_PAD))
         }
-        view.addView(content, FrameLayout.LayoutParams(side, side))
+        scroll.addView(content)
+        view.addView(scroll, FrameLayout.LayoutParams(side, side))
+        view.addView(fade(GradientDrawable.Orientation.TOP_BOTTOM), FrameLayout.LayoutParams(side, px(TOP_PAD), Gravity.TOP))
+        view.addView(fade(GradientDrawable.Orientation.BOTTOM_TOP), FrameLayout.LayoutParams(side, px(BOTTOM_PAD), Gravity.BOTTOM))
         val width = side - 2 * px(PAD_X)
         val gap = px(GAP)
         val quarter = (width - 3 * gap) / 4
         val half = (width - gap) / 2
+        val third = (width - 2 * gap) / 3
+
+        // The batteries: information, not focusable (the focus starts on the row below).
+        val batteries = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
+        listOf(R.drawable.ic_glasses to R.string.controls_battery_glasses, R.drawable.ic_band to R.string.controls_battery_band,
+            R.drawable.ic_phone to R.string.controls_battery_phone).forEachIndexed { i, (icon, name) ->
+            val (frame, cell) = batteryTile(icon, name)
+            batteries.addView(frame, LinearLayout.LayoutParams(third, px(HEIGHT)).apply { if (i > 0) marginStart = gap })
+            when (i) {
+                0 -> glassesBattery = cell
+                1 -> bandBattery = cell
+                else -> phoneBattery = cell
+            }
+        }
+        content.addView(batteries, LinearLayout.LayoutParams(width, px(HEIGHT)))
 
         val built = mutableListOf<Tile>()
         fun row(vararg cells: Pair<Tile, Int>) {
@@ -107,6 +155,12 @@ class ControlsPage(private val activity: Activity, private val say: (String) -> 
 
     override fun onShow() {
         NotificationSnooze.listeners += snoozeListener
+        BandRuntime.addListener(bandListener)
+        PhoneBattery.listeners += phoneListener
+        // Sticky: the current charge comes back at once.
+        activity.registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))?.let { showGlassesBattery(it) }
+        showBandBattery()
+        showPhoneBattery()
         refresh()
     }
 
@@ -119,6 +173,9 @@ class ControlsPage(private val activity: Activity, private val say: (String) -> 
 
     override fun onHide() {
         NotificationSnooze.listeners -= snoozeListener
+        BandRuntime.removeListener(bandListener)
+        PhoneBattery.listeners -= phoneListener
+        runCatching { activity.unregisterReceiver(batteryReceiver) }
         adjusting = null
         applyFocus(animate = false)
     }
@@ -227,7 +284,72 @@ class ControlsPage(private val activity: Activity, private val say: (String) -> 
         return HomeResult.HANDLED
     }
 
+    // ---- Batteries ----
+
+    private fun showGlassesBattery(intent: Intent) {
+        val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1)
+        val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+        val charging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+        showBattery(glassesBattery, if (level < 0) -1 else level * 100 / scale, charging)
+    }
+
+    private fun showBandBattery() {
+        val connected = BandRuntime.phase == dev.lumen.band.Phase.CONNECTED
+        showBattery(bandBattery, if (connected) BandRuntime.battery() else -1, connected && BandRuntime.status.optBoolean("charging"))
+    }
+
+    private fun showPhoneBattery() {
+        val phone = PhoneBattery.current()
+        showBattery(phoneBattery, phone?.level ?: -1, phone?.charging == true)
+    }
+
+    /** [percent] in the ring and as text ("82%", "82%+" charging), or a dash when unknown. */
+    private fun showBattery(cell: BatteryCell, percent: Int, charging: Boolean) {
+        cell.ring.level = if (percent < 0) 0f else percent / 100f
+        cell.label.text = when {
+            percent < 0 -> activity.getString(R.string.controls_battery_unknown)
+            charging -> activity.getString(R.string.battery_overlay_charging, percent)
+            else -> activity.getString(R.string.battery_overlay, percent)
+        }
+    }
+
     // ---- Views ----
+
+    /**
+     * A battery tile: the ControlTile with circular progress, narrowed to a third of the row
+     * (16 padding, 12 to the label), on the resting outline; [name] is its accessible label.
+     */
+    private fun batteryTile(iconRes: Int, name: Int): Pair<FrameLayout, BatteryCell> {
+        val frame = tileFrame().apply {
+            background = MetaStyle.outline(activity, alpha = 70)
+            contentDescription = activity.getString(name)
+        }
+        val content = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(px(16f), px(16f), px(12f), px(16f))
+        }
+        val circle = FrameLayout(activity).apply { background = circleIdle() }
+        val ring = Ring(activity)
+        circle.addView(ring, FrameLayout.LayoutParams(px(56f), px(56f), Gravity.CENTER))
+        circle.addView(glyph(iconRes), FrameLayout.LayoutParams(px(24f), px(24f), Gravity.CENTER))
+        content.addView(circle, LinearLayout.LayoutParams(px(72f), px(72f)))
+        val label = TextView(activity).apply {
+            setTextColor(MetaStyle.TEXT)
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, MetaStyle.textPx(context, 24f))
+            typeface = MetaStyle.BOLD
+            isSingleLine = true
+            includeFontPadding = false
+        }
+        content.addView(label, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = px(12f) })
+        frame.addView(content, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        return frame to BatteryCell(ring, label)
+    }
+
+    private fun fade(orientation: GradientDrawable.Orientation) = View(activity).apply {
+        background = GradientDrawable(orientation, intArrayOf(Color.BLACK, Color.TRANSPARENT))
+    }
 
     /** The toolkit's ControlTile: icon circle (with a ring when [progress]) and a label. */
     private fun controlTile(kind: Kind, row: Int, start: Float, end: Float, iconRes: Int, labelRes: Int, progress: Boolean): Tile {
@@ -366,6 +488,20 @@ class ControlsPage(private val activity: Activity, private val say: (String) -> 
                 updateLabel(tile)
             }
         }
+        if (active) reveal(animate)
+    }
+
+    /** The focused row into view, clear of the fading edges; the first row shows the batteries too. */
+    private fun reveal(animate: Boolean) {
+        val tile = tiles.getOrNull(focus) ?: return
+        val row = tile.frame.parent as? View ?: return
+        scroll.post {
+            if (tile.row == 0) {
+                if (animate) scroll.smoothScrollTo(0, 0) else scroll.scrollTo(0, 0)
+                return@post
+            }
+            scroll.requestChildRectangleOnScreen(row, Rect(0, -px(TOP_PAD), row.width, row.height + px(BOTTOM_PAD)), !animate)
+        }
     }
 
     private fun px(value: Float) = MetaStyle.px(activity, value)
@@ -410,6 +546,7 @@ class ControlsPage(private val activity: Activity, private val say: (String) -> 
         private const val PAD_X = 32f
         /** Below the home's tabs (20 + 44), with room. */
         private const val TOP_PAD = 84f
+        private const val BOTTOM_PAD = 64f
         private const val HEIGHT = 120f
         private const val GAP = 8f
         /** The toolkit gallery's AppControlTile materials: Captions, Camera, Audio. */

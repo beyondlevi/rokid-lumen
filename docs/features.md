@@ -96,8 +96,9 @@ An official API, if Meta publishes one, would be a third implementation of the s
 <!-- media: grid (to retake: the home's Apps tab) -->
 ![The apps grid on the HUD](media/grid.png)
 
-Rokid Lumen's icon on the Rokid launcher opens the home, on top of the Rokid launcher. It is the
-UI Toolkit's SubNavigationPager: a pill of two tabs at the top, **Notifications** and
+Rokid Lumen's icon on the Rokid launcher opens the home, on top of the Rokid launcher. The time
+sits at the top right, level with the tabs, with Wi-Fi's icon beside it while the glasses are on
+Wi-Fi (the phone's hotspot for a web app included). It is the UI Toolkit's SubNavigationPager: a pill of two tabs at the top, **Notifications** and
 **Apps**, over a page that slides from one to the other.
 
 - **Notifications**: the phone's notification inbox (below). A dot on its tab icon says
@@ -118,8 +119,12 @@ notification.
 
 ### The Controls tab
 
-Right of Apps (right from the last app, or the tabs), the toolkit's control tiles:
+Right of Apps (right from the last app, or the tabs), the toolkit's control tiles. It scrolls.
 
+- **Batteries**, at the top and not focusable: the glasses', the band's and the phone's, each a
+  ring with the device's icon and its percentage (`+` while charging, `–` when unknown). The
+  companion sends the phone's on the phone link (`nb.phone.event`) when it changes, when the
+  glasses start and every five minutes; after 15 minutes without news it shows `–`.
 - **Camera**, **Gallery** and **Music**: the Rokid launcher's own screens. Closing one comes back
   to Lumen (they live in the Rokid launcher's task, which would otherwise show its main screen).
 - **Volume** and **Brightness**, with a ring for the level: the index tap starts adjusting, the

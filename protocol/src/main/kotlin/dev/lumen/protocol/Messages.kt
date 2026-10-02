@@ -141,3 +141,25 @@ sealed class NetEvent {
         }
     }
 }
+
+/**
+ * phone → glasses, on [Link.PHONE_EVENT]: battery {level (0..100), charging}, sent when it
+ * changes, when the glasses ask for their sync ([NotifyCommand.sync]) and every few minutes
+ * (Rokid's link can drop a message).
+ */
+data class PhoneEvent(val level: Int, val charging: Boolean) {
+    fun toJson(): JSONObject = Link.message().put("type", BATTERY).put("level", level).put("charging", charging)
+
+    companion object {
+        const val BATTERY = "battery"
+
+        /** A battery event, or null for anything else (or a level out of range). */
+        @JvmStatic
+        fun from(json: JSONObject): PhoneEvent? {
+            if (json.optString("type") != BATTERY) return null
+            val level = json.optInt("level", -1)
+            if (level !in 0..100) return null
+            return PhoneEvent(level, json.optBoolean("charging"))
+        }
+    }
+}

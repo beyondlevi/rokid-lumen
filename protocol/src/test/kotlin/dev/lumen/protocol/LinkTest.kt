@@ -53,6 +53,13 @@ class LinkTest {
     }
 
     @Test
+    fun phoneBatteryRoundTrips() {
+        assertEquals(PhoneEvent(57, true), PhoneEvent.from(PhoneEvent(57, true).toJson()))
+        assertEquals(null, PhoneEvent.from(Link.message().put("type", "battery").put("level", 140)))
+        assertEquals(null, PhoneEvent.from(NotifyEvent.reset()))
+    }
+
+    @Test
     fun `the snooze travels both ways`() {
         val state = Link.parse(NotifyCommand.snooze(1_234L).toString())
         assertEquals(1_234L, NotifyCommand.snoozeUntil(state))

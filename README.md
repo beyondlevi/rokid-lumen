@@ -54,8 +54,8 @@ Rokid Lumen is not affiliated with Meta or Rokid. "Rokid" names the glasses it r
   action or an app.
 - **Home with three tabs.** Notifications (the phone's notification inbox), Apps (the web
   apps and any native apps you add, three across in rows that scroll, the glasses' settings
-  last, the focused app's icon bigger; you arrange them from the phone) and Controls (volume,
-  brightness, do not disturb, the Rokid's camera, gallery, music and settings, and the way back
+  last, the focused app's icon bigger; you arrange them from the phone) and Controls (the
+  glasses', band's and phone's batteries, volume, brightness, do not disturb, the Rokid's camera, gallery, music and settings, and the way back
   to the Rokid launcher).
 - **Web apps.** Offline `.mrbd.zip` packages, served from a loopback server, and online HTTPS
   apps. Each app has its own origin and, on GeckoView, its own cookies and storage. Apps can
