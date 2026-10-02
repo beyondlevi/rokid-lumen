@@ -113,10 +113,14 @@
         return new Promise(function (resolve, reject) {
           var started = false;
           var stopping = null;
+          // How it ended on its own (the length limit, an error): stop() answers with it.
+          var ended = null;
           var recording = {
-            onLevel: null,
-            onEnd: null,
+            // Also from the options, so nothing is missed between the start and the assignment.
+            onLevel: (options && typeof options.onLevel === 'function') ? options.onLevel : null,
+            onEnd: (options && typeof options.onEnd === 'function') ? options.onEnd : null,
             stop: function () {
+              if (ended) return ended.result ? Promise.resolve(ended.result) : Promise.reject(ended.error);
               if (stopping) return stopping.promise;
               var d = {};
               d.promise = new Promise(function (res, rej) { d.resolve = res; d.reject = rej; });
@@ -141,14 +145,20 @@
                 delete audioJobs[id];
                 var result = { blob: toBlob(event.data, event.mime), mimeType: event.mime, durationMs: +event.durationMs || 0 };
                 if (stopping) stopping.resolve(result);
-                else if (typeof recording.onEnd === 'function') recording.onEnd(event.reason === 'max' ? 'max' : 'error', result);
+                else {
+                  ended = { result: result };
+                  if (typeof recording.onEnd === 'function') recording.onEnd('max', result);
+                }
                 if (!started) { started = true; resolve(recording); }
               } else if (event.type === 'error') {
                 delete audioJobs[id];
-                var error = audioError(event.code, event.message);
+                var error = audioError(event.code || 'unavailable', event.message);
                 if (!started) return reject(error);
                 if (stopping) stopping.reject(error);
-                else if (typeof recording.onEnd === 'function') recording.onEnd('error', undefined, error);
+                else {
+                  ended = { error: error };
+                  if (typeof recording.onEnd === 'function') recording.onEnd('error', undefined, error);
+                }
               }
             }
           };

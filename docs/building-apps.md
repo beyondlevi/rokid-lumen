@@ -123,18 +123,25 @@ const audio = window.lumen?.audio; // absent on older Lumen versions and in a de
 
 // Record: resolves once the microphone is on.
 const recording = await audio.record({ maxMs: 120000 }); // 2 minutes at most, the default
+// onLevel and onEnd can also go in the options, so no event comes before they're set.
 recording.onLevel = (level, elapsedMs) => meter(level); // 0..1, about 5 times a second
 recording.onEnd = (reason, result, error) => {}; // 'max' (result has the audio) or 'error'
 const { blob, mimeType, durationMs } = await recording.stop(); // or recording.cancel()
+// stop() after onEnd answers the same way again (the result, or the error); cancel() after
+// the end does nothing. durationMs is the audio's length. There is no permission prompt.
 
-// Transcribe: OGG/Opus, MP3, M4A/AAC, WAV…; up to 5 MB and 5 minutes.
+// Transcribe: anything Android decodes (Ogg Opus at any rate, as WhatsApp and Telegram send it,
+// MP3, M4A/AAC, WAV…); up to 5 MB and 5 minutes. The language is the companion's dictation
+// setting (options.language is passed along; engines that pick the language ignore it).
 const { text } = await audio.transcribe(blob, { onPartial: (soFar) => show(soFar), signal });
 ```
 
 Failures are `Error`s with a `code`: `busy` (another recording, transcription or dictation),
 `no-phone` (no link to the phone), `unavailable` (the phone couldn't get the microphone),
 `too-large`, `unsupported-format`, `no-speech`, `engine` (the engine's message in `message`),
-`cancelled` and `timeout`.
+`cancelled` and `timeout`; `code` is always set. A recording's `onEnd('error')` gets
+`unavailable` (the phone lost the microphone or couldn't encode) or `timeout` (the glasses
+stopped hearing from the phone).
 
 **The host bridge answers the app's own origin only.** An offline app's origin is its loopback
 server (`http://127.0.0.1:<port>`), an online app's is the origin of its URL. A page on any
