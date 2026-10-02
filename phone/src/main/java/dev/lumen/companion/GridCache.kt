@@ -22,6 +22,7 @@ object GridCache {
         private set
 
     val icons = java.util.concurrent.ConcurrentHashMap<String, Bitmap>()
+    private val iconStamps = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
     /** The last refusal from the glasses, until the next state. */
     @Volatile var lastError: GridEvent.Result? = null
@@ -32,11 +33,15 @@ object GridCache {
     fun onEvent(event: GridEvent) {
         when (event) {
             is GridEvent.State -> {
+                // An icon that changed on the glasses (an update, a page's new favicon) is asked for again.
+                (event.items + event.available).forEach { item ->
+                    if (iconStamps.put(item.id, item.iconStamp).let { it != null && it != item.iconStamp }) icons.remove(item.id)
+                }
                 items = event.items
                 available = event.available
                 known = true
             }
-            is GridEvent.Result -> lastError = event.takeIf { !it.ok }
+            is GridEvent.Result -> if (!PackageShare.onResult(event)) lastError = event.takeIf { !it.ok }
             is GridEvent.Icon -> runCatching {
                 val bytes = Base64.decode(event.png, Base64.DEFAULT)
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let { icons[event.id] = it }

@@ -152,6 +152,8 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
                     return;
                 }
                 loaded = true;
+                // The page's icon may have changed (or never been fetched): looked up again, now that there's internet.
+                WebAppIcons.refreshOnOpen(WebAppActivity.this, app, GridApi::pushState);
                 // Gecko asks PhoneInternet for the proxy itself (mrbd-ext); WebView's is global.
                 if (system) {
                     SystemWebEngine.useProxy(proxy, () -> engine.load(url));

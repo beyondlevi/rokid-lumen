@@ -168,6 +168,7 @@
     <string name="net_asking">Asking for the phone\'s internet…</string>
     <string name="net_no_answer">The phone didn\'t answer</string>
     <string name="net_no_link">No link to the phone (Hi Rokid)</string>
+    <string name="net_phone_busy">Another app is on a Wi-Fi network now: close it and try again</string>
     <string name="net_phone_failed">The phone didn\'t open the network</string>
     <string name="net_closed">The phone\'s network closed</string>
     <string name="net_incomplete">Incomplete answer from the phone</string>
@@ -202,6 +203,7 @@
     <string name="launcher_apps" translatable="false">Apps</string>
     <string name="launcher_downloading">Downloading the package…</string>
     <string name="launcher_installed">Installed: %1$s</string>
+    <string name="launcher_updated">Updated: %1$s</string>
     <string name="launcher_not_installed">Package not installed: %1$s</string>
     <string name="launcher_empty">No web apps: adb push &lt;app&gt;.mrbd.zip to %1$s</string>
     <string name="install_title">Install this app?</string>
@@ -219,7 +221,6 @@
     <string name="install_installing">Installing…</string>
     <string name="install_hint">Swipe: choose · Index: select · Middle: cancel</string>
     <string name="launcher_notifications">Notifications</string>
-    <string name="launcher_offline" translatable="false">offline</string>
     <string name="package_https_only">Packages only over HTTPS</string>
     <string name="package_download_failed">Download failed (HTTP %1$s)</string>
     <string name="package_no_index">No index.html in the package</string>
@@ -228,6 +229,9 @@
     <string name="package_bad_path">Invalid path in the package: %1$s</string>
     <string name="package_too_big">Package too big</string>
     <string name="package_empty">Empty package, or not a zip</string>
+    <string name="package_damaged">The package arrived damaged: send it again</string>
+    <string name="package_other_app">This package is another app (%1$s), not the one being updated</string>
+    <string name="package_not_offline">Only an offline app can be updated with a package</string>
     <string name="package_line" translatable="false">%1$s: %2$s</string>
     <string name="notification_phone">Phone</string>
     <string name="notification_eyebrow" translatable="false">%1$s · %2$s</string>

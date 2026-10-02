@@ -2,6 +2,7 @@ package dev.lumen.companion
 
 import android.util.Log
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetAddress
@@ -27,6 +28,9 @@ import java.util.concurrent.atomic.AtomicLong
  * interfaces), and the connection goes to a checked address, never to a second lookup (DNS
  * rebinding). At most [maxConnections] clients at a time; a tunnel with no traffic either way
  * for [idleTimeoutMs] is closed, and [stop] closes every open one.
+ *
+ * Besides proxying, it answers a plain `GET <path>` addressed to itself with the file [local]
+ * gives for that path (an offline package handed over to the glasses), 404 otherwise.
  */
 class WebProxy(
     private val bind: InetAddress,
@@ -39,6 +43,8 @@ class WebProxy(
     private val ownAddresses: () -> Set<InetAddress> = ::interfaceAddresses,
     private val maxConnections: Int = MAX_CONNECTIONS,
     private val idleTimeoutMs: Long = IDLE_TIMEOUT_MS,
+    /** A file this phone serves itself, by request path; null for none (404). */
+    private val local: (String) -> File? = { null },
 ) {
     private var server: ServerSocket? = null
     private var pool: ExecutorService? = null
@@ -114,6 +120,10 @@ class WebProxy(
         val input = client.getInputStream()
         val output = client.getOutputStream()
         val head = runCatching { readHead(input) }.getOrNull() ?: return
+        localPath(head)?.let { path ->
+            serveLocal(client, output, path)
+            return
+        }
         val request = parse(head)
         if (request == null) {
             reply(client, output, "400 Bad Request")
@@ -148,6 +158,24 @@ class WebProxy(
             runCatching { client.close() }
             forget(upstream)
         }
+    }
+
+    /** A file of [local]'s, whole, then the connection closes. */
+    private fun serveLocal(client: Socket, output: OutputStream, path: String) {
+        val file = runCatching { local(path) }.getOrNull()?.takeIf { it.isFile }
+        if (file == null) {
+            log("no local file for a request")
+            return reply(client, output, "404 Not Found")
+        }
+        runCatching {
+            output.write(
+                ("HTTP/1.1 200 OK\r\nContent-Type: application/zip\r\nContent-Length: ${file.length()}\r\n" +
+                    "Cache-Control: no-store\r\nConnection: close\r\n\r\n").toByteArray(Charsets.ISO_8859_1),
+            )
+            file.inputStream().use { it.copyTo(output, 16 * 1024) }
+            output.flush()
+        }.onFailure { log("serving a local file failed: ${it.message}") }
+        runCatching { client.close() }
     }
 
     private fun open(host: String, port: Int): Socket {
@@ -260,6 +288,13 @@ class WebProxy(
                 if (last4 == 0x0d0a0d0a) return out.toString(Charsets.ISO_8859_1.name())
             }
             return null
+        }
+
+        /** The path of a `GET /…` (origin-form: addressed to this server, not proxied), or null. */
+        fun localPath(head: String): String? {
+            val parts = head.substringBefore("\r\n").split(' ')
+            if (parts.size != 3 || parts[0] != "GET" || !parts[1].startsWith("/")) return null
+            return parts[1]
         }
 
         fun parse(head: String): Request? {

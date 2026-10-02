@@ -205,6 +205,32 @@ class WebProxyTest {
         }
     }
 
+    @Test
+    fun `serves its own files to a plain GET, 404 for anything else, and still proxies`() {
+        val file = kotlin.io.path.createTempFile("pkg", ".zip").toFile().apply { writeBytes(ByteArray(70_000) { (it % 251).toByte() }); deleteOnExit() }
+        val port = start(WebProxy(loopback, blockLocal = false, local = { if (it == "/lumen/package/abc") file else null }))
+        Socket(loopback, port).use { s ->
+            s.soTimeout = 5_000
+            s.getOutputStream().write("GET /lumen/package/abc HTTP/1.1\r\nHost: x\r\n\r\n".toByteArray())
+            val input = s.getInputStream()
+            val head = WebProxy.readHead(input)!!
+            assertTrue(head.startsWith("HTTP/1.1 200"))
+            assertTrue(head.contains("Content-Length: 70000"))
+            assertTrue(input.readBytes().contentEquals(file.readBytes()))
+        }
+        assertTrue(connect(port, "GET /lumen/package/other HTTP/1.1\r\n\r\n").startsWith("HTTP/1.1 404"))
+        assertEquals("/a?b", WebProxy.localPath("GET /a?b HTTP/1.1\r\n\r\n"))
+        assertNull(WebProxy.localPath("GET http://example.com/ HTTP/1.1\r\n\r\n"))
+        assertNull(WebProxy.localPath("POST /a HTTP/1.1\r\n\r\n"))
+        val echo = echoServer()
+        Socket(loopback, port).use { s ->
+            s.soTimeout = 5_000
+            s.getOutputStream().write("CONNECT 127.0.0.1:$echo HTTP/1.1\r\n\r\n".toByteArray())
+            assertTrue(WebProxy.readHead(s.getInputStream())!!.startsWith("HTTP/1.1 200"))
+            assertEquals("ping", roundTrip(s, "ping"))
+        }
+    }
+
     private fun proxy(blockLocal: Boolean): Int = start(WebProxy(loopback, blockLocal = blockLocal))
 
     private fun start(proxy: WebProxy): Int {

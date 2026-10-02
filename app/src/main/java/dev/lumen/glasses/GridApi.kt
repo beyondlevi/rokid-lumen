@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Base64
 import android.util.Log
+import android.widget.Toast
 import dev.lumen.protocol.GridEvent
 import dev.lumen.protocol.GridItem
 import dev.lumen.protocol.GridOps
@@ -75,6 +76,7 @@ object GridApi {
                 changed(ctx, request, id, error)
             }
             GridOps.ADD_PACKAGE -> installPackage(ctx, request)
+            GridOps.INSTALL_FILE -> installFile(ctx, request)
             GridOps.ICONS -> {
                 val ids = GridOps.strings(request, "ids")
                 io.execute { ids.forEach { id -> icon(ctx, id)?.let { png -> main.post { send(GridEvent.Icon(id, png).toJson()) } } } }
@@ -129,6 +131,63 @@ object GridApi {
             }
         }
         PhoneInternet.acquire(ctx, listener)
+    }
+
+    /** Packages handed over from the phone, by token: null while installing, then the error ("" = installed). */
+    private val handedOver = object : LinkedHashMap<String, String?>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String?>?) = size > 20
+    }
+
+    /**
+     * Installs (or, with `replace`, updates) a package picked on the phone. The phone repeats the
+     * request until it gets an answer (Rokid's link loses messages): a repeat while installing is
+     * ignored, one after gets the same answer again. The answer's subject is the token.
+     */
+    private fun installFile(ctx: Context, request: JSONObject) {
+        val token = request.optString("token")
+        if (token.isEmpty() || !token.all { it.isLetterOrDigit() }) return changed(ctx, request, token, "invalid token")
+        if (handedOver.containsKey(token)) {
+            handedOver[token]?.let { error -> send(GridEvent.Result(error.isEmpty(), token, error).toJson(request)) }
+            return
+        }
+        handedOver[token] = null
+        val name = request.optString("name").substringAfterLast('/').ifEmpty { "package.zip" }
+        val replace = request.optString("replace").takeIf { it.isNotEmpty() }?.removePrefix(GridItem.WEB_PREFIX)
+        val listener = object : PhoneInternet.Listener {
+            override fun onStatus(text: String) = Unit
+
+            override fun onReady(proxy: String?) {
+                val holder = this
+                if (proxy == null) {
+                    PhoneInternet.release(holder)
+                    return finish(ctx.getString(R.string.net_phone_busy))
+                }
+                io.execute {
+                    val result = runCatching {
+                        WebAppPackages.installFromPhone(ctx, proxy, token, request.optLong("size"), request.optString("sha256"), name, replace)
+                    }
+                    main.post {
+                        PhoneInternet.release(holder)
+                        result.onSuccess { app ->
+                            Toast.makeText(ctx, ctx.getString(if (replace != null) R.string.launcher_updated else R.string.launcher_installed, app.name), Toast.LENGTH_SHORT).show()
+                        }
+                        Log.d(TAG, "package from the phone ($name): ${result.exceptionOrNull()?.message ?: "installed"}")
+                        finish(result.exceptionOrNull()?.let { WebAppPackages.describe(ctx, it).ifEmpty { it.javaClass.simpleName } })
+                    }
+                }
+            }
+
+            override fun onFailed(text: String) {
+                PhoneInternet.release(this)
+                finish(text)
+            }
+
+            private fun finish(error: String?) {
+                handedOver[token] = error.orEmpty()
+                changed(ctx, request, token, error)
+            }
+        }
+        PhoneInternet.acquire(ctx, listener, viaPhone = true)
     }
 
     /** A small PNG of the item's icon, base64; null for items the phone draws itself. */

@@ -10,12 +10,18 @@ import org.json.JSONObject
  *
  *   phone → glasses   [Link.GRID]        {op: describe} | {op: set, order, hidden} | {op: add_web, url, name}
  *                                        | {op: add_package, url} | {op: remove, id} | {op: engine, id, engine}
+ *                                        | {op: install_file, token, name, size, sha256, replace}
  *                                        | {op: config, id, key, value}
  *                                        | {op: icons, ids}; each a request (id)
  *   glasses → phone   [Link.GRID_EVENT]  {type: state, items, available} (after describe and every change)
  *                                        {type: result, ok, subject, error} | {type: icon, id, png (base64)}
  *
  * Item ids: `notifications`, `settings`, `web:<web app id>`, `app:<package>`.
+ *
+ * `install_file` hands over an offline package picked on the phone: the glasses join the phone's
+ * network ([Link.NET]) and download it from the phone's proxy at `/lumen/package/<token>`
+ * ([PACKAGE_PATH]), checking `size` and `sha256`. With `replace` (an item id) it updates that app
+ * only, keeping its settings and storage.
  *
  * A web app's configuration ([AppConfigField]) is declared by its package's manifest
  * (`lumen_config`), set from the phone and read by the page (`window.lumen.config`). The state
@@ -30,6 +36,10 @@ object GridOps {
     const val ENGINE = "engine"
     const val ICONS = "icons"
     const val CONFIG = "config"
+    const val INSTALL_FILE = "install_file"
+
+    /** Where the phone's proxy serves a package handed over with [installFile]: this + token. */
+    const val PACKAGE_PATH = "/lumen/package/"
 
     @JvmStatic
     fun describe(): JSONObject = Link.request().put("op", DESCRIBE)
@@ -56,6 +66,16 @@ object GridOps {
     @JvmStatic
     fun config(id: String, key: String, value: String): JSONObject = Link.request().put("op", CONFIG).put("id", id)
         .put("key", key).put("value", value)
+
+    /**
+     * An offline package the phone serves at [PACKAGE_PATH] + [token]; [replace] is the grid id of
+     * the app it updates, or empty for a new one.
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun installFile(token: String, name: String, size: Long, sha256: String, replace: String = ""): JSONObject =
+        Link.request().put("op", INSTALL_FILE).put("token", token).put("name", name).put("size", size)
+            .put("sha256", sha256).put("replace", replace)
 
     @JvmStatic
     fun icons(ids: List<String>): JSONObject = Link.request().put("op", ICONS).put("ids", JSONArray(ids))
@@ -120,6 +140,10 @@ data class GridItem(
     val removable: Boolean = true,
     /** A web app's configuration fields, as its manifest declares them, with their values. */
     val config: List<AppConfigField> = emptyList(),
+    /** An offline web app's package version (its manifest's `version`), or empty. */
+    val version: String = "",
+    /** When the item's icon last changed (0: unknown, or none): the phone asks again on a change. */
+    val iconStamp: Long = 0,
 ) {
     enum class Kind(val id: String) {
         NOTIFICATIONS("notifications"), SETTINGS("settings"), WEB("web"), NATIVE("native");
@@ -132,6 +156,8 @@ data class GridItem(
     fun toJson(): JSONObject = JSONObject().put("id", id).put("kind", kind.id).put("name", name).put("detail", detail)
         .put("offline", offline).put("engine", engine).put("removable", removable)
         .put("config", JSONArray().apply { config.forEach { put(it.toJson()) } })
+        .apply { if (version.isNotEmpty()) put("version", version) }
+        .apply { if (iconStamp > 0) put("icon", iconStamp) }
 
     companion object {
         const val NOTIFICATIONS_ID = "notifications"
@@ -148,6 +174,8 @@ data class GridItem(
             json.optString("engine"),
             json.optBoolean("removable", true),
             AppConfigField.list(json.optJSONArray("config")),
+            json.optString("version"),
+            json.optLong("icon"),
         )
     }
 }

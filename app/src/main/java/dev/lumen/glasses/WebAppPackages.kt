@@ -3,6 +3,7 @@ package dev.lumen.glasses
 import android.content.Context
 import org.json.JSONObject
 import dev.lumen.protocol.AppConfigField
+import dev.lumen.protocol.GridOps
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -51,8 +52,14 @@ object WebAppPackages {
         /** The origin it was downloaded from; empty for a package handed over locally. */
         val source: String = "",
     ) {
-        /** The package's own icon (its manifest's largest PNG), or null. */
-        val icon: File? get() = manifest?.let { iconFile(base, it) }
+        /** The package's own icon (its manifest's or its page's), or null; beside the staging folder. */
+        val icon: File? by lazy { WebAppIcons.packageIcon(base, manifest, iconFile(folder)) }
+
+        /** The same package under another app's id (an update for an app whose package has no id). */
+        internal fun withId(id: String) = StagedPackage(folder, base, id, name, version, configFields, internet, manifest, source)
+
+        /** Whether its manifest names the app (`id`); without one, its id comes from the file name. */
+        internal val hasManifestId: Boolean get() = !manifest?.optString("id").isNullOrEmpty()
     }
 
     /** Why a package was refused: the text in the device's language, and English for the log. */
@@ -65,6 +72,9 @@ object WebAppPackages {
         BAD_PATH(R.string.package_bad_path, "invalid path in the package:"),
         TOO_BIG(R.string.package_too_big, "package too big"),
         EMPTY(R.string.package_empty, "empty package, or not a zip"),
+        DAMAGED(R.string.package_damaged, "the package doesn't match what the phone sent"),
+        OTHER_APP(R.string.package_other_app, "the package is another app:"),
+        NOT_OFFLINE(R.string.package_not_offline, "not an offline app:"),
     }
 
     class InvalidPackage(val problem: Problem, val detail: String = "") : IOException("${problem.log} $detail".trim())
@@ -127,6 +137,101 @@ object WebAppPackages {
         } finally {
             connection.disconnect()
         }
+    }
+
+    /**
+     * Downloads a package the phone serves on its own network ([GridOps.installFile]) from
+     * [phone] (`host:port`, its proxy), checks it is what the phone sent ([size], [sha256]) and
+     * installs it. With [replace] (a web app id) it only updates that offline app: a package of
+     * another app is refused, one without a manifest id takes that app's. The owner's channel,
+     * so settings and storage stay. Off the main thread.
+     */
+    @JvmStatic
+    fun installFromPhone(context: Context, phone: String, token: String, size: Long, sha256: String, fileName: String, replace: String?): WebApp {
+        val target = replace?.let { id ->
+            WebAppLibrary.find(context, id)?.takeIf { it.offline } ?: throw InvalidPackage(Problem.NOT_OFFLINE, id)
+        }
+        val download = File(context.cacheDir, "phone-package-$token.zip")
+        try {
+            fetchFromPhone(phone, GridOps.PACKAGE_PATH + token, download)
+            if (download.length() != size || sha256Of(download) != sha256.lowercase()) throw InvalidPackage(Problem.DAMAGED)
+            var staged = download.inputStream().use { stage(context, it, fileName) }
+            if (target != null && staged.id != target.id) {
+                if (staged.hasManifestId) {
+                    discard(staged)
+                    throw InvalidPackage(Problem.OTHER_APP, staged.name)
+                }
+                staged = staged.withId(target.id)
+            }
+            return commit(context, staged, trusted = true)
+        } finally {
+            download.delete()
+        }
+    }
+
+    /**
+     * A plain HTTP GET on the phone's hotspot, over a socket: the platform refuses cleartext to
+     * HttpURLConnection (targetSdk 34), and this is a link to the phone, not the web.
+     */
+    private fun fetchFromPhone(phone: String, path: String, into: File) {
+        val host = phone.substringBeforeLast(':')
+        val port = phone.substringAfterLast(':').toInt()
+        java.net.Socket().use { socket ->
+            socket.connect(java.net.InetSocketAddress(host, port), 10_000)
+            socket.soTimeout = 30_000
+            socket.getOutputStream().apply {
+                write("GET $path HTTP/1.1\r\nHost: $phone\r\nConnection: close\r\n\r\n".toByteArray(Charsets.ISO_8859_1))
+                flush()
+            }
+            val input = socket.getInputStream().buffered()
+            val status = readLine(input)
+            val code = status.split(' ').getOrNull(1)?.toIntOrNull() ?: 0
+            var length = -1L
+            while (true) {
+                val line = readLine(input)
+                if (line.isEmpty()) break
+                if (line.substringBefore(':').trim().equals("content-length", ignoreCase = true)) {
+                    length = line.substringAfter(':').trim().toLongOrNull() ?: -1L
+                }
+            }
+            if (code != 200) throw InvalidPackage(Problem.DOWNLOAD_FAILED, code.toString())
+            if (length > MAX_TOTAL_BYTES) throw InvalidPackage(Problem.TOO_BIG)
+            into.outputStream().use { sink ->
+                val buffer = ByteArray(64 * 1024)
+                var total = 0L
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    total += read
+                    if (total > MAX_TOTAL_BYTES) throw InvalidPackage(Problem.TOO_BIG)
+                    sink.write(buffer, 0, read)
+                }
+            }
+        }
+    }
+
+    /** One header line, without its CRLF; empty at the blank line (or the end). */
+    private fun readLine(input: InputStream): String {
+        val out = StringBuilder()
+        while (out.length < 8 * 1024) {
+            val b = input.read()
+            if (b < 0 || b == '\n'.code) break
+            if (b != '\r'.code) out.append(b.toChar())
+        }
+        return out.toString()
+    }
+
+    private fun sha256Of(file: File): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     /** The package's file name in [url], for an app with no manifest id. */
@@ -207,7 +312,7 @@ object WebAppPackages {
             val target = dir(context, staged.id)
             target.deleteRecursively()
             if (!staged.base.renameTo(target)) throw InvalidPackage(Problem.WRITE_FAILED)
-            val icon = staged.manifest?.let { copyIcon(context, target, it, staged.id) } ?: existing?.icon
+            val icon = WebAppIcons.savePackageIcon(context, target, staged.manifest, staged.id) ?: existing?.icon
             val app = WebApp(
                 id = staged.id,
                 name = staged.name,
@@ -233,7 +338,10 @@ object WebAppPackages {
     @JvmStatic
     fun discard(staged: StagedPackage) {
         staged.folder.deleteRecursively()
+        iconFile(staged.folder).delete()
     }
+
+    private fun iconFile(staging: File) = File(staging.parentFile, staging.name + ".icon.png")
 
     /** Staging folders left behind by a process that died before committing or discarding. */
     private fun cleanStaging(context: Context) {
@@ -287,25 +395,4 @@ object WebAppPackages {
     @JvmStatic
     fun readManifest(base: File): JSONObject? = MANIFEST_NAMES.map { File(base, it) }.firstOrNull { it.isFile }
         ?.let { runCatching { JSONObject(it.readText()) }.getOrNull() }
-
-    /** The largest PNG icon of the manifest, inside [base]; null when there's none. */
-    private fun iconFile(base: File, manifest: JSONObject): File? {
-        val icons = manifest.optJSONArray("icons") ?: return null
-        val best = (0 until icons.length()).mapNotNull { icons.optJSONObject(it) }
-            .filter { it.optString("src").isNotEmpty() && (it.optString("type").ifEmpty { "image/png" } == "image/png") }
-            .maxByOrNull { it.optString("sizes").substringBefore('x').toIntOrNull() ?: 0 } ?: return null
-        val src = best.getString("src").substringBefore('?').removePrefix("./").removePrefix("/")
-        val file = File(base, src)
-        if (!file.isFile || !file.canonicalPath.startsWith(base.canonicalPath + File.separator)) return null
-        return file
-    }
-
-    /** The largest PNG icon of the manifest, copied next to the library (the package may be replaced). */
-    private fun copyIcon(context: Context, base: File, manifest: JSONObject, id: String): String? {
-        val file = iconFile(base, manifest) ?: return null
-        val iconsDir = File(context.filesDir, "webapp-icons").apply { mkdirs() }
-        val copy = File(iconsDir, "$id.png")
-        file.copyTo(copy, overwrite = true)
-        return copy.absolutePath
-    }
 }

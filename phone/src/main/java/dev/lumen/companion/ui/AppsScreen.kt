@@ -74,6 +74,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import dev.lumen.companion.PackageShare
 import dev.lumen.companion.R
 import dev.lumen.protocol.AppConfigField
 import dev.lumen.protocol.GridEvent
@@ -92,6 +93,7 @@ internal fun AppsScreen(
     known: Boolean,
     icons: Map<String, Bitmap>,
     error: GridEvent.Result?,
+    transfer: PackageShare.Transfer?,
     actions: CompanionActions,
 ) {
     var selected by remember { mutableStateOf<String?>(null) }
@@ -102,7 +104,8 @@ internal fun AppsScreen(
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val wide = maxWidth >= WIDE
         Column(verticalArrangement = Arrangement.spacedBy(Lumen.spacingLarge)) {
-            AppsHeader(items.size, available.size, onAdd = { dialog = it })
+            AppsHeader(items.size, available.size, onAdd = { dialog = it }, onAddFile = actions::pickPackageFile)
+            transfer?.let { TransferCard(it, onDismiss = actions::dismissPackageTransfer) }
             if (!known) {
                 Card {
                     Text(stringResource(R.string.band_waiting), style = MaterialTheme.typography.titleMedium)
@@ -126,6 +129,7 @@ internal fun AppsScreen(
                     onEdit = { editing = item to it },
                     onDelete = { confirmDelete = item },
                     onTakeOff = { selected = null; actions.hideGridItem(item.id) },
+                    busy = transfer?.busy == true,
                 )
             }
             if (wide) {
@@ -197,7 +201,7 @@ private val NEGATIVE_BACKGROUND = Color(0xFF3B1E23)
 private val GridItem.needsSetup: Boolean get() = config.any { it.missing }
 
 @Composable
-private fun AppsHeader(onGrid: Int, available: Int, onAdd: (AddDialog) -> Unit) {
+private fun AppsHeader(onGrid: Int, available: Int, onAdd: (AddDialog) -> Unit, onAddFile: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed)) {
         Column(Modifier.weight(1f).padding(start = Lumen.spacingSmall), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -218,8 +222,13 @@ private fun AppsHeader(onGrid: Int, available: Int, onAdd: (AddDialog) -> Unit) 
                     onClick = { menu = false; onAdd(AddDialog.WEB) },
                 )
                 DropdownMenuItem(
-                    text = { MenuText(R.string.apps_add_package, R.string.apps_add_package_hint) },
+                    text = { MenuText(R.string.apps_add_file, R.string.apps_add_file_hint) },
                     leadingIcon = { Icon(LumenIcons.download, contentDescription = null, tint = Lumen.textPrimary) },
+                    onClick = { menu = false; onAddFile() },
+                )
+                DropdownMenuItem(
+                    text = { MenuText(R.string.apps_add_package, R.string.apps_add_package_hint) },
+                    leadingIcon = { Icon(LumenIcons.link, contentDescription = null, tint = Lumen.textPrimary) },
                     onClick = { menu = false; onAdd(AddDialog.PACKAGE) },
                 )
             }
@@ -551,6 +560,7 @@ private fun AppDetail(
     onEdit: (AppConfigField) -> Unit,
     onDelete: () -> Unit,
     onTakeOff: () -> Unit,
+    busy: Boolean,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         Box(Modifier.size(56.dp).clip(RoundedCornerShape(Lumen.radiusRow)).background(Lumen.elevation2), contentAlignment = Alignment.Center) {
@@ -613,6 +623,21 @@ private fun AppDetail(
             }
         }
     }
+    if (item.kind == GridItem.Kind.WEB && item.offline) {
+        DetailSection(
+            stringResource(R.string.apps_package),
+            if (item.version.isNotEmpty()) stringResource(R.string.apps_package_version, item.version) else stringResource(R.string.apps_package_no_version),
+        ) {
+            PillButton(
+                stringResource(R.string.apps_replace_package),
+                primary = false,
+                modifier = Modifier.fillMaxWidth(),
+                icon = LumenIcons.download,
+                enabled = !busy,
+            ) { actions.replacePackage(item.id) }
+            Text(stringResource(R.string.apps_replace_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textPlaceholder, modifier = Modifier.padding(horizontal = Lumen.spacingSmall))
+        }
+    }
     if (item.kind == GridItem.Kind.WEB) {
         DetailSection(stringResource(R.string.apps_engine), null) {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Lumen.radiusRow)).background(Lumen.elevation1).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -639,6 +664,37 @@ private fun AppDetail(
                     Text(stringResource(R.string.apps_delete), style = MaterialTheme.typography.labelLarge)
                 }
             }
+        }
+    }
+}
+
+/** The package being handed over to the glasses: a spinner while it goes, then the outcome. */
+@Composable
+private fun TransferCard(transfer: PackageShare.Transfer, onDismiss: () -> Unit) {
+    val update = transfer.replace.isNotEmpty()
+    val (text, color) = when (transfer.phase) {
+        PackageShare.Phase.COPYING -> stringResource(R.string.apps_file_copying) to Lumen.textPrimary
+        PackageShare.Phase.SENDING -> stringResource(if (update) R.string.apps_file_updating else R.string.apps_file_sending, transfer.name) to Lumen.textPrimary
+        PackageShare.Phase.DONE -> stringResource(if (update) R.string.apps_file_updated else R.string.apps_file_done, transfer.name) to Lumen.accent
+        PackageShare.Phase.FAILED -> stringResource(R.string.apps_file_failed, transfer.detail) to Lumen.negative
+    }
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Lumen.radiusRow)).background(if (transfer.phase == PackageShare.Phase.FAILED) NEGATIVE_BACKGROUND else Lumen.surface)
+            .padding(horizontal = 14.dp, vertical = Lumen.spacingSmMed),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed),
+    ) {
+        if (transfer.busy) {
+            androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp), color = Lumen.accent, strokeWidth = 2.dp)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(text, style = MaterialTheme.typography.bodyMedium, color = color)
+            if (transfer.phase == PackageShare.Phase.SENDING) {
+                Text(stringResource(R.string.apps_file_sending_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
+            }
+        }
+        if (!transfer.busy) {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.apps_file_ok), color = Lumen.textPrimary) }
         }
     }
 }

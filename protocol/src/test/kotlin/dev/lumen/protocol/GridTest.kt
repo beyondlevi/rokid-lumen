@@ -66,4 +66,16 @@ class GridTest {
         assertFalse(AppConfigField.from(org.json.JSONObject().put("key", "x")).optional)
         assertFalse(AppConfigField("x", "X").toJson().has("optional"))
     }
+
+    @Test
+    fun `a package handed over from the phone, and the version in the state`() {
+        val request = GridOps.installFile("tok", "chat.mrbd.zip", 1234, "ab12", replace = "web:pkg")
+        assertEquals(GridOps.INSTALL_FILE, request.getString("op"))
+        assertEquals(1234L, request.getLong("size"))
+        assertEquals("web:pkg", request.getString("replace"))
+        assertEquals("", GridOps.installFile("tok", "a.zip", 1, "00").getString("replace"))
+        val item = GridItem("web:pkg", GridItem.Kind.WEB, "Chat", offline = true, version = "0.3.0")
+        assertEquals(item, GridItem.from(item.toJson()))
+        assertFalse(GridItem("web:x", GridItem.Kind.WEB, "X").toJson().has("version"))
+    }
 }

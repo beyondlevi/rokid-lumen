@@ -161,6 +161,7 @@
     <string name="net_asking">Pedindo a internet do celular…</string>
     <string name="net_no_answer">O celular não respondeu</string>
     <string name="net_no_link">Sem ligação com o celular (Hi Rokid)</string>
+    <string name="net_phone_busy">Outro app está usando uma rede Wi-Fi agora: feche-o e tente de novo</string>
     <string name="net_phone_failed">O celular não abriu a rede</string>
     <string name="net_closed">A rede do celular fechou</string>
     <string name="net_incomplete">Resposta do celular incompleta</string>
@@ -194,6 +195,7 @@
     <string name="webapp_navigation_blocked">Este app não pode abrir outros sites</string>
     <string name="launcher_downloading">Baixando o pacote…</string>
     <string name="launcher_installed">Instalado: %1$s</string>
+    <string name="launcher_updated">Atualizado: %1$s</string>
     <string name="launcher_not_installed">Pacote não instalado: %1$s</string>
     <string name="launcher_empty">Nenhum web app: adb push &lt;app&gt;.mrbd.zip em %1$s</string>
     <string name="install_title">Instalar este app?</string>
@@ -219,6 +221,9 @@
     <string name="package_bad_path">Caminho inválido no pacote: %1$s</string>
     <string name="package_too_big">Pacote grande demais</string>
     <string name="package_empty">Pacote vazio ou não é um zip</string>
+    <string name="package_damaged">O pacote chegou corrompido: envie de novo</string>
+    <string name="package_other_app">Este pacote é de outro app (%1$s), não do que está sendo atualizado</string>
+    <string name="package_not_offline">Só um app offline pode ser atualizado com um pacote</string>
     <string name="notification_phone">Celular</string>
     <string name="notification_hidden">Conteúdo oculto</string>
     <string name="notification_banner_hint">Indicador: abrir · Médio: dispensar · ↓↓: silenciar</string>

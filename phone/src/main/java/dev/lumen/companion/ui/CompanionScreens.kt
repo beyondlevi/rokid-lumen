@@ -92,6 +92,8 @@ data class CompanionUiState(
     val gridKnown: Boolean = false,
     val gridIcons: Map<String, android.graphics.Bitmap> = emptyMap(),
     val gridError: GridEvent.Result? = null,
+    /** The offline package being handed over from this phone, or the last one's outcome. */
+    val packageTransfer: dev.lumen.companion.PackageShare.Transfer? = null,
     val dictation: DictationUiState = DictationUiState(),
 )
 
@@ -121,6 +123,11 @@ interface CompanionActions {
     fun addGridItem(id: String)
     fun addWebApp(url: String, name: String)
     fun addPackage(url: String)
+    /** Pick a .zip on this phone and install it on the glasses. */
+    fun pickPackageFile()
+    /** Pick a .zip on this phone to update the offline app [id] with. */
+    fun replacePackage(id: String)
+    fun dismissPackageTransfer()
     fun useBandOnPhone()
     fun useBandOnGlasses()
     fun importBandKey()
@@ -194,7 +201,7 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions) {
             androidx.compose.runtime.CompositionLocalProvider(LocalScrollLock provides scrollLock) {
             when (tab) {
                 Tab.HOME -> HomeScreen(state, actions)
-                Tab.APPS -> AppsScreen(state.gridItems, state.gridAvailable, state.gridKnown, state.gridIcons, state.gridError, actions)
+                Tab.APPS -> AppsScreen(state.gridItems, state.gridAvailable, state.gridKnown, state.gridIcons, state.gridError, state.packageTransfer, actions)
                 Tab.BAND -> BandScreen(state, actions)
                 Tab.NOTIFICATIONS -> NotificationsScreen(state, actions)
                 Tab.SETTINGS -> SettingsScreen(state, actions)
@@ -439,9 +446,10 @@ internal fun StatusPill(text: String, dot: Color) {
 }
 
 @Composable
-internal fun PillButton(text: String, primary: Boolean, modifier: Modifier = Modifier, icon: ImageVector? = null, onClick: () -> Unit) {
+internal fun PillButton(text: String, primary: Boolean, modifier: Modifier = Modifier, icon: ImageVector? = null, enabled: Boolean = true, onClick: () -> Unit) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier.heightIn(min = 48.dp),
         shape = CircleShape,
         colors = ButtonDefaults.buttonColors(

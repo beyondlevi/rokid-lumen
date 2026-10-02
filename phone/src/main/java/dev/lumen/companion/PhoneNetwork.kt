@@ -85,7 +85,7 @@ class PhoneNetwork(private val context: Context, private val onEvent: (NetEvent)
             close(NetEvent.Failed(context.getString(R.string.net_error_no_password)))
             return
         }
-        val server = WebProxy(address)
+        val server = WebProxy(address, local = PackageShare::file)
         val port = runCatching { server.start() }.getOrElse {
             close(NetEvent.Failed(context.getString(R.string.net_error_proxy, it.message.orEmpty())))
             return

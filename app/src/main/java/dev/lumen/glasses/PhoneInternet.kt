@@ -45,6 +45,7 @@ object PhoneInternet {
     private const val RENEW_MS = 60_000L
     private const val HEALTH_MS = 15_000L
     private const val REASK_MS = 10_000L
+    private const val WIFI_ON_WAIT_MS = 6_000L
 
     private val main by lazy { Handler(Looper.getMainLooper()) }
     private val io = Executors.newSingleThreadExecutor { r -> Thread(r, "nb-internet").apply { isDaemon = true } }
@@ -73,15 +74,25 @@ object PhoneInternet {
     @JvmStatic
     var forcePhone = false
 
+    /**
+     * [viaPhone]: this holder needs the phone's network itself, not just the internet (a package
+     * handed over from the phone, served on its hotspot): saved networks are skipped. While
+     * other apps hold a direct connection it fails instead of moving them.
+     */
     @JvmStatic
-    fun acquire(context: Context, listener: Listener) {
+    @JvmOverloads
+    fun acquire(context: Context, listener: Listener, viaPhone: Boolean = false) {
         this.context = context.applicationContext
+        if (viaPhone && state == State.READY && proxy == null) {
+            listener.onFailed(text(R.string.net_phone_busy))
+            return
+        }
         holders++
         listeners += listener
         main.removeCallbacks(teardown)
         when (state) {
             State.READY -> listener.onReady(proxy)
-            State.IDLE, State.FAILED -> start()
+            State.IDLE, State.FAILED -> start(viaPhone = viaPhone)
             // A new app joining a wait already under way gets the full wait, not what is left of
             // it (measured: an open late in the wait failed 2 s later), and the phone is asked again.
             State.ASKING -> {
@@ -109,7 +120,7 @@ object PhoneInternet {
     }
 
     /** [fresh]: a new acquire (not a reconnect), so the Wi-Fi's state now is the one to restore. */
-    private fun start(fresh: Boolean = true) {
+    private fun start(fresh: Boolean = true, viaPhone: Boolean = false) {
         val ctx = context ?: return
         phoneRequested = false
         phoneOffer = null
@@ -118,18 +129,16 @@ object PhoneInternet {
             state = State.KNOWN
             return askPhone()
         }
+        if (viaPhone) {
+            // The phone's network or nothing: Wi-Fi on (it may be off), then straight to the phone.
+            state = State.KNOWN
+            val wifi = ctx.getSystemService(WifiManager::class.java)
+            turnWifiOn(ctx, fresh)
+            return waitFor(WIFI_ON_WAIT_MS, { wifi?.isWifiEnabled == true }, State.KNOWN, onDone = { askPhone() }, onTimeout = { askPhone() })
+        }
         if (hasDirectInternet(ctx)) return ready(null)
         state = State.KNOWN
-        val wifi = ctx.getSystemService(WifiManager::class.java)
-        val wifiOn = wifi?.isWifiEnabled == true
-        if (fresh) wifiWasOn = wifiOn
-        if (!wifiOn) {
-            status(text(R.string.net_wifi_on))
-            io.execute {
-                // Without the self-arm's ADB key, the shortcut bridge (if armed) can do this one.
-                if (shell("svc wifi enable") == null) PrivilegedShortcutBridge.requestWifiEnabled(ctx, true)
-            }
-        }
+        turnWifiOn(ctx, fresh)
         status(text(R.string.net_known))
         // Ask the phone now, not after the wait: its hotspot is ready by the time the scan
         // rules out the saved networks (measured: 4.5 s saved on a 13 s open). A saved network
@@ -167,6 +176,19 @@ object PhoneInternet {
                 Thread.sleep(500)
             }
             main.post { if (state == State.KNOWN) askPhone() }
+        }
+    }
+
+    /** Turns the Wi-Fi on if it's off; on a [fresh] acquire, notes how it was, for the teardown. */
+    private fun turnWifiOn(ctx: Context, fresh: Boolean) {
+        val wifi = ctx.getSystemService(WifiManager::class.java)
+        val wifiOn = wifi?.isWifiEnabled == true
+        if (fresh) wifiWasOn = wifiOn
+        if (wifiOn) return
+        status(text(R.string.net_wifi_on))
+        io.execute {
+            // Without the self-arm's ADB key, the shortcut bridge (if armed) can do this one.
+            if (shell("svc wifi enable") == null) PrivilegedShortcutBridge.requestWifiEnabled(ctx, true)
         }
     }
 

@@ -290,7 +290,6 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
                         background = HudStyle.letterTile(this@LauncherActivity, app.name)
                     }
                 }, FrameLayout.LayoutParams(iconSide, iconSide))
-                if (app.offline) iconFrame.addView(corner(getString(R.string.launcher_offline), HudStyle.ACCENT), cornerParams())
             }
         }
         cell.addView(iconFrame, LinearLayout.LayoutParams(iconSide + dp(10f), iconSide + dp(6f)).apply {

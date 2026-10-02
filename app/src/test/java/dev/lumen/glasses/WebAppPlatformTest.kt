@@ -232,4 +232,112 @@ class WebAppPlatformTest {
         assertEquals(listOf("k2"), NotificationInbox.all().map { it.key })
         NotificationInbox.clear()
     }
+
+    @Test
+    fun iconCandidatesComeFromTheManifestThePageAndTheFavicon() {
+        val html = """<link rel="icon" href="/favicon-32.png" sizes="32x32"><link rel="icon" href="/logo.svg" type="image/svg+xml">""" +
+            """<link rel="apple-touch-icon" href="touch.png"><link rel="shortcut icon" href="/old.ico">"""
+        val manifest = org.json.JSONObject("""{"icons":[{"src":"icons/192.png","sizes":"192x192"},{"src":"icons/512.png","sizes":"512x512"},""" +
+            """{"src":"mono.png","sizes":"1024x1024","purpose":"monochrome"},{"src":"vector.svg","sizes":"any"}]}""")
+        val list = WebAppIcons.candidates("https://app.example/chat/", html, manifest, "https://app.example/m/manifest.json").map { it.url }
+        assertEquals(
+            listOf(
+                "https://app.example/m/icons/512.png",
+                "https://app.example/m/icons/192.png",
+                "https://app.example/chat/touch.png",
+                "https://app.example/favicon-32.png",
+                "https://app.example/old.ico",
+                "https://app.example/favicon.ico",
+            ),
+            list,
+        )
+        // A page with nothing declared still has the conventional favicon.
+        assertEquals(listOf("https://app.example/favicon.ico"), WebAppIcons.candidates("https://app.example/", "<p>hi</p>", null, null).map { it.url })
+        assertEquals(48, WebAppIcons.largest("16x16 48x48 any"))
+    }
+
+    private fun servePackage(body: ByteArray, requests: MutableList<String>): Int {
+        val server = java.net.ServerSocket(0, 4, java.net.InetAddress.getByName("127.0.0.1"))
+        kotlin.concurrent.thread(isDaemon = true) {
+            server.use {
+                while (true) {
+                    val client = runCatching { server.accept() }.getOrNull() ?: break
+                    client.use { c ->
+                        val head = StringBuilder()
+                        val input = c.getInputStream()
+                        while (!head.endsWith("\r\n\r\n")) head.append(input.read().toChar())
+                        requests += head.lineSequence().first()
+                        val ok = head.startsWith("GET /lumen/package/tok1 ")
+                        val out = c.getOutputStream()
+                        if (ok) {
+                            out.write("HTTP/1.1 200 OK\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                            out.write(body)
+                        } else {
+                            out.write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n".toByteArray())
+                        }
+                        out.flush()
+                    }
+                }
+            }
+        }
+        return server.localPort
+    }
+
+    private fun sha256(bytes: ByteArray) = java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+
+    @Test
+    fun aPackageFromThePhoneInstallsAndUpdatesInPlace() {
+        val context = RuntimeEnvironment.getApplication()
+        val manifest = """{"id":"chat","name":"Chat","version":"1.0","lumen_config":[{"key":"k","label":"K","type":"secret"}]}"""
+        val v1 = zip("index.html" to "v1", "manifest.webmanifest" to manifest)
+        val requests = mutableListOf<String>()
+        val first = WebAppPackages.installFromPhone(context, "127.0.0.1:${servePackage(v1, requests)}", "tok1", v1.size.toLong(), sha256(v1), "chat.mrbd.zip", null)
+        assertEquals("1.0", first.version)
+        assertEquals(listOf("GET /lumen/package/tok1 HTTP/1.1"), requests)
+        WebAppConfig.set(context, first, "k", "secret-value")
+
+        // An update from the phone keeps the port, the engine and the secret.
+        WebAppLibrary.setEngine(context, first.id, WebEngineKind.SYSTEM)
+        val v2 = zip("index.html" to "v2", "manifest.webmanifest" to manifest.replace("1.0", "2.0"))
+        val second = WebAppPackages.installFromPhone(context, "127.0.0.1:${servePackage(v2, mutableListOf())}", "tok1", v2.size.toLong(), sha256(v2), "chat-2.zip", first.id)
+        assertEquals(first.id, second.id)
+        assertEquals(first.port, second.port)
+        assertEquals(WebEngineKind.SYSTEM, second.engine)
+        assertEquals("2.0", second.version)
+        assertTrue(WebAppConfig.fields(context, second).single().set)
+        assertEquals("v2", File(WebAppPackages.dir(context, first.id), "index.html").readText())
+
+        // A package without an id takes the app's when it replaces it.
+        val bare = zip("index.html" to "v3")
+        val third = WebAppPackages.installFromPhone(context, "127.0.0.1:${servePackage(bare, mutableListOf())}", "tok1", bare.size.toLong(), sha256(bare), "whatever.zip", first.id)
+        assertEquals(first.id, third.id)
+        assertEquals(1, WebAppLibrary.all(context).size)
+
+        // Another app's package, a damaged download, or an online target are refused.
+        val other = zip("index.html" to "o", "manifest.webmanifest" to """{"id":"other","name":"Other"}""")
+        assertProblem(WebAppPackages.Problem.OTHER_APP) {
+            WebAppPackages.installFromPhone(context, "127.0.0.1:${servePackage(other, mutableListOf())}", "tok1", other.size.toLong(), sha256(other), "o.zip", first.id)
+        }
+        assertProblem(WebAppPackages.Problem.DAMAGED) {
+            WebAppPackages.installFromPhone(context, "127.0.0.1:${servePackage(v1, mutableListOf())}", "tok1", v1.size.toLong(), sha256(v2), "chat.zip", null)
+        }
+        assertProblem(WebAppPackages.Problem.DOWNLOAD_FAILED) {
+            WebAppPackages.installFromPhone(context, "127.0.0.1:${servePackage(v1, mutableListOf())}", "nope", v1.size.toLong(), sha256(v1), "chat.zip", null)
+        }
+        val online = WebAppLibrary.add(context, "https://web.example/", "Web")!!
+        assertProblem(WebAppPackages.Problem.NOT_OFFLINE) {
+            WebAppPackages.installFromPhone(context, "127.0.0.1:1", "tok1", 1, "00", "x.zip", online.id)
+        }
+        assertEquals("v3", File(WebAppPackages.dir(context, first.id), "index.html").readText())
+        assertEquals(2, WebAppLibrary.all(context).size)
+    }
+
+    private fun assertProblem(problem: WebAppPackages.Problem, block: () -> Unit) {
+        try {
+            block()
+            fail("expected $problem")
+        } catch (e: WebAppPackages.InvalidPackage) {
+            assertEquals(problem, e.problem)
+        }
+    }
 }

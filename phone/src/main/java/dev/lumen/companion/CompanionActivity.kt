@@ -116,6 +116,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
             gridKnown = GridCache.known,
             gridIcons = HashMap(GridCache.icons),
             gridError = GridCache.lastError,
+            packageTransfer = PackageShare.transfer,
             dictation = DictationUiState(
                 engine = SpeechSettings.engine(this),
                 language = SpeechSettings.language(this),
@@ -218,6 +219,26 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     }
 
     override fun importBandKey() = keyPicker.launch(arrayOf("*/*"))
+
+    /** The app a picked package updates (its grid id), or empty for a new one. */
+    private var packageTarget = ""
+
+    // Any type: a .mrbd.zip is often typed application/octet-stream; the glasses check the package.
+    private val packagePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) PackageShare.send(this, uri, packageTarget)
+    }
+
+    override fun pickPackageFile() {
+        packageTarget = ""
+        packagePicker.launch(arrayOf("*/*"))
+    }
+
+    override fun replacePackage(id: String) {
+        packageTarget = id
+        packagePicker.launch(arrayOf("*/*"))
+    }
+
+    override fun dismissPackageTransfer() = PackageShare.dismiss()
 
     override fun setPhoneSetting(key: String, value: String) {
         if (PhoneSettings.set(this, key, value)) PhoneBand.applyMapping(this)
