@@ -402,10 +402,30 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
         keys.forEach { NotificationInbox.remove(it) }
     }
 
-    /** A band command while the focus is in this page. */
+    /**
+     * A band command while the focus is in this page. The list keeps the inbox's one axis (as R08
+     * Access Bridge navigates, and as the touchpad's forward swipe arrives, as a right): right and
+     * down go to the next row, up to the previous one, and up from the first row of the first level
+     * hands the focus to the tabs; left shows a row's bin. In a notification opened in full, right
+     * and down scroll on, left and up scroll back. The tabs change from the pill, not from here: a
+     * right that left the page would take the forward swipe away from the list.
+     */
     override fun onCommand(command: String): HomeResult {
+        if (level is Level.Detail) {
+            when (command) {
+                BandCommand.RIGHT, BandCommand.DOWN, BandCommand.FORWARD -> step(1)
+                BandCommand.LEFT, BandCommand.UP, BandCommand.BACKWARD -> step(-1)
+                BandCommand.BACK -> {
+                    level = Level.App((level as Level.Detail).packageName)
+                    render()
+                }
+                BandCommand.ACTIVATE -> Unit
+                else -> return HomeResult.UNHANDLED
+            }
+            return HomeResult.HANDLED
+        }
         if (command == BandCommand.LEFT) {
-            if (level !is Level.Detail) swipeLeft()
+            swipeLeft()
             return HomeResult.HANDLED
         }
         // Anything else puts a shown bin away first; Back does only that.
@@ -414,21 +434,17 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
             if (command == BandCommand.BACK) return HomeResult.HANDLED
         }
         when (command) {
-            BandCommand.BACK -> when (val current = level) {
-                is Level.Detail -> { level = Level.App(current.packageName); render() }
+            BandCommand.BACK -> when (level) {
                 is Level.App -> { level = Level.Apps; render() }
-                Level.Apps -> return HomeResult.CLOSE
+                else -> return HomeResult.CLOSE
             }
             BandCommand.ACTIVATE -> rows.getOrNull(focus)?.activate?.invoke()
-            // The first level's right is the next tab (the toolkit's pager); deeper, it walks on.
-            BandCommand.RIGHT -> if (level == Level.Apps) return HomeResult.RIGHT_OUT else step(1)
-            BandCommand.DOWN, BandCommand.FORWARD -> step(1)
-            BandCommand.UP -> {
+            BandCommand.RIGHT, BandCommand.DOWN, BandCommand.FORWARD -> step(1)
+            BandCommand.UP, BandCommand.BACKWARD -> {
                 // Above the first row of the first level: the tabs.
                 if (level == Level.Apps && focus == 0) return HomeResult.UP_OUT
                 step(-1)
             }
-            BandCommand.BACKWARD -> step(-1)
             else -> return HomeResult.UNHANDLED
         }
         return HomeResult.HANDLED

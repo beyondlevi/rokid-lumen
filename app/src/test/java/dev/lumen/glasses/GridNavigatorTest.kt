@@ -12,13 +12,17 @@ class GridNavigatorTest {
         assertEquals(3, grid.move(0, 11, BandCommand.DOWN))
         assertEquals(10, grid.move(7, 11, BandCommand.DOWN))
         assertEquals(4, grid.move(7, 11, BandCommand.UP))
-        assertEquals(2, grid.move(2, 11, BandCommand.RIGHT))
+        // Right and left walk on across rows (the forward and back swipes).
+        assertEquals(3, grid.move(2, 11, BandCommand.RIGHT))
+        assertEquals(2, grid.move(3, 11, BandCommand.LEFT))
+        assertEquals(10, grid.move(10, 11, BandCommand.RIGHT))
     }
 
     @Test
     fun leavingTheGridIsTheHomesBusiness() {
         assertEquals(GridNavigator.OUT_UP, grid.move(1, 11, BandCommand.UP))
-        assertEquals(GridNavigator.OUT_LEFT, grid.move(6, 11, BandCommand.LEFT))
+        assertEquals(GridNavigator.OUT_LEFT, grid.move(0, 11, BandCommand.LEFT))
+        assertEquals(5, grid.move(6, 11, BandCommand.LEFT))
         assertEquals(GridNavigator.OUT_UP, grid.move(0, 0, BandCommand.UP))
         assertEquals(GridNavigator.OUT_LEFT, grid.move(0, 0, BandCommand.LEFT))
     }

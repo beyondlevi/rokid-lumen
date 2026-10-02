@@ -3,10 +3,11 @@ package dev.lumen.glasses
 /**
  * Focus movement in the apps grid: [columns] across, as many rows as it takes (it scrolls
  * vertically), kept apart from the view so it can be tested. Items fill rows left to right.
- * Up, down, left and right move in two dimensions; down to a shorter last row takes its last
- * item. Leaving the grid upward (from the first row) or leftward (from the first column) is
- * the home's business: [move] answers [OUT_UP] or [OUT_LEFT] then. Forward and backward (the
- * dial, the touchpad) walk the items in order.
+ * Up and down move between rows (down to a shorter last row takes its last item). Right and
+ * left walk the items in order, across rows, as forward and backward do: the band's and the
+ * touchpad's forward and back swipes arrive as right and left, and must reach every app.
+ * Leaving the grid upward (from the first row) or leftward (from the first app) is the home's
+ * business: [move] answers [OUT_UP] or [OUT_LEFT] then.
  */
 class GridNavigator(val columns: Int = 3) {
     fun rowOf(index: Int) = index / columns
@@ -16,12 +17,11 @@ class GridNavigator(val columns: Int = 3) {
     fun move(index: Int, count: Int, command: String): Int {
         if (count <= 0) return if (command == BandCommand.UP) OUT_UP else if (command == BandCommand.LEFT) OUT_LEFT else 0
         val current = index.coerceIn(0, count - 1)
-        val column = current % columns
         return when (command) {
             BandCommand.FORWARD -> (current + 1).coerceAtMost(count - 1)
             BandCommand.BACKWARD -> (current - 1).coerceAtLeast(0)
-            BandCommand.RIGHT -> if (column < columns - 1 && current + 1 < count) current + 1 else current
-            BandCommand.LEFT -> if (column > 0) current - 1 else OUT_LEFT
+            BandCommand.RIGHT -> (current + 1).coerceAtMost(count - 1)
+            BandCommand.LEFT -> if (current > 0) current - 1 else OUT_LEFT
             BandCommand.DOWN -> when {
                 current + columns < count -> current + columns
                 // The row below is shorter: its last item.
@@ -36,7 +36,7 @@ class GridNavigator(val columns: Int = 3) {
     companion object {
         /** Up from the first row: the focus goes to the home's tabs. */
         const val OUT_UP = -1
-        /** Left from the first column: the previous tab. */
+        /** Left from the first app: the previous tab. */
         const val OUT_LEFT = -2
     }
 }
