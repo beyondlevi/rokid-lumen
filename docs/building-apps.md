@@ -73,6 +73,8 @@ added only when the page doesn't have it already, and only where the host bridge
 | --- | --- |
 | `window.lumen.config.get()` | Resolves to `{key: value}`: the app's settings, set from the phone. A key that isn't set is missing. |
 | `window.lumen.config.onChange(cb)` | Calls `cb(values)` whenever the phone changes a setting while the app is open. Returns a function that removes `cb`. |
+| `navigator.mediaDevices.getUserMedia({audio: true})` | A `MediaStream` from the glasses' microphone, live; `MediaRecorder` and Web Audio work on it as in any browser (see [Audio](#audio)). A video request fails with `NotFoundError`. |
+| `SpeechRecognition`, `webkitSpeechRecognition` | The Web Speech API's recognition, on the glasses' dictation (see [Audio](#audio)). |
 | `window.lumen.audio.record(options)` | Records the glasses' microphone (see [Audio](#audio)). |
 | `window.lumen.audio.transcribe(blob, options)` | Transcribes an audio with the dictation engine chosen in the companion (see [Audio](#audio)). |
 | `navigator.install(url, {name})` | Asks the glasses to add the online app at `url` (default: the current page). The wearer confirms on the glasses. |
@@ -90,11 +92,30 @@ window.lumen?.config.onChange((values) => reconnect(values['server.url']));
 
 ### Audio
 
-The Rokid glasses silence a page's microphone (`getUserMedia` gets nothing), so Lumen records
-on the phone: the companion takes the glasses' microphone over Rokid's link, as the dictation
-does, and hands the page an Ogg Opus voice note (mono, 16 kHz). It also transcribes an audio
+The Rokid firmware silences a third-party app's microphone on the glasses, so Lumen records on
+the phone: the companion takes the glasses' microphone over Rokid's link, as the dictation
+does. Pages reach it in two ways.
+
+**The standard APIs**, so code written for a browser runs here unchanged:
+
+- `navigator.mediaDevices.getUserMedia({audio: true})` resolves to a `MediaStream` fed live
+  (16 kHz PCM from the phone in 100 ms pieces, a few hundred ms behind). `MediaRecorder`
+  (`audio/ogg` on GeckoView, `audio/webm` on the system WebView), `AudioContext` sources and
+  analysers work on it; stopping the track gives the microphone back. No camera:
+  `{video: true}` fails with `NotFoundError`. `enumerateDevices()` lists one `audioinput`.
+- `SpeechRecognition` (and `webkitSpeechRecognition`): `start()`, `stop()`, `abort()`,
+  `continuous`, `interimResults`, and the `start`, `result`, `error` and `end` events, served
+  by the dictation engine chosen in the companion (its language, not `lang`).
+
+The same code on Meta Ray-Ban Display: as of 2026-10 its browser gives web apps no microphone
+(`getUserMedia` reportedly throws `NotFoundError` there), so an app that handles that error
+(hides its voice button, say) runs on both.
+
+**`window.lumen.audio`**, Lumen's own, for what the standards don't cover (transcribing an
+audio the page already has) or a ready-made voice note: it hands the page an Ogg Opus voice
+note (mono, 16 kHz). It also transcribes an audio
 the page passes, with the dictation engine chosen in the companion (Vosk, Android or a cloud
-engine), at the audio's own pace. One recording or transcription at a time, never during a
+engine), at the audio's own pace. One recording, live stream, recognition or transcription at a time, never during a
 dictation. Files cross Rokid's link in acknowledged pieces, which takes a few seconds.
 
 ```js

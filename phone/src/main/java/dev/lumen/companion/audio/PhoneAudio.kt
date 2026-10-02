@@ -46,8 +46,11 @@ class PhoneAudio(private val context: Context, private val host: Host) {
     private val main = Handler(Looper.getMainLooper())
     private val work = Executors.newSingleThreadExecutor { r -> Thread(r, "nb-audio").apply { isDaemon = true } }
 
-    private inner class Recording(val id: String, val maxMs: Long) {
+    /** [live]: the page's getUserMedia, sent as it comes ([AudioOps.PCM]), no file at the end. */
+    private inner class Recording(val id: String, val maxMs: Long, val live: Boolean) {
         val pcm = ByteArrayOutputStream()
+        var liveMs = 0L
+        var liveSeq = 0
         var started = false
         var stopped = false
         var lastLevelAt = 0L
@@ -75,7 +78,7 @@ class PhoneAudio(private val context: Context, private val host: Host) {
         val id = json.optString("id")
         if (id.isEmpty()) return
         when (json.optString("op")) {
-            AudioOps.RECORD -> record(id, json.optLong("maxMs", AudioOps.MAX_RECORD_MS))
+            AudioOps.RECORD -> record(id, json.optLong("maxMs", AudioOps.MAX_RECORD_MS), json.optBoolean("live"))
             AudioOps.STOP -> stop(id, reason = "stop")
             AudioOps.CANCEL -> cancel(id)
             AudioOps.TRANSCRIBE -> beginTranscription(id, json)
@@ -86,10 +89,10 @@ class PhoneAudio(private val context: Context, private val host: Host) {
 
     // ---- Recording ----
 
-    private fun record(id: String, maxMs: Long) {
+    private fun record(id: String, maxMs: Long, live: Boolean) {
         if (recording?.id == id) return host.sendAudio(AudioOps.event(AudioOps.STARTED, id)).let { }
         if (busy() || host.dictating()) return error(id, AudioError.BUSY)
-        val rec = Recording(id, maxMs.coerceIn(1_000, AudioOps.MAX_RECORD_MS))
+        val rec = Recording(id, maxMs.coerceIn(1_000, if (live) AudioOps.MAX_LIVE_MS else AudioOps.MAX_RECORD_MS), live)
         recording = rec
         Log.d(TAG, "record $id up to ${rec.maxMs} ms")
         host.startMicrophone(onPcm = { pcm -> onPcm(rec, pcm) }) { ok ->
@@ -109,6 +112,7 @@ class PhoneAudio(private val context: Context, private val host: Host) {
     private fun onPcm(rec: Recording, pcm: ByteArray) {
         synchronized(rec) {
             if (rec.stopped) return
+            if (rec.live) return onLivePcm(rec, pcm)
             rec.pcm.write(pcm)
             rec.peak = maxOf(rec.peak, Protocol.level(pcm))
             val ms = rec.pcm.size() / 2L * 1000 / AudioCodec.RATE
@@ -123,8 +127,29 @@ class PhoneAudio(private val context: Context, private val host: Host) {
         }
     }
 
+    /** A live recording: the PCM goes out in [AudioOps.LIVE_CHUNK_MS] pieces. Holds [rec]'s lock. */
+    private fun onLivePcm(rec: Recording, pcm: ByteArray) {
+        rec.pcm.write(pcm)
+        val piece = (AudioCodec.RATE * 2 * AudioOps.LIVE_CHUNK_MS / 1000).toInt()
+        if (rec.pcm.size() < piece) return
+        val bytes = rec.pcm.toByteArray()
+        rec.pcm.reset()
+        rec.liveMs += bytes.size / 2L * 1000 / AudioCodec.RATE
+        val seq = rec.liveSeq++
+        main.post { if (recording === rec) host.sendAudio(AudioOps.event(AudioOps.PCM, rec.id).put("seq", seq), bytes) }
+        if (rec.liveMs >= rec.maxMs) main.post { stop(rec.id, reason = "max") }
+    }
+
     private fun stop(id: String, reason: String) {
         val rec = recording?.takeIf { it.id == id } ?: return
+        if (rec.live) {
+            synchronized(rec) { rec.stopped = true }
+            recording = null
+            host.stopMicrophone()
+            Log.d(TAG, "live $id stopped ($reason) after ${rec.liveMs} ms")
+            host.sendAudio(AudioOps.event(AudioOps.ENDED, id).put("reason", reason))
+            return
+        }
         val pcm = synchronized(rec) {
             if (rec.stopped) return
             rec.stopped = true

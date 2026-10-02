@@ -242,11 +242,16 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
             Log.w(TAG, "Audio refused to " + originOf(pageUrl) + " (the app is " + origin + ")");
             return;
         }
-        GlassesAudio.request(this, message, event -> {
+        GlassesAudio.Page page = event -> {
             if (engine != null) {
                 engine.audioEvent(event, origin);
             }
-        });
+        };
+        if (WebRecognition.handles(message)) {
+            WebRecognition.request(this, this, message, page);
+        } else {
+            GlassesAudio.request(this, message, page);
+        }
     }
 
     /** The app to open, by id; nothing is added here (see InstallConfirmActivity). */
@@ -281,6 +286,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     @Override
     protected void onDestroy() {
         GlassesAudio.closeAll(this);
+        WebRecognition.closeAll(this);
         WebAppConfig.removeListener(configListener);
         if (internet != null) {
             PhoneInternet.release(internet);

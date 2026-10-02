@@ -189,6 +189,174 @@
         });
       }
     };
+
+    // The standard APIs on the same path, so code written for a browser's microphone runs here
+    // unchanged. getUserMedia({audio}) resolves to a real MediaStream fed live from the glasses'
+    // microphone (16 kHz PCM from the phone, scheduled into a MediaStreamAudioDestinationNode),
+    // so MediaRecorder, Web Audio and the like work on it as in any browser; stopping the track
+    // gives the microphone back. No camera: a video request fails with NotFoundError.
+    function domError(name, message) {
+      try { return new DOMException(message || name, name); } catch (e) { var error = new Error(message || name); error.name = name; return error; }
+    }
+    var GUM_ERRORS = { 'busy': 'NotReadableError', 'unavailable': 'NotReadableError', 'no-phone': 'NotFoundError', 'timeout': 'NotReadableError', 'cancelled': 'AbortError' };
+    function liveStream() {
+      var id = 'l' + audioId++;
+      return new Promise(function (resolve, reject) {
+        var Context = window.AudioContext || window.webkitAudioContext;
+        if (!Context) return reject(domError('NotSupportedError', 'no Web Audio'));
+        var context = null;
+        var destination = null;
+        var next = 0;
+        var track = null;
+        var done = false;
+        function finish() {
+          if (done) return;
+          done = true;
+          delete audioJobs[id];
+          if (track && track.readyState !== 'ended') {
+            track.__lumenStop();
+          }
+          if (context) context.close().catch(function () {});
+        }
+        audioJobs[id] = {
+          handle: function (event) {
+            if (event.type === 'started') {
+              if (context) return;
+              context = new Context();
+              destination = context.createMediaStreamDestination();
+              if (context.resume) context.resume().catch(function () {});
+              var stream = destination.stream;
+              track = stream.getAudioTracks()[0];
+              var stopTrack = track.stop.bind(track);
+              track.__lumenStop = stopTrack;
+              track.stop = function () {
+                if (!done) audioSend({ op: 'stop', id: id });
+                finish();
+                stopTrack();
+              };
+              try { Object.defineProperty(track, 'label', { value: 'Glasses microphone' }); } catch (e) {}
+              resolve(stream);
+            } else if (event.type === 'pcm' && context && !done) {
+              var raw = atob(event.data);
+              var count = raw.length >> 1;
+              var buffer = context.createBuffer(1, count, 16000);
+              var channel = buffer.getChannelData(0);
+              for (var i = 0; i < count; i++) {
+                var v = raw.charCodeAt(2 * i) | (raw.charCodeAt(2 * i + 1) << 8);
+                channel[i] = (v >= 32768 ? v - 65536 : v) / 32768;
+              }
+              var source = context.createBufferSource();
+              source.buffer = buffer;
+              source.connect(destination);
+              // A little ahead of now, back to back; after a gap (a lost piece) it starts again.
+              next = Math.max(next, context.currentTime + 0.05);
+              source.start(next);
+              next += buffer.duration;
+            } else if (event.type === 'ended') {
+              finish();
+            } else if (event.type === 'error') {
+              if (!context) {
+                delete audioJobs[id];
+                reject(domError(GUM_ERRORS[event.code] || 'NotReadableError', event.message || event.code));
+              } else {
+                finish();
+              }
+            }
+          }
+        };
+        audioSend({ op: 'record', id: id, live: true, maxMs: 30 * 60000 });
+      });
+    }
+    var mediaDevices = navigator.mediaDevices;
+    if (!mediaDevices) {
+      try { Object.defineProperty(navigator, 'mediaDevices', { value: {}, configurable: true }); } catch (e) {}
+      mediaDevices = navigator.mediaDevices;
+    }
+    if (mediaDevices) {
+      mediaDevices.getUserMedia = function (constraints) {
+        if (!constraints || (!constraints.audio && !constraints.video)) return Promise.reject(new TypeError('audio or video required'));
+        if (constraints.video) return Promise.reject(domError('NotFoundError', 'the glasses have no camera for web apps'));
+        return liveStream();
+      };
+      mediaDevices.enumerateDevices = function () {
+        return Promise.resolve([{ kind: 'audioinput', deviceId: 'glasses', groupId: 'glasses', label: 'Glasses microphone', toJSON: function () { return this; } }]);
+      };
+    }
+
+    // The Web Speech API's recognition, on the glasses' dictation (the engine chosen in the
+    // companion). lang is the engine's; one alternative; results as in Chrome.
+    var Recognition = function () {
+      this.lang = '';
+      this.continuous = false;
+      this.interimResults = false;
+      this.maxAlternatives = 1;
+      this.onstart = this.onaudiostart = this.onspeechstart = this.onresult = this.onnomatch =
+        this.onerror = this.onspeechend = this.onaudioend = this.onend = null;
+      this._listeners = {};
+      this._id = null;
+    };
+    Recognition.prototype.addEventListener = function (type, fn) { (this._listeners[type] = this._listeners[type] || []).push(fn); };
+    Recognition.prototype.removeEventListener = function (type, fn) {
+      var list = this._listeners[type] || [];
+      var i = list.indexOf(fn);
+      if (i >= 0) list.splice(i, 1);
+    };
+    Recognition.prototype.dispatchEvent = function (event) {
+      var handler = this['on' + event.type];
+      if (typeof handler === 'function') handler.call(this, event);
+      (this._listeners[event.type] || []).slice().forEach(function (fn) { fn.call(this, event); }, this);
+      return true;
+    };
+    Recognition.prototype._fire = function (type, extra) {
+      var event = { type: type, target: this, currentTarget: this, timeStamp: Date.now() };
+      if (extra) for (var k in extra) event[k] = extra[k];
+      this.dispatchEvent(event);
+    };
+    function resultList(items) {
+      var list = items.map(function (item) {
+        var alternative = { transcript: item.text, confidence: item.final ? 0.9 : 0 };
+        var result = [alternative];
+        result.isFinal = item.final;
+        result.item = function (i) { return result[i]; };
+        return result;
+      });
+      list.item = function (i) { return list[i]; };
+      return list;
+    }
+    Recognition.prototype.start = function () {
+      if (this._id) throw domError('InvalidStateError', 'recognition has already started');
+      var self = this;
+      var id = 's' + audioId++;
+      var finals = [];
+      this._id = id;
+      audioJobs[id] = {
+        handle: function (event) {
+          if (event.type === 'start') {
+            self._fire('start');
+            self._fire('audiostart');
+          } else if (event.type === 'result') {
+            var items = finals.slice();
+            var index = finals.length;
+            if (event.final) finals.push({ text: event.text, final: true });
+            items.push({ text: event.text, final: !!event.final });
+            if (!self.continuous && event.final) items = [items[items.length - 1]], index = 0;
+            self._fire('result', { results: resultList(items), resultIndex: index });
+          } else if (event.type === 'error') {
+            self._fire('error', { error: event.error || 'network', message: event.message || '' });
+          } else if (event.type === 'end') {
+            delete audioJobs[id];
+            self._id = null;
+            self._fire('audioend');
+            self._fire('end');
+          }
+        }
+      };
+      audioSend({ op: 'recognize', id: id, continuous: !!this.continuous, interimResults: !!this.interimResults, lang: this.lang || '' });
+    };
+    Recognition.prototype.stop = function () { if (this._id) audioSend({ op: 'recognizeStop', id: this._id }); };
+    Recognition.prototype.abort = function () { if (this._id) audioSend({ op: 'recognizeAbort', id: this._id }); };
+    window.SpeechRecognition = Recognition;
+    window.webkitSpeechRecognition = Recognition;
   }
 
   // Web Speech synthesis through Android's TextToSpeech (WebView has no speechSynthesis).

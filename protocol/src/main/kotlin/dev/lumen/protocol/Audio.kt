@@ -8,13 +8,14 @@ import java.security.MessageDigest
  * microphone, so the phone records the glasses' mic over CXR-L and hands the recording back,
  * and transcribes an audio the page passes with the dictation engine chosen in the companion.
  *
- *   glasses → phone  [Link.AUDIO]        {op: record, id, maxMs} | {op: stop, id} | {op: cancel, id}
+ *   glasses → phone  [Link.AUDIO]        {op: record, id, maxMs, live} | {op: stop, id} | {op: cancel, id}
  *                                        {op: transcribe, id, size, sha256, chunks, mime, language}
  *                                        {op: chunk, id, seq} + bytes (a file going to the phone)
  *                                        {op: ack, id, seq} (a chunk of the phone's file arrived)
  *   phone → glasses  [Link.AUDIO_EVENT]  {type: started, id} | {type: level, id, level, ms}
  *                                        {type: file, id, size, sha256, chunks, mime, durationMs, reason}
  *                                        {type: chunk, id, seq} + bytes | {type: ack, id, seq}
+ *                                        {type: pcm, id, seq} + bytes | {type: ended, id} (a live recording)
  *                                        {type: partial, id, text} | {type: transcript, id, text}
  *                                        {type: error, id, code, message}
  *
@@ -22,6 +23,10 @@ import java.security.MessageDigest
  * in flight at a time ([ChunkSender]), each acknowledged, missing ones sent again; the receiver
  * ([ChunkReceiver]) checks the size and SHA-256 at the end. Bytes ride in the Caps after the
  * JSON. Error codes are the page's ([AudioError]).
+ *
+ * A live recording (`live: true`, for the page's `getUserMedia`) sends no file: the PCM itself
+ * (16 kHz mono PCM16) in [LIVE_CHUNK_MS] pieces as it comes, unacknowledged (a lost piece is a
+ * gap), then `ended`.
  */
 object AudioOps {
     const val RECORD = "record"
@@ -37,6 +42,12 @@ object AudioOps {
     const val PARTIAL = "partial"
     const val TRANSCRIPT = "transcript"
     const val ERROR = "error"
+    const val PCM = "pcm"
+    const val ENDED = "ended"
+
+    /** A live recording's pieces, and its longest run. */
+    const val LIVE_CHUNK_MS = 100L
+    const val MAX_LIVE_MS = 30 * 60_000L
 
     /** The longest recording, and the default. */
     const val MAX_RECORD_MS = 120_000L

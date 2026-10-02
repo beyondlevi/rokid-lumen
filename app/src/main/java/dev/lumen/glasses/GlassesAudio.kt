@@ -18,9 +18,11 @@ import java.security.SecureRandom
  * (the recording as base64, the text as it grows). The link loses messages, so requests are
  * repeated until the phone answers, and files cross in acknowledged chunks. Main thread.
  *
- * Page → host `{op: record, id, maxMs} | {op: stop, id} | {op: cancel, id}
+ * Page → host `{op: record, id, maxMs, live} | {op: stop, id} | {op: cancel, id}
  *              | {op: transcribe, id, data (base64), mime, language}`;
- * host → page `{type: started|level|result|partial|transcript|error, id, …}` ([Page.event]).
+ * host → page `{type: started|level|result|pcm|ended|partial|transcript|error, id, …}` ([Page.event]).
+ * A live recording (the page's getUserMedia) gets `pcm` events (base64 16 kHz mono PCM16) as
+ * the phone sends them, then `ended`.
  */
 object GlassesAudio {
     private const val TAG = "BandAudio"
@@ -37,7 +39,7 @@ object GlassesAudio {
 
     private enum class Kind { RECORD, TRANSCRIBE }
 
-    private class Job(val kind: Kind, val pageId: String, val linkId: String, val page: Page, val owner: Any) {
+    private class Job(val kind: Kind, val pageId: String, val linkId: String, val page: Page, val owner: Any, val live: Boolean = false) {
         /** The request to repeat until the phone answers, and how often it went. */
         var ask: JSONObject? = null
         var asked = 0
@@ -62,12 +64,16 @@ object GlassesAudio {
         if (pageId.isEmpty()) return
         val job = jobs.values.firstOrNull { it.owner === owner && it.pageId == pageId }
         when (message.optString("op")) {
-            AudioOps.RECORD -> record(owner, pageId, message.optLong("maxMs", AudioOps.MAX_RECORD_MS), page)
+            AudioOps.RECORD -> record(owner, pageId, message.optLong("maxMs", AudioOps.MAX_RECORD_MS), message.optBoolean("live"), page)
             AudioOps.STOP -> job?.takeIf { it.kind == Kind.RECORD && !it.stopped }?.let { stop(it) }
             AudioOps.CANCEL -> job?.let { cancel(it) }
             AudioOps.TRANSCRIBE -> transcribe(owner, pageId, message, page)
         }
     }
+
+    /** A recording or transcription is under way (the microphone and the engine are taken). */
+    @JvmStatic
+    fun busy() = jobs.isNotEmpty()
 
     /** The screen closed: its recordings and transcriptions end, on the phone too. */
     @JvmStatic
@@ -77,14 +83,15 @@ object GlassesAudio {
 
     private fun newId() = ByteArray(8).also(random::nextBytes).joinToString("") { "%02x".format(it) }
 
-    private fun record(owner: Any, pageId: String, maxMs: Long, page: Page) {
+    private fun record(owner: Any, pageId: String, maxMs: Long, live: Boolean, page: Page) {
         if (jobs.values.any { it.owner === owner && it.pageId == pageId }) return
         if (PhoneLink.ensure() == null) return page.event(error(pageId, AudioError.NO_PHONE))
         if (Dictation.isListening() || jobs.isNotEmpty()) return page.event(error(pageId, AudioError.BUSY))
-        val job = Job(Kind.RECORD, pageId, newId(), page, owner)
+        val job = Job(Kind.RECORD, pageId, newId(), page, owner, live)
         jobs[job.linkId] = job
-        Log.d(TAG, "record ${job.linkId} for page id $pageId")
-        ask(job, AudioOps.message(AudioOps.RECORD, job.linkId).put("maxMs", maxMs.coerceIn(1_000, AudioOps.MAX_RECORD_MS)))
+        Log.d(TAG, "record ${job.linkId} for page id $pageId${if (live) " (live)" else ""}")
+        val limit = if (live) AudioOps.MAX_LIVE_MS else AudioOps.MAX_RECORD_MS
+        ask(job, AudioOps.message(AudioOps.RECORD, job.linkId).put("maxMs", maxMs.coerceIn(1_000, limit)).put("live", live))
     }
 
     private fun stop(job: Job) {
@@ -192,6 +199,15 @@ object GlassesAudio {
                 job.acks++
                 sender.ack(json.optInt("seq", -1))
                 if (sender.done) main.removeCallbacksAndMessages(job) else pump(job)
+            }
+            AudioOps.PCM -> if (job.live && bytes != null) {
+                answered(job)
+                job.page.event(event("pcm", job.pageId).put("seq", json.optInt("seq")).put("data", Base64.encodeToString(bytes, Base64.NO_WRAP)))
+            }
+            AudioOps.ENDED -> {
+                jobs.remove(job.linkId)
+                main.removeCallbacksAndMessages(job)
+                job.page.event(event("ended", job.pageId).put("reason", json.optString("reason")))
             }
             AudioOps.PARTIAL -> job.page.event(event("partial", job.pageId).put("text", json.optString("text")))
             AudioOps.TRANSCRIPT -> {

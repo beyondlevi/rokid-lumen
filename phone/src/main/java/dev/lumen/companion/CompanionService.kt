@@ -76,7 +76,7 @@ class CompanionService : Service() {
             val cxr = link ?: return false
             val caps = Protocol.encode(json).apply { if (bytes != null) write(bytes) }
             val result = runCatching { cxr.sendCustomCmd(Link.AUDIO_EVENT, caps) }
-            if (json.optString("type") != AudioOps.LEVEL && json.optString("type") != AudioOps.CHUNK) {
+            if (json.optString("type") !in setOf(AudioOps.LEVEL, AudioOps.CHUNK, AudioOps.PCM)) {
                 Log.d(TAG, "→ glasses audio ${json.optString("type")} = ${result.getOrNull() ?: result.exceptionOrNull()?.message}")
             }
             return result.getOrNull() == 0
