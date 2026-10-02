@@ -83,6 +83,12 @@ exist:
   `middle_tap`, `middle_double`, `dial_up`, `dial_down`, `middle_hold`. It resolves the same
   mapping string, but not the bridge's timing (a single tap waiting out its double).
 
+  With the real band still connected, a debug build also takes the resolved action itself,
+  routed exactly as the band's (`--es command nav.down`; also `nav.up`, `nav.left`,
+  `nav.right`, `nav.activate`, `nav.back`...), and a notification as if the phone sent it
+  (`--es notify_title "Title" --es notify_text "Line one\nLine two"`). The home logs each
+  command and what the page did with it (`adb logcat -s BandLauncher BandNotifPage`).
+
 An official API, if Meta publishes one, would be a third implementation of the same interface.
 
 ## The home

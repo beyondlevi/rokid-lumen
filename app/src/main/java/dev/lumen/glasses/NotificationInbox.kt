@@ -61,6 +61,10 @@ object NotificationInbox {
 
     @JvmStatic
     fun markSeen() {
+        // Only a change is news: the inbox's own tab calls this from onInboxChanged, and an
+        // unconditional changed() re-rendered it every ~100 ms, putting the focus back on its
+        // first row after each band move (measured on the glasses).
+        if (unreadKeys.isEmpty()) return
         unreadKeys.clear()
         changed()
     }

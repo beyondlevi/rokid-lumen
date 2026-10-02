@@ -253,6 +253,7 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
     }
 
     override fun onBandCommand(command: String): Boolean {
+        Log.d(TAG, "band $command tab=$tab onPill=$onPill")
         if (onPill) {
             when (command) {
                 BandCommand.LEFT, BandCommand.BACKWARD -> switchTo(tab - 1, intoPage = false)
@@ -264,7 +265,9 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
             }
             return true
         }
-        return when (pages[tab].onCommand(command)) {
+        val result = pages[tab].onCommand(command)
+        Log.d(TAG, "band $command → ${pages[tab].javaClass.simpleName} $result")
+        return when (result) {
             HomeResult.HANDLED -> true
             HomeResult.UP_OUT -> { setPillFocus(true); true }
             HomeResult.LEFT_OUT -> { if (tab > 0) switchTo(tab - 1, intoPage = true); true }

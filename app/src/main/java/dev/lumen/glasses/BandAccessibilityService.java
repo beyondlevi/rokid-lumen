@@ -33,6 +33,14 @@ import android.widget.Toast;
 public final class BandAccessibilityService extends AccessibilityService {
     public static final String ACTION_SIMULATE = BridgeProtocol.APP_PACKAGE + ".SIMULATE";
     public static final String EXTRA_GESTURE = "gesture";
+    /**
+     * Debug builds: an action name as the bridge hands it back (`nav.down`, `nav.activate`...),
+     * routed as the band's own, while the real band stays connected.
+     */
+    public static final String EXTRA_COMMAND = "command";
+    /** Debug builds: a notification put in the inbox as if the phone sent it (title, then text). */
+    public static final String EXTRA_NOTIFY_TITLE = "notify_title";
+    public static final String EXTRA_NOTIFY_TEXT = "notify_text";
 
     private static final String TAG = "BandService";
     private static final long DIRECTION_DEBOUNCE_MS = 55L;
@@ -94,6 +102,21 @@ public final class BandAccessibilityService extends AccessibilityService {
     private final BroadcastReceiver simulateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            String notifyTitle = intent.getStringExtra(EXTRA_NOTIFY_TITLE);
+            if (notifyTitle != null) {
+                String text = intent.getStringExtra(EXTRA_NOTIFY_TEXT);
+                PhoneNotification notification = new PhoneNotification("debug|" + notifyTitle, "Lumen debug",
+                        getPackageName(), notifyTitle, text == null ? "" : text.replace("\\n", "\n"),
+                        System.currentTimeMillis(), false, null, false);
+                mainHandler.post(() -> NotificationInbox.put(notification, true));
+                return;
+            }
+            String command = intent.getStringExtra(EXTRA_COMMAND);
+            if (command != null) {
+                Log.d(TAG, "Simulated band command=" + command);
+                mainHandler.post(() -> onBandAction(command));
+                return;
+            }
             String gesture = intent.getStringExtra(EXTRA_GESTURE);
             if (gesture == null || !BandRuntime.simulate(gesture)) {
                 Log.d(TAG, "Simulated gesture ignored (simulator off?) gesture=" + gesture);

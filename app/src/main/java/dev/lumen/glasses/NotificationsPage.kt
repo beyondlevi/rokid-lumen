@@ -6,6 +6,7 @@ import android.graphics.PorterDuff
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
 import android.view.Gravity
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -43,6 +44,8 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
     private val chip: TextView
     private val toast: TextView
     private var level: Level = Level.Apps
+    /** The level [render] last drew, to tell a redraw of the same level from a move. */
+    private var renderedLevel: Level? = null
     private var rows: List<Row> = emptyList()
     private var focus = 0
     /** Where the focus was on the first level, for the way back. */
@@ -158,6 +161,12 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
         // A level whose content is gone falls back to the one above.
         (level as? Level.Detail)?.let { if (NotificationInbox.find(it.key) == null) level = Level.App(it.packageName) }
         (level as? Level.App)?.let { app -> if (groups.none { it.packageName == app.packageName }) level = Level.Apps }
+        // The same level again (the inbox changed under it): the focus stays on its row and an
+        // open notification where it was scrolled to.
+        val again = level == renderedLevel
+        val focusedKeys = if (again) rows.getOrNull(focus)?.keys.orEmpty() else emptyList()
+        val wasFocus = focus
+        renderedLevel = level
         list.removeAllViews()
         revealed = -1
         // The tab's pill names the first level; deeper ones get their own chip under it.
@@ -180,7 +189,7 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
                     }
                 } + snoozeRow()
                 if (items.isEmpty()) list.addView(empty(), 0)
-                focus = appsFocus.coerceIn(0, rows.lastIndex)
+                focus = if (again) keptFocus(focusedKeys, wasFocus) else appsFocus.coerceIn(0, rows.lastIndex)
             }
             is Level.App -> {
                 val group = groups.first { it.packageName == current.packageName }
@@ -193,19 +202,25 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
                         render()
                     }
                 }
-                focus = appFocus.coerceIn(0, rows.lastIndex)
+                focus = if (again) keptFocus(focusedKeys, wasFocus) else appFocus.coerceIn(0, rows.lastIndex)
             }
             is Level.Detail -> {
                 val item = NotificationInbox.find(current.key)!!
                 chip.text = item.appName.ifEmpty { activity.getString(R.string.notification_title) }
                 rows = emptyList()
                 list.addView(detail(item))
-                scroll.scrollTo(0, 0)
+                if (!again) scroll.scrollTo(0, 0)
                 return
             }
         }
         rows.forEach { list.addView(it.frame) }
         applyFocus(animate = false)
+    }
+
+    /** The row holding any of [keys] (its group may have gained one), else [index] kept in range. */
+    private fun keptFocus(keys: List<String>, index: Int): Int {
+        val found = if (keys.isEmpty()) -1 else rows.indexOfFirst { row -> row.keys.any { it in keys } }
+        return if (found >= 0) found else index.coerceIn(0, maxOf(0, rows.lastIndex))
     }
 
     /** The newest [lines] of what it says (its last messages), oldest first. */
@@ -411,6 +426,7 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
      * right that left the page would take the forward swipe away from the list.
      */
     override fun onCommand(command: String): HomeResult {
+        Log.d(TAG, "command=$command level=$level focus=$focus rows=${rows.size} revealed=$revealed active=$active")
         if (level is Level.Detail) {
             when (command) {
                 BandCommand.RIGHT, BandCommand.DOWN, BandCommand.FORWARD -> step(1)
@@ -465,6 +481,7 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
     private fun px(value: Float) = MetaStyle.px(activity, value)
 
     companion object {
+        private const val TAG = "BandNotifPage"
         /** Below the home's tabs (20 + 44), with room. */
         private const val TOP_PAD = 92f
         /** Below the tabs and a level's chip. */

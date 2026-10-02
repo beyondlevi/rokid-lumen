@@ -62,6 +62,8 @@ In the pull request, say what you tested on real glasses and phone, and what you
   then drops its accessibility service and the band. `adb install -r` is safe.
 - Debug builds can run without a band: **Settings > Band > Simulated band**, then
   `adb shell am broadcast -a dev.lumen.glasses.SIMULATE --es gesture swipe_right`.
+  With a real band connected: `--es command nav.down` (the action as the band's bridge hands
+  it back) and `--es notify_title … --es notify_text …` (a test notification).
 - Logs:
 
   ```sh
