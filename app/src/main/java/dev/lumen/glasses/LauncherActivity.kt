@@ -27,7 +27,9 @@ import java.util.concurrent.Executors
  * Focus: on the pill, left and right change the tab and down (or the index tap) goes into the
  * page; in a page, up from its top and left (or right) from its edge come back out, as the
  * toolkit's focus handoff does. While the pill has the focus, the toolkit's scrim darkens the
- * page from the top. The middle tap goes back a level, then to the Rokid launcher.
+ * page from the top. The middle tap goes back a level, then closes the home back to the Rokid
+ * launcher; when Lumen is the glasses' home app ([HomeRole]) there is nothing below it, so the
+ * home stays.
  *
  * Packages pushed to [WebAppPackages.dropFolder] are installed when the home opens; one from an
  * HTTPS URL goes through [InstallConfirmActivity].
@@ -256,7 +258,7 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
                 BandCommand.LEFT, BandCommand.BACKWARD -> switchTo(tab - 1, intoPage = false)
                 BandCommand.RIGHT, BandCommand.FORWARD -> switchTo(tab + 1, intoPage = false)
                 BandCommand.DOWN, BandCommand.ACTIVATE -> setPillFocus(false)
-                BandCommand.BACK -> finish()
+                BandCommand.BACK -> close()
                 BandCommand.UP -> Unit
                 else -> return false
             }
@@ -267,7 +269,7 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
             HomeResult.UP_OUT -> { setPillFocus(true); true }
             HomeResult.LEFT_OUT -> { if (tab > 0) switchTo(tab - 1, intoPage = true); true }
             HomeResult.RIGHT_OUT -> { if (tab < pages.lastIndex) switchTo(tab + 1, intoPage = true); true }
-            HomeResult.CLOSE -> { finish(); true }
+            HomeResult.CLOSE -> { close(); true }
             HomeResult.UNHANDLED -> false
         }
     }
@@ -285,6 +287,11 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         }
         if (event.action == KeyEvent.ACTION_UP) onBandCommand(command)
         return true
+    }
+
+    /** Back from the top level: back to the Rokid launcher, unless Lumen is the home app. */
+    private fun close() {
+        if (HomeRole.isDefault(this)) setPillFocus(true) else finish()
     }
 
     private fun open(entry: AppsPage.Entry) {

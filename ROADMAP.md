@@ -15,11 +15,21 @@ Browse and install Lumen apps from the companion, instead of typing a package's 
 - Installing from the catalog keeps today's rules: same manifest `id` updates the app and keeps
   its data and settings.
 
-## Lumen as the default HOME
+## A System tab in the home
 
-Today the apps grid opens on top of the Rokid launcher, from its icon or a mapped gesture. The
-plan is for Lumen to be able to be the glasses' home screen itself, with the Rokid launcher one
-item away.
+Lumen can be the glasses' home screen now (docs/features.md, *Lumen as the home screen*), but
+the Rokid launcher's own screens are then out of reach. A third tab next to **Notifications**
+and **Apps**, in the same look, will open them:
+
+- Brightness: `com.rokid.os.sprite.launcher/.page.brightness.SettingBrightnessActivity`
+  (opened on the glasses with Lumen as the home).
+- Translation: `.page.translate.TranslatePageActivity`, navigation:
+  `.page.navigation.NavigationOverseaPageActivity`, teleprompter:
+  `.page.wordtips.WordTipsPageActivity` (names from EKHome, a launcher that opens them; to
+  check on the glasses).
+- Volume, Wi-Fi and Bluetooth, which the Rokid launcher reaches from its own pages.
+- Closing one already comes back to Lumen (the accessibility service), so the tab only has to
+  open them.
 
 ## Phone notifications for web apps
 

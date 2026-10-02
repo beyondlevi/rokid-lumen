@@ -54,7 +54,8 @@ Rokid Lumen is not affiliated with Meta or Rokid. "Rokid" names the glasses it r
   action or an app.
 - **Home with two tabs.** Notifications (the phone's notification inbox) and Apps: the web
   apps and any native apps you add, three across in rows that scroll, the glasses' settings
-  last, the focused app's icon bigger. You arrange the apps from the phone.
+  last, the focused app's icon bigger. You arrange the apps from the phone. It can replace the
+  Rokid launcher as the glasses' home screen.
 - **Web apps.** Offline `.mrbd.zip` packages, served from a loopback server, and online HTTPS
   apps. Each app has its own origin and, on GeckoView, its own cookies and storage. Apps can
   declare settings (a server URL, an API key) that you fill in from the phone.
@@ -88,8 +89,10 @@ self-arm.
 
 ## Recommended use
 
-- **Make Lumen your main screen.** Open the grid from Rokid Lumen's icon on the Rokid launcher,
-  or map the index double tap to *MRBD apps* in the companion's Band tab. Add the native apps
+- **Make Lumen your main screen.** Pick it as the glasses' home app in Settings > System >
+  Home app, so the glasses start on it and Home comes back to it. Or keep the Rokid launcher and
+  open the grid from Rokid Lumen's icon, or map the index double tap to *MRBD apps* in the
+  companion's Band tab. Add the native apps
   you use to the grid from the companion's Apps tab, so everything is a swipe away.
 - **Keep the screen on and turn it off with the band.** The middle double tap turns the HUD off
   and on again, as on Meta's glasses. With the screen off it is the only gesture that does

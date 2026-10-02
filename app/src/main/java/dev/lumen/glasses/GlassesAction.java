@@ -15,7 +15,7 @@ import android.view.KeyEvent;
 public enum GlassesAction {
     NONE("none", "No action", "Ignore this gesture", "No action"),
     BACK("back", "Back", "Android Back", "Back"),
-    HOME("home", "Home", "Return to the Rokid launcher", "Home"),
+    HOME("home", "Home", "Return to the home screen", "Home"),
     PLAY_PAUSE("play_pause", "Play or pause", "Media key to the playing app", "Play/pause"),
     LAUNCH_APP("launch_app", "Launch app", "Open a chosen installed app", "Launch app"),
     OPEN_APPS_GRID("open_apps_grid", "MRBD apps", "Open the web apps grid", "Apps"),

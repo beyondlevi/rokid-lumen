@@ -150,6 +150,7 @@ public final class BandAccessibilityService extends AccessibilityService {
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         AccessibilityWindowRoots.noteEvent(event, getPackageName());
+        HomeRole.onAccessibilityEvent(this, event);
         if (batteryOverlay != null) {
             batteryOverlay.onAccessibilityEvent(event);
         }

@@ -50,6 +50,9 @@
     <string name="engine_system">WebView do sistema</string>
     <string name="system_accessibility">Acessibilidade</string>
     <string name="system_accessibility_detail">Ativar o serviço da banda</string>
+    <string name="system_home">App de início</string>
+    <string name="system_home_lumen">O Lumen é a tela inicial</string>
+    <string name="system_home_other">Tornar o Lumen a tela inicial dos óculos</string>
     <string name="system_bluetooth">Ajustes de Bluetooth</string>
     <string name="system_bluetooth_detail">Pareamento e aparelhos pareados</string>
     <string name="system_app">Ajustes do app</string>

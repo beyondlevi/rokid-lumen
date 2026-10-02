@@ -90,8 +90,8 @@ An official API, if Meta publishes one, would be a third implementation of the s
 <!-- media: grid (to retake: the home's Apps tab) -->
 ![The apps grid on the HUD](media/grid.png)
 
-Rokid Lumen's icon on the Rokid launcher opens the home, on top of the Rokid launcher. It is
-the UI Toolkit's SubNavigationPager: a pill of two tabs at the top, **Notifications** and
+Rokid Lumen's icon on the Rokid launcher opens the home, on top of the Rokid launcher, or the
+home *is* the glasses' home screen (below). It is the UI Toolkit's SubNavigationPager: a pill of two tabs at the top, **Notifications** and
 **Apps**, over a page that slides from one to the other.
 
 - **Notifications**: the phone's notification inbox (below). A dot on its tab icon says
@@ -106,8 +106,27 @@ the UI Toolkit's SubNavigationPager: a pill of two tabs at the top, **Notificati
 
 On the pill, left and right change the tab and down (or the index tap) goes into the page; up
 from a page's top, or left (right) from its edge, comes back out, as the toolkit's focus
-handoff does. The middle tap goes back a level, then to the Rokid launcher. A banner's index
-tap opens the Notifications tab on that notification.
+handoff does. The middle tap goes back a level, then to the Rokid launcher (when Lumen is the
+home screen there's nothing below it: it goes back to the tabs). A banner's index tap opens the
+Notifications tab on that notification.
+
+### Lumen as the home screen
+
+Lumen's home is an Android home app, so it can replace the Rokid launcher: in **Settings >
+System > Home app** (or Android's own *Default home app* screen), pick **Rokid Lumen**. From
+then on the glasses start on Lumen's home, and the Home action and the end of any app come
+back to it. The same row shows which one is the home; picking **Sprite launcher** (Rokid's)
+there puts it back. From a computer: `adb shell cmd package set-home-activity
+dev.lumen.glasses/.LauncherActivity` (or `com.rokid.os.sprite.launcher/.main.SpriteMainActivity`
+to undo).
+
+- The Rokid launcher's own screens (brightness, translation, navigation, teleprompter) live in
+  its task and return to its main screen when closed, even when it isn't the home. While Lumen
+  is the home, the accessibility service brings Lumen's home back in front of it.
+- Home closes the web app that was open, as reopening the home always did: one web app runs at
+  a time, and its phone internet is released when it closes.
+- Those Rokid screens aren't reachable from Lumen yet; a third tab is planned
+  ([ROADMAP](../ROADMAP.md)). Until then, switch the home back to reach them.
 
 The grid is arranged from the companion's Apps tab. A web app installed later joins the end on
 its own; a native app shows only once added.

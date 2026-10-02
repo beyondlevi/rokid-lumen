@@ -54,6 +54,9 @@
     <string name="engine_system">System WebView</string>
     <string name="system_accessibility">Accessibility</string>
     <string name="system_accessibility_detail">Enable the band service</string>
+    <string name="system_home">Home app</string>
+    <string name="system_home_lumen">Lumen is the home screen</string>
+    <string name="system_home_other">Make Lumen the glasses\' home screen</string>
     <string name="system_bluetooth">Bluetooth settings</string>
     <string name="system_bluetooth_detail">Pairing and bonded devices</string>
     <string name="system_app">App settings</string>
