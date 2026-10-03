@@ -29,6 +29,12 @@ interface WebEngine {
 
         /** A `window.lumen.audio` request from the page at [pageUrl] ([GlassesAudio]). */
         fun onAudio(message: org.json.JSONObject, pageUrl: String?)
+
+        /** A text field got focus, or its value was read again ([PhoneKeyboard]). */
+        fun onTextFocus(value: String, type: String, multiline: Boolean, label: String, reason: String)
+
+        /** No text field has focus any more. */
+        fun onTextBlur()
     }
 
     /** The view to place in the HUD's square (the engine sizes itself inside it). */
@@ -47,6 +53,15 @@ interface WebEngine {
 
     fun composerInput(text: String)
     fun composerClose()
+
+    /** Whether the phone's keyboard is open: Enter on a field then reaches the page. */
+    fun keyboardState(open: Boolean)
+
+    /** The phone keyboard's text, the focused field's whole value. */
+    fun keyboardInput(text: String)
+
+    /** Has the page report its focused field again ([Host.onTextFocus], reason sync). */
+    fun keyboardSync()
     fun speechEvent(id: String, type: String, code: String?)
 
     /** The answer to [Host.onGetConfig], for the page at [origin] only. */

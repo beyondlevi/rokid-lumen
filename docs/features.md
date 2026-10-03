@@ -267,6 +267,24 @@ The proxy goes to the public internet only, and serves at most 64 connections at
 
 Without the self-arm the glasses can't join the hotspot, and the app says so.
 
+## Phone keyboard
+
+The companion's Home tab has a **Keyboard** row that names the text field focused in the web app
+on the glasses ("Field in focus: Message · WhatsApp"). Tapping it opens a keyboard page: what
+you type there goes into that field live, as its whole value, and the keyboard's Send key (or
+the Enter button) is an Enter on the glasses. Passwords, email, URL, phone and number fields get
+the matching keyboard on the phone; a multi-line field gets new lines instead of Send.
+
+While the page is open the phone keyboard takes the composer's place: Enter on a field there goes
+to the page instead of opening dictation. Leaving the page (or the companion) closes it; the
+glasses also forget a keyboard they stop hearing from for 75 seconds (it confirms every 30).
+
+How: the page script reports `focusin`/`focusout` of text fields (with the value, type and
+label) to the glasses, which pass it on as `nb.keyboard.field`; the phone sends `nb.keyboard`
+(open, close, text with a growing sequence number so a late one never wins, enter). After an
+Enter the glasses read the field again, so a box the app clears (a sent message) clears on the
+phone too.
+
 ## Dictation
 
 <!-- media: composer -->

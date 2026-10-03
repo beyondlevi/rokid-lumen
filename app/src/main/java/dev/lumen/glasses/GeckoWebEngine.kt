@@ -45,6 +45,7 @@ class GeckoWebEngine(
     )
     private val appOrigin = WebOrigin.ofApp(app)
     private var canGoBack = false
+    private var phoneKeyboard = false
     /** The page's address as Gecko last reported it (for the origin checks). */
     private var pageUrl: String? = null
     /** The extension's id for this session's tab, learned from its page's first message. */
@@ -170,6 +171,19 @@ class GeckoWebEngine(
         post(JSONObject().put("type", "composerClose").put("text", ""))
     }
 
+    override fun keyboardState(open: Boolean) {
+        phoneKeyboard = open
+        post(JSONObject().put("type", "phoneKeyboard").put("value", open))
+    }
+
+    override fun keyboardInput(text: String) {
+        post(JSONObject().put("type", "keyboardInput").put("text", text))
+    }
+
+    override fun keyboardSync() {
+        post(JSONObject().put("type", "keyboardSync"))
+    }
+
     override fun speechEvent(id: String, type: String, code: String?) {
         post(JSONObject().put("type", "speech").put("id", id.toIntOrNull() ?: 0).put("event", type).put("code", code ?: JSONObject.NULL))
     }
@@ -217,10 +231,18 @@ class GeckoWebEngine(
         json.optInt("tabId", -1).takeIf { it >= 0 }?.let { tabId = it }
         when (type) {
             // A page's content script is ready: it hasn't heard canGoBack yet.
-            "hello" -> post(JSONObject().put("type", "canGoBack").put("value", canGoBack))
+            "hello" -> {
+                post(JSONObject().put("type", "canGoBack").put("value", canGoBack))
+                post(JSONObject().put("type", "phoneKeyboard").put("value", phoneKeyboard))
+            }
             "backResult" -> if (!json.optBoolean("handled")) host.onBackUnhandled()
             "openComposer" -> host.onOpenComposer(json.optString("value"), json.optBoolean("multiline"))
             "noTextField" -> keyboard.showSoftInput(session)
+            "textFocus" -> host.onTextFocus(
+                json.optString("value"), json.optString("fieldType"), json.optBoolean("multiline"),
+                json.optString("label"), json.optString("reason"),
+            )
+            "textBlur" -> host.onTextBlur()
             "install" -> host.onInstall(json.optString("url"), json.optString("name"))
             "speak" -> host.onSpeak(
                 json.optInt("id"), json.optString("text"), json.optString("lang"),

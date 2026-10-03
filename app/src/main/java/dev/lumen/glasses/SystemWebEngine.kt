@@ -175,6 +175,19 @@ class SystemWebEngine(
     override fun composerClose() =
         evaluateOnAppPage("window.__mrbdComposerClose && window.__mrbdComposerClose()")
 
+    /** Read by the shim (from a binder thread) when Enter lands on a field. */
+    @Volatile private var phoneKeyboard = false
+
+    override fun keyboardState(open: Boolean) {
+        phoneKeyboard = open
+    }
+
+    override fun keyboardInput(text: String) =
+        evaluateOnAppPage("window.__mrbdKeyboardInput && window.__mrbdKeyboardInput(${JSONObject.quote(text)})")
+
+    override fun keyboardSync() =
+        evaluateOnAppPage("window.__mrbdKeyboardSync && window.__mrbdKeyboardSync()")
+
     override fun speechEvent(id: String, type: String, code: String?) {
         val codeJs = if (code == null) "null" else JSONObject.quote(code)
         evaluateOnAppPage("window.__mrbdSpeech && window.__mrbdSpeech(${id.toIntOrNull() ?: 0}, ${JSONObject.quote(type)}, $codeJs)")
@@ -237,6 +250,17 @@ class SystemWebEngine(
         fun openComposer(value: String?, multiline: Boolean) = fromAppPage("openComposer") {
             host.onOpenComposer(value.orEmpty(), multiline)
         }
+
+        @JavascriptInterface
+        fun phoneKeyboard(): Boolean = phoneKeyboard
+
+        @JavascriptInterface
+        fun textFocus(value: String?, type: String?, multiline: Boolean, label: String?, reason: String?) = fromAppPage("textFocus") {
+            host.onTextFocus(value.orEmpty(), type.orEmpty(), multiline, label.orEmpty(), reason.orEmpty())
+        }
+
+        @JavascriptInterface
+        fun textBlur() = fromAppPage("textBlur") { host.onTextBlur() }
 
         @JavascriptInterface
         fun getConfig(id: Int) = fromAppPage("getConfig") { host.onGetConfig(id, web.url) }

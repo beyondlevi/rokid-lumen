@@ -64,11 +64,17 @@ object Link {
     /** glasses → phone: the logs, in chunks ([LogsOps]). */
     const val LOGS_EVENT = "nb.logs.event"
 
+    /** phone → glasses: the companion's keyboard, typing into a web app's field ([KeyboardCommand]). */
+    const val KEYBOARD = "nb.keyboard"
+
+    /** glasses → phone: the web app's focused text field, or none ([KeyboardField]). */
+    const val KEYBOARD_FIELD = "nb.keyboard.field"
+
     /** What the glasses subscribe to (phone → glasses). */
-    val TO_GLASSES = listOf(DICTATION_EVENT, NOTIFY_EVENT, NET_EVENT, BENCH, SETTINGS, GRID, AUDIO_EVENT, PHONE_EVENT, LOGS)
+    val TO_GLASSES = listOf(DICTATION_EVENT, NOTIFY_EVENT, NET_EVENT, BENCH, SETTINGS, GRID, AUDIO_EVENT, PHONE_EVENT, LOGS, KEYBOARD)
 
     /** What the phone handles (glasses → phone). */
-    val TO_PHONE = listOf(DICTATION, NOTIFY, NET, SETTINGS_EVENT, GRID_EVENT, AUDIO, LOGS_EVENT)
+    val TO_PHONE = listOf(DICTATION, NOTIFY, NET, SETTINGS_EVENT, GRID_EVENT, AUDIO, LOGS_EVENT, KEYBOARD_FIELD)
 
     private val ids = AtomicLong(System.currentTimeMillis())
 
