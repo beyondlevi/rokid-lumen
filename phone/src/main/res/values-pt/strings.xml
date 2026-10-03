@@ -427,4 +427,14 @@
     <string name="logs_without_glasses">%1$s · sem os logs dos óculos</string>
     <string name="logs_failed">Não deu para gerar o zip de logs</string>
     <string name="logs_share_title">Compartilhar os logs</string>
+    <string name="apps_name">Nome</string>
+    <string name="apps_rename">Renomear</string>
+    <string name="apps_add_copy">Adicionar cópia</string>
+    <string name="apps_copy_hint">Uma cópia é o mesmo app instalado de novo com outro nome, com dados e ajustes próprios: um WhatsApp pessoal e um corporativo, por exemplo. Atualizar este app atualiza as cópias.</string>
+    <string name="apps_copy_of">Cópia de %1$s · dados e ajustes próprios</string>
+    <string name="apps_copy_of_unknown">outro app</string>
+    <string name="apps_copy_default_name">%1$s 2</string>
+    <string name="apps_copy_title">Outro %1$s</string>
+    <string name="apps_rename_title">Renomear %1$s</string>
+    <string name="apps_copy_dialog_hint">Ela começa sem ajustes e sem dados: configure como um app novo.</string>
 </resources>

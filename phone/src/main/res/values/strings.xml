@@ -436,4 +436,14 @@
     <string name="logs_without_glasses">%1$s · without the glasses\' logs</string>
     <string name="logs_failed">Couldn\'t make the logs zip</string>
     <string name="logs_share_title">Share the logs</string>
+    <string name="apps_name">Name</string>
+    <string name="apps_rename">Rename</string>
+    <string name="apps_add_copy">Add a copy</string>
+    <string name="apps_copy_hint">A copy is the same app installed again under another name, with its own data and settings: a personal and a work WhatsApp, say. Updating this app updates its copies.</string>
+    <string name="apps_copy_of">Copy of %1$s · its own data and settings</string>
+    <string name="apps_copy_of_unknown">another app</string>
+    <string name="apps_copy_default_name">%1$s 2</string>
+    <string name="apps_copy_title">Another %1$s</string>
+    <string name="apps_rename_title">Rename %1$s</string>
+    <string name="apps_copy_dialog_hint">It starts with no settings and no data: set it up like a new app.</string>
 </resources>

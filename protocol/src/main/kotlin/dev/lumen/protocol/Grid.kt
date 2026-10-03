@@ -11,7 +11,8 @@ import org.json.JSONObject
  *   phone → glasses   [Link.GRID]        {op: describe} | {op: set, order, hidden} | {op: add_web, url, name}
  *                                        | {op: add_package, url} | {op: remove, id} | {op: engine, id, engine}
  *                                        | {op: install_file, token, name, size, sha256, replace}
- *                                        | {op: config, id, key, value}
+ *                                        | {op: config, id, key, value} | {op: rename, id, name}
+ *                                        | {op: copy, id, name} (a second install of a web app, see below)
  *                                        | {op: icons, ids}; each a request (id)
  *   glasses → phone   [Link.GRID_EVENT]  {type: state, items, available} (after describe and every change)
  *                                        {type: result, ok, subject, error} | {type: icon, id, png (base64)}
@@ -26,6 +27,11 @@ import org.json.JSONObject
  * A web app's configuration ([AppConfigField]) is declared by its package's manifest
  * (`lumen_config`), set from the phone and read by the page (`window.lumen.config`). The state
  * carries a secret field's presence only, never its value.
+ *
+ * `copy` installs a web app a second time under another name (a personal and a work WhatsApp):
+ * its own id, so its own cookies, storage and settings (empty at first), and offline its own
+ * origin. Updating the original's package updates its copies. A copy's item names the original
+ * (`copy_of`). `rename` gives any web app a name that updates keep.
  */
 object GridOps {
     const val DESCRIBE = "describe"
@@ -37,6 +43,14 @@ object GridOps {
     const val ICONS = "icons"
     const val CONFIG = "config"
     const val INSTALL_FILE = "install_file"
+    const val RENAME = "rename"
+    const val COPY = "copy"
+
+    @JvmStatic
+    fun rename(id: String, name: String): JSONObject = Link.request().put("op", RENAME).put("id", id).put("name", name)
+
+    @JvmStatic
+    fun copy(id: String, name: String): JSONObject = Link.request().put("op", COPY).put("id", id).put("name", name)
 
     /** Where the phone's proxy serves a package handed over with [installFile]: this + token. */
     const val PACKAGE_PATH = "/lumen/package/"
@@ -144,6 +158,8 @@ data class GridItem(
     val version: String = "",
     /** When the item's icon last changed (0: unknown, or none): the phone asks again on a change. */
     val iconStamp: Long = 0,
+    /** A copy's original (its item id), "" otherwise. */
+    val copyOf: String = "",
 ) {
     enum class Kind(val id: String) {
         NOTIFICATIONS("notifications"), SETTINGS("settings"), WEB("web"), NATIVE("native");
@@ -158,6 +174,7 @@ data class GridItem(
         .put("config", JSONArray().apply { config.forEach { put(it.toJson()) } })
         .apply { if (version.isNotEmpty()) put("version", version) }
         .apply { if (iconStamp > 0) put("icon", iconStamp) }
+        .apply { if (copyOf.isNotEmpty()) put("copy_of", copyOf) }
 
     companion object {
         const val NOTIFICATIONS_ID = "notifications"
@@ -176,6 +193,7 @@ data class GridItem(
             AppConfigField.list(json.optJSONArray("config")),
             json.optString("version"),
             json.optLong("icon"),
+            json.optString("copy_of"),
         )
     }
 }

@@ -453,6 +453,14 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         CompanionService.requestGrid(GridOps.remove(id))
     }
 
+    override fun renameWebApp(id: String, name: String) {
+        CompanionService.requestGrid(GridOps.rename(id, name))
+    }
+
+    override fun copyWebApp(id: String, name: String) {
+        CompanionService.requestGrid(GridOps.copy(id, name))
+    }
+
     private fun hasNotificationAccess(): Boolean =
         getSystemService(NotificationManager::class.java)
             .isNotificationListenerAccessGranted(ComponentName(this, NotificationForwarder::class.java))

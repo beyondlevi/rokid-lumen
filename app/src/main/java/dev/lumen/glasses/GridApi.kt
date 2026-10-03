@@ -75,6 +75,18 @@ object GridApi {
                 Log.d(TAG, "config $id $key: ${error ?: "set"}")
                 changed(ctx, request, id, error)
             }
+            GridOps.RENAME -> {
+                val id = request.optString("id")
+                val app = WebAppLibrary.rename(ctx, id.removePrefix(GridItem.WEB_PREFIX), request.optString("name"))
+                changed(ctx, request, id, if (app == null) "not a web app, or an empty name: $id" else null)
+            }
+            GridOps.COPY -> {
+                val id = request.optString("id")
+                val copy = runCatching { WebAppLibrary.copy(ctx, id.removePrefix(GridItem.WEB_PREFIX), request.optString("name")) }
+                    .onFailure { Log.w(TAG, "copy of $id failed", it) }.getOrNull()
+                Log.d(TAG, "copy of $id: ${copy?.id ?: "failed"}")
+                changed(ctx, request, copy?.let { GridItem.WEB_PREFIX + it.id } ?: id, if (copy == null) "couldn't copy $id" else null)
+            }
             GridOps.ADD_PACKAGE -> installPackage(ctx, request)
             GridOps.INSTALL_FILE -> installFile(ctx, request)
             GridOps.ICONS -> {

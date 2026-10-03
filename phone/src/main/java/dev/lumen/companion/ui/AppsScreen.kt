@@ -99,6 +99,8 @@ internal fun AppsScreen(
     var dialog by remember { mutableStateOf<AddDialog?>(null) }
     var confirmDelete by remember { mutableStateOf<GridItem?>(null) }
     var editing by remember { mutableStateOf<Pair<GridItem, AppConfigField>?>(null) }
+    /** Naming a web app: renaming it (false) or a new copy of it (true). */
+    var naming by remember { mutableStateOf<Pair<GridItem, Boolean>?>(null) }
 
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val wide = maxWidth >= WIDE
@@ -128,6 +130,9 @@ internal fun AppsScreen(
                     onEdit = { editing = item to it },
                     onDelete = { confirmDelete = item },
                     onTakeOff = { selected = null; actions.hideGridItem(item.id) },
+                    onRename = { naming = item to false },
+                    onCopy = { naming = item to true },
+                    originalName = items.plus(available).firstOrNull { it.id == item.copyOf }?.name,
                     busy = transfer?.busy == true,
                 )
             }
@@ -165,6 +170,12 @@ internal fun AppsScreen(
         ConfigDialog(field, onDismiss = { editing = null }) { value ->
             editing = null
             actions.setGridConfig(item.id, field.key, value)
+        }
+    }
+    naming?.let { (item, copy) ->
+        NameDialog(item, copy, onDismiss = { naming = null }) { name ->
+            naming = null
+            if (copy) actions.copyWebApp(item.id, name) else actions.renameWebApp(item.id, name)
         }
     }
     confirmDelete?.let { item ->
@@ -537,6 +548,9 @@ private fun AppDetail(
     onEdit: (AppConfigField) -> Unit,
     onDelete: () -> Unit,
     onTakeOff: () -> Unit,
+    onRename: () -> Unit,
+    onCopy: () -> Unit,
+    originalName: String?,
     busy: Boolean,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -558,6 +572,14 @@ private fun AppDetail(
                 contentAlignment = Alignment.Center,
             ) { Icon(LumenIcons.close, contentDescription = null, tint = Lumen.textPrimary, modifier = Modifier.size(18.dp)) }
         }
+    }
+    if (item.copyOf.isNotEmpty()) {
+        Text(
+            stringResource(R.string.apps_copy_of, originalName ?: stringResource(R.string.apps_copy_of_unknown)),
+            style = MaterialTheme.typography.bodySmall,
+            color = Lumen.textSecondary,
+            modifier = Modifier.padding(horizontal = Lumen.spacingSmall),
+        )
     }
     val missing = item.config.filter { it.missing }
     if (missing.isNotEmpty()) {
@@ -616,6 +638,13 @@ private fun AppDetail(
         }
     }
     if (item.kind == GridItem.Kind.WEB) {
+        DetailSection(stringResource(R.string.apps_name), null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmall)) {
+                PillButton(stringResource(R.string.apps_rename), primary = false, modifier = Modifier.weight(1f), onClick = onRename)
+                PillButton(stringResource(R.string.apps_add_copy), primary = false, modifier = Modifier.weight(1f), icon = LumenIcons.plus, onClick = onCopy)
+            }
+            Text(stringResource(R.string.apps_copy_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textPlaceholder, modifier = Modifier.padding(horizontal = Lumen.spacingSmall))
+        }
         DetailSection(stringResource(R.string.apps_engine), null) {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(Lumen.radiusRow)).background(Lumen.elevation1).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Segment(stringResource(R.string.apps_engine_gecko), item.engine != ENGINE_SYSTEM) { actions.setGridEngine(item.id, ENGINE_GECKO) }
@@ -702,6 +731,39 @@ private fun androidx.compose.foundation.layout.RowScope.Segment(text: String, on
 internal fun <T> List<T>.moved(from: Int, to: Int): List<T> {
     if (from !in indices || to !in indices || from == to) return this
     return toMutableList().apply { add(to, removeAt(from)) }
+}
+
+/** A web app's name: a new one for it ([copy] false), or the name of a second install of it. */
+@Composable
+private fun NameDialog(item: GridItem, copy: Boolean, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    val start = if (copy) stringResource(R.string.apps_copy_default_name, item.name) else item.name
+    var value by remember { mutableStateOf(TextFieldValue(start, TextRange(start.length))) }
+    val colors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = Lumen.accent,
+        unfocusedBorderColor = Lumen.border,
+        focusedTextColor = Lumen.textPrimary,
+        unfocusedTextColor = Lumen.textPrimary,
+        cursorColor = Lumen.accent,
+        focusedLabelColor = Lumen.accent,
+        unfocusedLabelColor = Lumen.textPlaceholder,
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Lumen.elevation1,
+        title = { Text(stringResource(if (copy) R.string.apps_copy_title else R.string.apps_rename_title, item.name)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed)) {
+                OutlinedTextField(value, { value = it }, label = { Text(stringResource(R.string.apps_name)) }, singleLine = true, colors = colors)
+                if (copy) Text(stringResource(R.string.apps_copy_dialog_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(value.text.trim()) }, enabled = value.text.isNotBlank()) {
+                Text(stringResource(if (copy) R.string.apps_add_copy else R.string.apps_config_save), color = Lumen.accent)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = Lumen.textPrimary) } },
+    )
 }
 
 /** Edits one configuration value; a secret starts empty (it never comes back from the glasses). */

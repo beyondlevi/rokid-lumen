@@ -69,7 +69,8 @@ object GridStore {
             val id = GridItem.WEB_PREFIX + app.id
             out[id] = GridItem(id, GridItem.Kind.WEB, app.name, if (app.offline) "" else app.remoteUrl, app.offline, app.engine.name,
                 config = WebAppConfig.fields(context, app), version = if (app.offline) app.version else "",
-                iconStamp = app.icon?.let { java.io.File(it).lastModified() } ?: 0)
+                iconStamp = app.icon?.let { java.io.File(it).lastModified() } ?: 0,
+                copyOf = app.copyOf.takeIf { it.isNotEmpty() }?.let { GridItem.WEB_PREFIX + it }.orEmpty())
         }
         nativeApps(context).forEach { (pkg, label) ->
             val id = GridItem.APP_PREFIX + pkg

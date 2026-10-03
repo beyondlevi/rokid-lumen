@@ -343,7 +343,10 @@ tabs:
   check it), or an offline package by address (a `.mrbd.zip`; the glasses download it, through
   the phone's internet when they have none). Icons come from each app: its manifest's icons,
   its page's touch icon or favicon. A secret setting shows only whether it's set: its value
-  stays on the glasses.
+  stays on the glasses. **Rename** gives an app a name its updates keep; **Add a copy**
+  installs it again under another name (a personal and a work WhatsApp): the copy has its own
+  cookies, storage and settings (empty at first) and, offline, its own origin, and updating the
+  original's package updates its copies. A notification such an app opens offers each copy.
 - **Band**: the band's state (connection, battery, charging), the glasses' gestures and band
   settings, which device the band controls, and the gestures on the phone.
 - **Notifications**: send to the glasses or not, banner only with the phone screen off, hide
