@@ -447,6 +447,8 @@
       // No guard on an earlier target: while the composer is open the host keeps Enter from
       // the page, and a composer the host closed without telling us mustn't block the next.
       if (event.key !== 'Enter') return;
+      // The phone's keyboard open takes the composer's place: Enter goes on to the page.
+      if (phoneKeyboard()) return;
       var el = document.activeElement;
       if (!isTextField(el)) return;
       event.preventDefault();
@@ -458,12 +460,13 @@
   }
   // GeckoView asked for a keyboard (a field got focus): a field the composer takes waits for
   // Enter; anything else (a password, say) gets the system's keyboard.
+  // The phone's keyboard types into any of these, a password included.
   window.__mrbdKeyboardWanted = function () {
-    if (host && host.noTextField && !isTextField(document.activeElement)) host.noTextField();
+    var el = document.activeElement;
+    if (phoneKeyboard() && isKeyboardField(el)) return;
+    if (host && host.noTextField && !isTextField(el)) host.noTextField();
   };
-  window.__mrbdComposerInput = function (text) {
-    var el = composerTarget;
-    if (!el) return;
+  function setFieldValue(el, text) {
     if (el.isContentEditable) {
       el.textContent = text;
     } else {
@@ -472,11 +475,55 @@
       Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, text);
     }
     el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  window.__mrbdComposerInput = function (text) {
+    if (composerTarget) setFieldValue(composerTarget, text);
   };
   window.__mrbdComposerClose = function () {
     var el = composerTarget;
     composerTarget = null;
     if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  // Rokid Lumen's phone keyboard: the companion types into the page's focused field. The host
+  // hears which field has focus (its value, type and label) and when none has; the phone's
+  // text replaces the field's whole value, as the composer's does.
+  function phoneKeyboard() { return !!(host && host.phoneKeyboard && host.phoneKeyboard()); }
+  function isKeyboardField(el) {
+    if (isTextField(el)) return true;
+    return !!el && el.tagName === 'INPUT' && !el.disabled && !el.readOnly &&
+      (el.getAttribute('type') || '').toLowerCase() === 'password';
+  }
+  function fieldLabel(el) {
+    var text = el.getAttribute('aria-label') || el.getAttribute('placeholder') || '';
+    if (!text && el.labels && el.labels.length) text = el.labels[0].textContent || '';
+    if (!text) text = el.getAttribute('title') || el.getAttribute('name') || '';
+    return String(text).replace(/\s+/g, ' ').trim().slice(0, 80);
+  }
+  function reportField(reason) {
+    var el = document.activeElement;
+    if (!isKeyboardField(el)) return host.textBlur();
+    var type = el.tagName === 'INPUT' ? (el.getAttribute('type') || 'text').toLowerCase() : 'text';
+    host.textFocus(el.isContentEditable ? el.textContent : el.value, type,
+      el.tagName === 'TEXTAREA' || el.isContentEditable, fieldLabel(el), reason);
+  }
+  if (host && host.textFocus) {
+    document.addEventListener('focusin', function (event) {
+      if (isKeyboardField(event.target)) reportField('focus');
+    }, true);
+    document.addEventListener('focusout', function (event) {
+      if (!isKeyboardField(event.target)) return;
+      // Where the focus went is known only after the event.
+      setTimeout(function () { if (!isKeyboardField(document.activeElement)) host.textBlur(); }, 0);
+    }, true);
+  }
+  window.__mrbdKeyboardInput = function (text) {
+    var el = document.activeElement;
+    if (isKeyboardField(el)) setFieldValue(el, text);
+  };
+  // After an Enter the page may have changed the value (a sent message clears its box).
+  window.__mrbdKeyboardSync = function () {
+    if (host && host.textFocus) reportField('sync');
   };
 
   // Back, as MRBD's shell does it: the page gets Escape first; if it neither handles it nor

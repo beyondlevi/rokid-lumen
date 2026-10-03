@@ -37,7 +37,7 @@ import org.json.JSONObject;
  * Opens an app of the library (EXTRA_APP_ID). Adding one, from outside or from a page's
  * {@code navigator.install()}, goes through {@link InstallConfirmActivity}.
  */
-public final class WebAppActivity extends Activity implements BandAccessibilityService.InputTarget, WebEngine.Host {
+public final class WebAppActivity extends Activity implements BandAccessibilityService.InputTarget, WebEngine.Host, PhoneKeyboard.Target {
     public static final String EXTRA_APP_ID = "app_id";
     /** A page of the app to open instead of its start ("/chat/…"): a phone notification's. */
     public static final String EXTRA_PATH = "path";
@@ -51,10 +51,14 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
      * phone's network again takes 7 to 30 s, measured).
      */
     private static final long HIDDEN_STOP_MS = 5 * 60_000L;
+    /** After the phone keyboard's Enter, the page's own change to the field (a sent message clears it). */
+    private static final long KEYBOARD_SYNC_MS = 500;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private WebEngine engine;
     private String appId;
+    /** The app's name, for the phone's keyboard. */
+    private String appName = "";
     /** The offline app's server this screen holds (LocalAppServer.acquire), or 0. */
     private int serverPort;
     /** Held while an online app is on screen: how it reaches the internet (see PhoneInternet). */
@@ -145,6 +149,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
                 speechEvent(utteranceId, "error", "synthesis-failed");
             }
         });
+        appName = app.getName();
         Log.d(TAG, "Opening " + app.getName() + " (" + app.getUrl() + ") on " + kind + " side=" + side);
         WebAppConfig.addListener(configListener);
         if (app.getOffline()) {
@@ -289,6 +294,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         }
         if (engine != null) {
             engine.onResume();
+            PhoneKeyboard.attach(this);
         }
     }
 
@@ -298,6 +304,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
             composer.closeNow();
         }
         BandAccessibilityService.clearInputTarget(this);
+        PhoneKeyboard.detach(this);
         if (engine != null) {
             engine.onPause();
         }
@@ -463,6 +470,49 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
                 engine.composerClose();
             }
         });
+    }
+
+    @Override
+    public void onTextFocus(String value, String type, boolean multiline, String label, String reason) {
+        PhoneKeyboard.focus(this, appName, label, type, multiline, value, reason);
+    }
+
+    @Override
+    public void onTextBlur() {
+        PhoneKeyboard.blur(this);
+    }
+
+    /** The phone's keyboard opened or closed; open, it takes the composer's place. */
+    @Override
+    public void keyboardOpen(boolean open) {
+        if (engine == null) {
+            return;
+        }
+        engine.keyboardState(open);
+        if (open && composer != null && composer.isOpen()) {
+            composer.closeNow();
+        }
+    }
+
+    @Override
+    public void keyboardText(String text) {
+        if (engine != null) {
+            engine.keyboardInput(text);
+        }
+    }
+
+    /** The phone keyboard's Enter: a real Enter to the page, then the field's value read again. */
+    @Override
+    public void keyboardEnter() {
+        if (engine == null) {
+            return;
+        }
+        engine.key(KeyEvent.KEYCODE_ENTER);
+        mainHandler.postDelayed(() -> {
+            if (engine != null) {
+                engine.keyboardSync();
+            }
+        }, KEYBOARD_SYNC_MS);
     }
 
     /** The page's navigator.install(): the user confirms it on the glasses first. */

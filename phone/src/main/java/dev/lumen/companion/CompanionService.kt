@@ -326,6 +326,7 @@ class CompanionService : Service() {
             }
             Link.AUDIO -> audio.onMessage(json, Protocol.binary(data))
             Link.LOGS_EVENT -> LogShare.onGlassesEvent(json, Protocol.binary(data))
+            Link.KEYBOARD_FIELD -> main.post { KeyboardLink.onGlassesField(json) }
             Link.NET -> when (NetCommand.from(json)) {
                 NetCommand.UP -> main.post { network.up() }
                 NetCommand.DOWN -> main.post { network.down() }
@@ -732,6 +733,14 @@ class CompanionService : Service() {
             val service = instance ?: return false
             val cxr = service.link ?: return false
             service.main.post { runCatching { cxr.sendCustomCmd(Link.LOGS, Protocol.encode(json)) } }
+            return true
+        }
+
+        /** The companion keyboard's command for the glasses ([dev.lumen.protocol.KeyboardCommand]); false while the link is down. */
+        fun requestKeyboard(json: JSONObject): Boolean {
+            val service = instance ?: return false
+            val cxr = service.link ?: return false
+            service.main.post { runCatching { cxr.sendCustomCmd(Link.KEYBOARD, Protocol.encode(json)) } }
             return true
         }
 

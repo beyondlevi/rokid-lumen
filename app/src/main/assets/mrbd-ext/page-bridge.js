@@ -3,11 +3,15 @@
 (function () {
   if (window.MrbdHost) return;
   var back = false;
+  var keyboard = false;
   function send(message) { window.postMessage({ __mrbdToHost: message }, '*'); }
   window.addEventListener('message', function (event) {
     var data = event.data && event.data.__mrbdFromHost;
     if (!data) return;
     if (data.type === 'canGoBack') back = !!data.value;
+    if (data.type === 'phoneKeyboard') keyboard = !!data.value;
+    if (data.type === 'keyboardInput' && window.__mrbdKeyboardInput) window.__mrbdKeyboardInput(data.text);
+    if (data.type === 'keyboardSync' && window.__mrbdKeyboardSync) window.__mrbdKeyboardSync();
     if (data.type === 'back' && window.__mrbdBack) window.__mrbdBack();
     if (data.type === 'speech' && window.__mrbdSpeech) window.__mrbdSpeech(data.id, data.event, data.code);
     if (data.type === 'composerInput' && window.__mrbdComposerInput) window.__mrbdComposerInput(data.text);
@@ -25,6 +29,11 @@
     backResult: function (handled) { send({ type: 'backResult', handled: !!handled }); },
     openComposer: function (value, multiline) { send({ type: 'openComposer', value: value, multiline: !!multiline }); },
     noTextField: function () { send({ type: 'noTextField' }); },
+    phoneKeyboard: function () { return keyboard; },
+    textFocus: function (value, type, multiline, label, reason) {
+      send({ type: 'textFocus', value: value, fieldType: type, multiline: !!multiline, label: label, reason: reason });
+    },
+    textBlur: function () { send({ type: 'textBlur' }); },
     getConfig: function (id) { send({ type: 'getConfig', id: id }); },
     audio: function (json) { send({ type: 'audio', message: JSON.parse(json) }); }
   };

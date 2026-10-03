@@ -83,6 +83,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         BandStore.listeners += bandListener
         PhoneBand.listeners += bandListener
         GridCache.listeners += gridListener
+        KeyboardLink.listeners += gridListener
         PhoneSnooze.listeners += snoozeListener
         dev.lumen.companion.update.UpdateManager.listeners += updateListener
         LogShare.listeners += logsListener
@@ -96,6 +97,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         BandStore.listeners -= bandListener
         PhoneBand.listeners -= bandListener
         GridCache.listeners -= gridListener
+        KeyboardLink.listeners -= gridListener
         PhoneSnooze.listeners -= snoozeListener
         dev.lumen.companion.update.UpdateManager.listeners -= updateListener
         LogShare.listeners -= logsListener
@@ -155,6 +157,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
             ),
             update = dev.lumen.companion.update.UpdateManager.state(this),
             logs = LogShare.state,
+            keyboardField = KeyboardLink.field,
         )
         // The switch turns off by itself when the snooze runs out.
         window.decorView.removeCallbacks(snoozeEnded)
@@ -380,6 +383,14 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     override fun bandAction(name: String) {
         CompanionService.requestSettings(SettingsOps.action(name))
     }
+
+    override fun keyboardOpen() = KeyboardLink.open()
+
+    override fun keyboardClose() = KeyboardLink.close()
+
+    override fun keyboardText(text: String) = KeyboardLink.text(text)
+
+    override fun keyboardEnter() = KeyboardLink.enter()
 
     override fun refreshGrid() {
         CompanionService.requestGrid(GridOps.describe())
