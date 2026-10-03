@@ -342,11 +342,14 @@ object PhoneInternet {
         main.removeCallbacks(health)
         val ssid = joinedSsid
         if (ssid != null || phoneRequested) PhoneLink.send(Link.NET, NetCommand.DOWN.toJson())
+        // The phone's network lost during the grace leaves the state IDLE, but the Wi-Fi this
+        // session turned on is still on: the joined hotspot or the request to the phone tells.
+        val used = state != State.IDLE || ssid != null || phoneRequested
         phoneRequested = false
         phoneOffer = null
         val ctx = context
         // Wireless debugging keeps the Wi-Fi on: the glasses go back to their saved network.
-        val turnOff = !wifiWasOn && state != State.IDLE && ctx?.let { WirelessDebug.isEnabled(it) } != true
+        val turnOff = !wifiWasOn && used && ctx?.let { WirelessDebug.isEnabled(it) } != true
         state = State.IDLE
         proxy = null
         joinedSsid = null

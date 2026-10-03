@@ -328,7 +328,7 @@ tabs:
   stays on the glasses. **Rename** gives an app a name its updates keep; **Add a copy**
   installs it again under another name (a personal and a work WhatsApp): the copy has its own
   cookies, storage and settings (empty at first) and, offline, its own origin, and updating the
-  original's package updates its copies. A notification such an app opens offers each copy.
+  original's package updates its copies. A notification such an app opens offers each copy, by its name next to the shared icon.
 - **Band**: the band's state (connection, battery, charging), the glasses' gestures and band
   settings, which device the band controls, and the gestures on the phone.
 - **Notifications**: send to the glasses or not, banner only with the phone screen off, hide
