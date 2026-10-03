@@ -36,17 +36,13 @@ object WebAppNotifications {
         }
     }
 
-    /** The first installed app that takes [notification]'s package, or null. */
+    /** Every installed app that takes [notification]'s package (copies included), in the library's order. */
     @JvmStatic
-    fun target(context: Context, notification: PhoneNotification): Target? {
-        for (app in WebAppLibrary.all(context)) {
-            if (!app.offline) continue
+    fun targets(context: Context, notification: PhoneNotification): List<Target> =
+        WebAppLibrary.all(context).filter { it.offline }.mapNotNull { app ->
             val manifest = WebAppPackages.readManifest(WebAppPackages.dir(context, app.id))
-            val intent = parse(manifest).firstOrNull { notification.packageName in it.packages } ?: continue
-            return Target(app, path(intent.open, notification))
+            parse(manifest).firstOrNull { notification.packageName in it.packages }?.let { Target(app, path(it.open, notification)) }
         }
-        return null
-    }
 
     /**
      * [template] filled from [notification]: a same-app path ("/…", never "//host"), or "/" when

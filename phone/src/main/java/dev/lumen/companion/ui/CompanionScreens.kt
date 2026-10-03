@@ -151,6 +151,10 @@ interface CompanionActions {
     /** One of a web app's configuration values; empty clears it. */
     fun setGridConfig(id: String, key: String, value: String)
     fun deleteWebApp(id: String)
+    /** Gives a web app a name that updates keep. */
+    fun renameWebApp(id: String, name: String)
+    /** Installs a web app a second time under [name] (its own data and settings). */
+    fun copyWebApp(id: String, name: String)
     fun setSpeechEngine(engine: dev.lumen.companion.speech.SpeechEngine)
     fun setSpeechLanguage(language: dev.lumen.companion.speech.SpeechLanguage)
     fun setSpeechPatience(patience: dev.lumen.companion.speech.SpeechPatience)

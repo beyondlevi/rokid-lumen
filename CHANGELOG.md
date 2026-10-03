@@ -7,6 +7,10 @@
 
 ### Companion
 
+- **Copies of a web app**: Apps > an app > **Add a copy** installs it again under another name
+  (a personal and a work WhatsApp), with its own data and settings; **Rename** gives any web app
+  a name that updates keep. Updating the original updates its copies.
+
 - **Share logs** (Settings): both apps' logs in `rokid-lumen-logs-<date>-<time>.zip`, through
   Android's share sheet, no adb needed. The glasses send theirs over Rokid's link.
 
