@@ -312,8 +312,8 @@ its cookies between apps.
 [Evolution API](https://github.com/evolution-foundation/evolution-api) server you run. It uses most of
 what this guide describes: `lumen_config` for the server address, the instance and the API key
 (a `secret`), `lumen_internet` to reach the server through the phone, D-pad focus on every
-element, Enter on the reply field for dictation, and Back to leave a conversation. Its source is
-not public yet.
+element, Enter on the reply field for dictation, and Back to leave a conversation. Its source:
+[beyondlevi/lumen-whatsapp](https://github.com/beyondlevi/lumen-whatsapp) (MIT).
 
 The screenshots below come from its demo mode (fictitious chats, no server), set from the
 companion with the app's own *Demo mode* setting.
