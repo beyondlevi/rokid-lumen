@@ -28,12 +28,15 @@ object BandSettings {
 
     const val SECTION_GESTURES = "gestures"
     const val SECTION_BAND = "band"
+    const val SECTION_GLASSES = "glasses"
     const val KEY_NAVIGATION = "navigation"
     const val KEY_DIAL = "dial"
     const val KEY_HAND = "hand"
     const val KEY_PAUSED = "paused"
     const val KEY_LAUNCHER_BATTERY = "launcher_battery"
     const val KEY_POWER_SAVING = "power_saving"
+    const val KEY_SCREEN_TIMEOUT = "screen_timeout"
+    private const val SCREEN_TIMEOUT_PREFIX = "screen_off."
     const val ACTION_RECONNECT = "reconnect"
     const val ACTION_FORGET = "forget"
     private const val APP_SUFFIX = "_app"
@@ -128,6 +131,10 @@ object BandSettings {
             KEY_LAUNCHER_BATTERY, Setting.Kind.TOGGLE, "Battery on the Rokid launcher",
             GestureMappings.showsLauncherBattery(context).toString(), section = SECTION_BAND,
         )
+        settings += Setting(
+            KEY_SCREEN_TIMEOUT, Setting.Kind.CHOICE, "Screen off after", screenTimeoutId(GestureMappings.screenTimeout(context)),
+            ScreenTimeout.CHOICES.map { SettingOption(screenTimeoutId(it), screenTimeoutTitle(it)) }, SECTION_GLASSES,
+        )
         val actions = listOf(
             SettingsAction(ACTION_RECONNECT, "Reconnect"),
             SettingsAction(ACTION_FORGET, "Forget the band", destructive = true),
@@ -172,6 +179,12 @@ object BandSettings {
                 setPowerSaving(context, value == "true")
                 return null
             }
+            key == KEY_SCREEN_TIMEOUT -> {
+                val seconds = ScreenTimeout.CHOICES.firstOrNull { screenTimeoutId(it) == value } ?: return "unknown screen timeout $value"
+                GestureMappings.setScreenTimeout(context, seconds)
+                ScreenTimeout.apply(context)
+                return null
+            }
             key == SettingsOps.KEY_WIRELESS_DEBUG -> {
                 WirelessDebug.setEnabled(context, value == "true")
                 return null
@@ -185,6 +198,16 @@ object BandSettings {
         BandRuntime.applyMapping(context)
         Log.d(TAG, "set $key=$value")
         return null
+    }
+
+    private fun screenTimeoutId(seconds: Int) =
+        SCREEN_TIMEOUT_PREFIX + if (seconds == ScreenTimeout.NEVER) "never" else seconds.toString()
+
+    private fun screenTimeoutTitle(seconds: Int) = when {
+        seconds == ScreenTimeout.NEVER -> "Never"
+        seconds < 60 -> "$seconds seconds"
+        seconds == 60 -> "1 minute"
+        else -> "${seconds / 60} minutes"
     }
 
     /** The settings to the phone, after a change made on the glasses. */

@@ -19,6 +19,7 @@ object BandLabels {
         "paused" to R.string.band_setting_paused,
         "launcher_battery" to R.string.band_setting_launcher_battery,
         "power_saving" to R.string.band_setting_power_saving,
+        "screen_timeout" to R.string.band_setting_screen_timeout,
         // The phone's own (PhoneSettings).
         "phone.swipe_up" to R.string.phone_gesture_swipe_up,
         "phone.swipe_down" to R.string.phone_gesture_swipe_down,
@@ -55,6 +56,12 @@ object BandLabels {
         "left" to R.string.band_option_left,
         "right" to R.string.band_option_right,
         "to_phone" to R.string.band_option_to_phone,
+        "screen_off.30" to R.string.band_option_screen_off_30,
+        "screen_off.60" to R.string.band_option_screen_off_60,
+        "screen_off.120" to R.string.band_option_screen_off_120,
+        "screen_off.300" to R.string.band_option_screen_off_300,
+        "screen_off.600" to R.string.band_option_screen_off_600,
+        "screen_off.never" to R.string.band_option_screen_off_never,
         // The phone's actions (PhoneSettings.ACTIONS) and pinch and turn.
         "media.play_pause" to R.string.band_option_play_pause,
         "media.next" to R.string.phone_action_next,
@@ -87,6 +94,7 @@ object BandLabels {
         "gestures" to R.string.band_section_gestures,
         "phone" to R.string.band_section_phone,
         "band" to R.string.band_section_band,
+        "glasses" to R.string.band_section_glasses,
     )
 
     private val actions = mapOf(

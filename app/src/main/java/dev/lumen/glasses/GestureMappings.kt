@@ -165,6 +165,15 @@ object GestureMappings {
     @JvmStatic
     fun setPowerSaving(context: Context, on: Boolean) = prefs(context).edit().putBoolean("power_saving", on).apply()
 
+    /** Seconds without input before the display goes off ([ScreenTimeout]); 0 is never. */
+    @JvmStatic
+    fun screenTimeout(context: Context): Int =
+        prefs(context).getInt("screen_timeout", ScreenTimeout.DEFAULT_SECONDS)
+
+    @JvmStatic
+    fun setScreenTimeout(context: Context, seconds: Int) =
+        prefs(context).edit().putInt("screen_timeout", seconds).apply()
+
     @JvmStatic
     fun setShowsLauncherBattery(context: Context, show: Boolean) =
         prefs(context).edit().putBoolean("launcher_battery", show).apply()

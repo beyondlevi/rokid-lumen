@@ -209,6 +209,14 @@
     <string name="band_action_forget">Esquecer a banda</string>
     <string name="band_setting_launcher_battery">Bateria no launcher da Rokid</string>
     <string name="band_setting_power_saving">Economia de energia da banda</string>
+    <string name="band_section_glasses">Óculos</string>
+    <string name="band_setting_screen_timeout">Apagar a tela após</string>
+    <string name="band_option_screen_off_30">30 segundos</string>
+    <string name="band_option_screen_off_60">1 minuto</string>
+    <string name="band_option_screen_off_120">2 minutos</string>
+    <string name="band_option_screen_off_300">5 minutos</string>
+    <string name="band_option_screen_off_600">10 minutos</string>
+    <string name="band_option_screen_off_never">Nunca</string>
     <string name="apps_title">Apps dos óculos</string>
     <plurals name="apps_count_grid">
         <item quantity="one">%1$d na grade</item>

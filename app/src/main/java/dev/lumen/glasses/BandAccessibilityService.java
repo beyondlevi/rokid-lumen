@@ -138,6 +138,7 @@ public final class BandAccessibilityService extends AccessibilityService {
         configureServiceInfo();
         registerScreenStateReceiver();
         registerSimulateReceiver();
+        ScreenTimeout.apply(this);
         // The phone companion's notifications: a banner over any app, the inbox in the grid.
         banner = new NotificationBanner(this);
         batteryOverlay = new BandBatteryOverlay(this);
@@ -303,6 +304,9 @@ public final class BandAccessibilityService extends AccessibilityService {
             Log.d(TAG, "Ignored band input with the screen off command=" + command);
             return;
         }
+        // The band is input the system doesn't see: without this the display would go off
+        // mid-use (ScreenTimeout).
+        ScreenTimeout.onUserActivity(this);
         // While a banner is up it says which gestures are the user's (its swipes are swallowed:
         // an involuntary one mustn't keep a display it woke on).
         if (banner != null && !banner.isShowing()) {
