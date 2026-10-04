@@ -51,6 +51,11 @@ class GeckoWebEngine(
     private var tabId: Int? = null
     private var extensionReady = false
     private var pendingUrl: String? = null
+    /** The address last loaded ([load]), for a reload when the page's process is gone. */
+    private var loadedUrl: String? = null
+    /** The page's content process died (killed or crashed): load it again when shown. */
+    private var pageLost = false
+    private var visible = false
     private val startedAt = SystemClock.elapsedRealtime()
     /** Gecko's own text input delegate: the system's keyboard. */
     private val keyboard: GeckoSession.TextInputDelegate = session.textInput.delegate
@@ -99,6 +104,10 @@ class GeckoWebEngine(
             override fun onFirstContentfulPaint(s: GeckoSession) {
                 Log.d(TAG, "First contentful paint after ${SystemClock.elapsedRealtime() - startedAt} ms")
             }
+
+            // Without a page the view stays black: load it again (now if it's on screen).
+            override fun onKill(s: GeckoSession) = pageGone("killed")
+            override fun onCrash(s: GeckoSession) = pageGone("crashed")
         }
         // Gecko asks for a keyboard when a field gets focus (measured: also a programmatic focus
         // up to ~5 s after a tap). A field the composer takes gets nothing until Enter opens the
@@ -112,6 +121,11 @@ class GeckoWebEngine(
         // composer and the notices drawn over it (measured: the composer opened, invisible).
         geckoView.setViewBackend(GeckoView.BACKEND_TEXTURE_VIEW)
         session.open(runtime)
+        // The app on screen is this session. Inactive (hidden, onStop) at the default priority its
+        // content process drops to idle and Android kills it within seconds on these 1.8 GB
+        // glasses (measured: a black page when the display came back on), as Firefox avoids for
+        // its selected tab with the same hint.
+        session.setPriorityHint(GeckoSession.PRIORITY_HIGH)
         geckoView.setSession(session)
         // Gecko paints white until the page's first frame: on the glasses' additive display
         // that's a full-screen flash. Black is transparent there.
@@ -134,8 +148,21 @@ class GeckoWebEngine(
             pendingUrl = url
             return
         }
+        loadedUrl = url
         session.loadUri(url)
         focus()
+    }
+
+    private fun pageGone(how: String) {
+        Log.w(TAG, "The page's process was $how (${if (visible) "reloading" else "reload when shown"})")
+        pageLost = true
+        if (visible) reloadLost()
+    }
+
+    private fun reloadLost() {
+        if (!pageLost) return
+        pageLost = false
+        (pageUrl ?: loadedUrl)?.let { session.loadUri(it) }
     }
 
     /** Without focus Gecko drops the first key (measured): the session and the view both need it. */
@@ -189,7 +216,9 @@ class GeckoWebEngine(
 
     override fun onResume() {
         HostLink.current = this
+        visible = true
         session.setActive(true)
+        reloadLost()
         focus()
     }
 
@@ -201,6 +230,7 @@ class GeckoWebEngine(
     // on Android suspends it. Measured before: an open app kept the main thread on Gecko's vsync
     // (~6% of a core, ~12% with a CSS animation) with the display off.
     override fun onStop() {
+        visible = false
         session.setActive(false)
     }
 
