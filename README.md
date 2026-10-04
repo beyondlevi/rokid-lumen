@@ -79,12 +79,26 @@ demo mode and simulated notifications.
 
 Details: [docs/features.md](docs/features.md).
 
-Web apps running on Lumen, in their demo mode: the WhatsApp and Telegram examples, a Reddit
-client and a Volund OS client.
+## Apps
 
-| WhatsApp | Telegram | Reddit | Volund OS |
+Web apps for Lumen, each in its own repository. They are unofficial and not affiliated with the
+services they work with; each README lists what you need and the risks.
+
+| App | What it does | What you need | Source | License |
+| --- | --- | --- | --- | --- |
+| **WhatsApp for Lumen** | Chats, photos, voice notes, reactions, replies by dictation, voice search; opens from a WhatsApp notification | An [Evolution API](https://github.com/EvolutionAPI/evolution-api) server you run | [beyondlevi/lumen-whatsapp](https://github.com/beyondlevi/lumen-whatsapp) | MIT |
+| **Unofficial Telegram for Lumen** | The same screens for Telegram, straight to Telegram over MTProto (GramJS), no server | Your own `api_id` and `api_hash` from my.telegram.org | [beyondlevi/lumen-telegram](https://github.com/beyondlevi/lumen-telegram) | GPL-3.0 |
+| **Reddit for Lumen** | Home, Popular, communities and inbox; posts, pictures and comments | Your Reddit session cookies (an optional Worker renews them) | [beyondlevi/lumen-reddit](https://github.com/beyondlevi/lumen-reddit) | MIT |
+| **Instagram for Lumen** | Reels and Direct: likes, saves, comments, replies by dictation, voice messages | A small bridge you run at home ([instagrapi](https://github.com/subzeroid/instagrapi)) | [beyondlevi/lumen-instagram](https://github.com/beyondlevi/lumen-instagram) | MIT |
+
+Each one builds an offline package (`npm run package`, a `.mrbd.zip`); install it from the
+companion's Apps tab (**Add**, or **Replace the package** to update) and fill in its settings
+there. Its own *Demo mode* setting shows made-up data, as in the screenshots below. To write
+your own: [docs/building-apps.md](docs/building-apps.md).
+
+| WhatsApp | Telegram | Reddit | Volund OS (private) |
 | --- | --- | --- | --- |
-| ![WhatsApp example: the chat list](docs/media/whatsapp-chats-lens.png) | ![Telegram example: a group conversation](docs/media/telegram-thread-lens.png) | ![Reddit client: a post](docs/media/reddit-post-lens.png) | ![Volund OS client: the conversations with agents](docs/media/volund-conversations-lens.png) |
+| ![WhatsApp for Lumen: the chat list](docs/media/whatsapp-chats-lens.png) | ![Unofficial Telegram for Lumen: a group conversation](docs/media/telegram-thread-lens.png) | ![Reddit for Lumen: a post](docs/media/reddit-post-lens.png) | ![A Volund OS client: the conversations with agents](docs/media/volund-conversations-lens.png) |
 
 ## Install
 
