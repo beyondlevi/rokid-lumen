@@ -121,11 +121,6 @@ class GeckoWebEngine(
         // composer and the notices drawn over it (measured: the composer opened, invisible).
         geckoView.setViewBackend(GeckoView.BACKEND_TEXTURE_VIEW)
         session.open(runtime)
-        // The app on screen is this session. Inactive (hidden, onStop) at the default priority its
-        // content process drops to idle and Android kills it within seconds on these 1.8 GB
-        // glasses (measured: a black page when the display came back on), as Firefox avoids for
-        // its selected tab with the same hint.
-        session.setPriorityHint(GeckoSession.PRIORITY_HIGH)
         geckoView.setSession(session)
         // Gecko paints white until the page's first frame: on the glasses' additive display
         // that's a full-screen flash. Black is transparent there.
@@ -228,7 +223,9 @@ class GeckoWebEngine(
 
     // An inactive session is hidden to the page (visibilitychange): Gecko stops its frames, and
     // on Android suspends it. Measured before: an open app kept the main thread on Gecko's vsync
-    // (~6% of a core, ~12% with a CSS animation) with the display off.
+    // (~6% of a core, ~12% with a CSS animation) with the display off. Its content process drops
+    // to idle priority then, and Android may kill it (measured: within seconds on these 1.8 GB
+    // glasses): onKill reloads the page.
     override fun onStop() {
         visible = false
         session.setActive(false)

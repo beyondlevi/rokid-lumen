@@ -10,8 +10,9 @@
 - **Battery**: the display goes off after 2 minutes without input (it was 10 days, Rokid's
   value); the companion's *Screen off after* sets it, *Never* keeps Rokid's. The band's
   gestures count as input.
-- A web app the display or another screen hides stops: its page no longer draws or runs, and
-  the phone's internet and the microphone are let go until it's back.
+- A web app the display or another screen hides closes the microphone; after 5 minutes hidden
+  its page stops drawing and running and the phone's internet is let go until it's back. A page
+  whose process Android ended meanwhile loads again when it's shown (it stayed black).
 - GeckoView draws at 30 fps, plays an animated GIF once, and makes no speculative connections,
   prefetches or Safe Browsing updates.
 - The band streams motion only while pinch and turn can use it (not paused, the dial set to an
