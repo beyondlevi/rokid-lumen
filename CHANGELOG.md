@@ -3,6 +3,27 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [Unreleased]
+
+### Glasses
+
+- **Battery**: the display goes off after 2 minutes without input (it was 10 days, Rokid's
+  value); the companion's *Screen off after* sets it, *Never* keeps Rokid's. The band's
+  gestures count as input.
+- A web app the display or another screen hides stops: its page no longer draws or runs, and
+  the phone's internet and the microphone are let go until it's back.
+- GeckoView draws at 30 fps, plays an animated GIF once, and makes no speculative connections,
+  prefetches or Safe Browsing updates.
+- The band streams motion only while pinch and turn can use it (not paused, the dial set to an
+  action, the display on), and its link wakes 4 times a second when the band is quiet, not 20.
+- The accessibility watchdog checks the app's process every 3 s with shell builtins and does
+  its full check every 30 s (it started ~18 processes a second).
+
+### Companion
+
+- A notification removed from the phone is sent to the glasses only when they have it, and a
+  re-post that says the same isn't sent again.
+
 ## [0.2.0-beta.6]
 
 ### Glasses
