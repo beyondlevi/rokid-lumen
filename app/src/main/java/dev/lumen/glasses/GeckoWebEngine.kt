@@ -197,6 +197,13 @@ class GeckoWebEngine(
         session.setFocused(false)
     }
 
+    // An inactive session is hidden to the page (visibilitychange): Gecko stops its frames, and
+    // on Android suspends it. Measured before: an open app kept the main thread on Gecko's vsync
+    // (~6% of a core, ~12% with a CSS animation) with the display off.
+    override fun onStop() {
+        session.setActive(false)
+    }
+
     override fun destroy() {
         if (HostLink.current === this) HostLink.current = null
         session.close()
@@ -344,6 +351,38 @@ class GeckoWebEngine(
         private var runtime: GeckoRuntime? = null
 
         /**
+         * Gecko preferences for a battery-powered HUD, read when the runtime starts (from an explicit
+         * path Gecko reads in release builds too). They apply to every app:
+         * - `layout.frame_rate`: animations, scrolling and requestAnimationFrame at 30 fps, not 60;
+         *   a still page draws nothing either way.
+         * - `image.animation_mode`: an animated GIF plays once instead of looping forever.
+         * - no speculative connections, link prefetch or DNS prefetch over the phone's hotspot.
+         * - no Safe Browsing list updates.
+         */
+        private val PREFS = linkedMapOf<String, Any>(
+            "layout.frame_rate" to 30,
+            "image.animation_mode" to "once",
+            "network.prefetch-next" to false,
+            "network.dns.disablePrefetch" to true,
+            "network.http.speculative-parallel-limit" to 0,
+            "browser.safebrowsing.malware.enabled" to false,
+            "browser.safebrowsing.phishing.enabled" to false,
+        )
+
+        /** Writes [PREFS] as GeckoView's config file (YAML, `prefs:`) and returns its path. */
+        private fun preferencesFile(context: Context): String {
+            val yaml = buildString {
+                appendLine("prefs:")
+                PREFS.forEach { (key, value) ->
+                    appendLine("  $key: ${if (value is String) "\"$value\"" else value}")
+                }
+            }
+            val file = java.io.File(context.filesDir, "geckoview-config.yaml")
+            if (!file.exists() || file.readText() != yaml) file.writeText(yaml)
+            return file.absolutePath
+        }
+
+        /**
          * One runtime per process (Gecko allows no more); its density fixes the 600 CSS px
          * viewport. Once it exists, removed apps' contexts are cleared right away, and those
          * removed before it are cleared now.
@@ -352,8 +391,10 @@ class GeckoWebEngine(
         private fun runtime(context: Context, density: Float): GeckoRuntime = runtime ?: GeckoRuntime.create(
             context.applicationContext,
             GeckoRuntimeSettings.Builder()
+                .configFilePath(preferencesFile(context))
                 .displayDensityOverride(density)
-                .consoleOutput(true)
+                // A page's console.* goes to logcat in debug builds only.
+                .consoleOutput(BuildConfigDebug.debuggable(context))
                 .remoteDebuggingEnabled(BuildConfigDebug.debuggable(context))
                 .build(),
         ).also { created ->

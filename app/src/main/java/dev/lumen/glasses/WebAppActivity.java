@@ -51,8 +51,10 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     private String appId;
     /** The offline app's server this screen holds (LocalAppServer.acquire), or 0. */
     private int serverPort;
-    /** Held while an online app is open: how it reaches the internet (see PhoneInternet). */
+    /** Held while an online app is on screen: how it reaches the internet (see PhoneInternet). */
     private PhoneInternet.Listener internet;
+    /** Whether [internet] is held now: let go while the app is hidden, taken again when it's back. */
+    private boolean internetHeld;
     private boolean loaded;
     private WebComposer composer;
     private TextView notice;
@@ -180,6 +182,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         PhoneInternet.setForcePhone((getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
                 && getIntent().getBooleanExtra("force_phone", false));
         PhoneInternet.acquire(this, internet);
+        internetHeld = true;
     }
 
     /**
@@ -209,6 +212,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
             }
         };
         PhoneInternet.acquire(this, internet);
+        internetHeld = true;
     }
 
     /** Scheme, host and port of [url], as a page's location.origin reads; "" when it has none. */
@@ -294,12 +298,44 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        if (engine != null) {
+            engine.onStart();
+        }
+        if (internet != null && !internetHeld) {
+            PhoneInternet.acquire(this, internet);
+            internetHeld = true;
+        }
+    }
+
+    /**
+     * Hidden (another screen covers the app, or the display went off): the page stops, and the
+     * phone's internet (after PhoneInternet's grace) and the microphone are let go until onStart.
+     * Before, they were held until the app was closed, all night if it was left open.
+     */
+    @Override
+    protected void onStop() {
+        GlassesAudio.closeAll(this);
+        WebRecognition.closeAll(this);
+        if (internet != null && internetHeld) {
+            PhoneInternet.release(internet);
+            internetHeld = false;
+        }
+        if (engine != null) {
+            engine.onStop();
+        }
+        super.onStop();
+    }
+
+    @Override
     protected void onDestroy() {
         GlassesAudio.closeAll(this);
         WebRecognition.closeAll(this);
         WebAppConfig.removeListener(configListener);
-        if (internet != null) {
+        if (internet != null && internetHeld) {
             PhoneInternet.release(internet);
+            internetHeld = false;
         }
         if (tts != null) {
             tts.shutdown();

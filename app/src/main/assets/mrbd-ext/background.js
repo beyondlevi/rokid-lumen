@@ -34,6 +34,12 @@ browser.runtime.onMessage.addListener((message, sender) => {
 // otherwise hold every request, since they all wait on the same question.
 let pending = null;
 const PROXY_ANSWER_MS = 3000;
+// A proxy answer is reused this long: a page loading dozens of pictures asked the app once per
+// picture. Only the phone's proxy is kept; "direct" is asked again every time, so the first
+// request after the phone's network comes up already takes it.
+const PROXY_KEEP_MS = 5000;
+let kept = null;
+let keptAt = 0;
 
 function askProxy() {
   return Promise.race([
@@ -43,14 +49,18 @@ function askProxy() {
 }
 
 function currentProxy() {
+  if (kept && Date.now() - keptAt < PROXY_KEEP_MS) return kept;
   if (!pending) {
     pending = askProxy().then((answer) => {
       const [host, port] = String(answer || '').split(':');
       // failoverTimeout: Gecko sets a proxy aside for this long after one failed connection
       // (default 30 min), sending requests direct meanwhile, which has no internet here
       // (measured: one failure while joining the phone's network broke an app's requests).
-      return host && port ? { type: 'http', host, port: Number(port), failoverTimeout: 1 } : { type: 'direct' };
-    }, () => ({ type: 'direct' })).finally(() => { pending = null; });
+      const proxy = host && port ? { type: 'http', host, port: Number(port), failoverTimeout: 1 } : { type: 'direct' };
+      kept = proxy.type === 'http' ? proxy : null;
+      keptAt = Date.now();
+      return proxy;
+    }, () => { kept = null; return { type: 'direct' }; }).finally(() => { pending = null; });
   }
   return pending;
 }

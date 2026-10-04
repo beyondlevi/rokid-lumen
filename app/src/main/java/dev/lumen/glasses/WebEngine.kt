@@ -60,6 +60,16 @@ interface WebEngine {
 
     fun onResume()
     fun onPause()
+
+    /** The screen is back (the app came forward again, or the display came on). */
+    fun onStart() {}
+
+    /**
+     * Nobody sees the page now (another screen covers it, or the display is off): it stops
+     * drawing and running until [onStart].
+     */
+    fun onStop() {}
+
     fun destroy()
 
     companion object {

@@ -19,6 +19,11 @@ For coding agents there is a condensed version: [skills/lumen-app/SKILL.md](../s
 - Meta's [UI Toolkit for Meta Ray-Ban Display](https://github.com/facebook/meta-ray-ban-display-ui-toolkit-web)
   (React; components, design tokens, focus navigation) is the reference design. Lumen's own
   screens follow its tokens.
+- **A hidden app stops.** When the display goes off or another screen covers the app, the page
+  turns hidden (`visibilitychange`) and GeckoView suspends it: timers, animations and network
+  wait until it's visible again, and the phone's internet may be gone by then. Refresh what's
+  stale (a feed, a chat) on `visibilitychange`, and retry a request that failed meanwhile.
+- **Animations run at 30 fps**, and an animated GIF plays once.
 
 ## Input
 
