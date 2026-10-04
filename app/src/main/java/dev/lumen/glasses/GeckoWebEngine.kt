@@ -239,24 +239,12 @@ class GeckoWebEngine(
         session.setFocused(false)
     }
 
-    // The TextureView keeps its surface while the screen is hidden, and Gecko kept compositing an
-    // animated page into it (measured: Zork's GPU process at ~23% of a core with the display
-    // off). Without the view's display Gecko draws nothing; the page keeps running.
+    // An inactive session is hidden to the page (visibilitychange): Gecko stops its frames, and
+    // on Android suspends it. Measured before, with the session left active: the main thread on
+    // Gecko's vsync (~6% of a core, ~12% with a CSS animation) and, for an animated page, the GPU
+    // process at ~23%, all with the display off. onResume makes it active again.
     override fun onHidden() {
         visible = false
-        geckoView.releaseSession()
-    }
-
-    override fun onShown() {
-        if (geckoView.session == null && session.isOpen) geckoView.setSession(session)
-    }
-
-    // An inactive session is hidden to the page (visibilitychange): Gecko stops its frames, and
-    // on Android suspends it. Measured before: an open app kept the main thread on Gecko's vsync
-    // (~6% of a core, ~12% with a CSS animation) with the display off. Its content process drops
-    // to idle priority then, and Android may kill it (measured: within seconds on these 1.8 GB
-    // glasses): onKill reopens the page.
-    override fun suspend() {
         session.setActive(false)
     }
 
@@ -414,6 +402,9 @@ class GeckoWebEngine(
          * - `image.animation_mode`: an animated GIF plays once instead of looping forever.
          * - no speculative connections, link prefetch or DNS prefetch over the phone's hotspot.
          * - no Safe Browsing list updates.
+         * - no process priority manager: it lowers an inactive session's content process to idle,
+         *   and Android killed it within seconds on these 1.8 GB glasses (measured; the page then
+         *   loads again). The process stays at the app's priority, suspended while hidden.
          */
         private val PREFS = linkedMapOf<String, Any>(
             "layout.frame_rate" to 30,
@@ -423,6 +414,7 @@ class GeckoWebEngine(
             "network.http.speculative-parallel-limit" to 0,
             "browser.safebrowsing.malware.enabled" to false,
             "browser.safebrowsing.phishing.enabled" to false,
+            "dom.ipc.processPriorityManager.enabled" to false,
         )
 
         /** Writes [PREFS] as GeckoView's config file (YAML, `prefs:`) and returns its path. */

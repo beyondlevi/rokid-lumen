@@ -46,10 +46,9 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
 
     private static final String TAG = "BandWebApp";
     /**
-     * How long a hidden app stays as it was. The display goes off after a couple of minutes
-     * without input, and a page stopped then may lose its process (measured: Android killed an
-     * inactive Gecko page within seconds), so a glance away keeps the app; a longer absence
-     * stops it.
+     * How long a hidden app keeps the phone's internet. The display goes off after a couple of
+     * minutes without input: a glance back within this finds the app online at once (joining the
+     * phone's network again takes 7 to 30 s, measured).
      */
     private static final long HIDDEN_STOP_MS = 5 * 60_000L;
 
@@ -62,8 +61,6 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     private PhoneInternet.Listener internet;
     /** Whether [internet] is held now: let go while the app is hidden, taken again when it's back. */
     private boolean internetHeld;
-    /** The page and the internet were stopped ([stopHidden]) and wait for onStart. */
-    private boolean stopped;
     private final Runnable hiddenStop = this::stopHidden;
     private boolean loaded;
     private WebComposer composer;
@@ -313,11 +310,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         mainHandler.removeCallbacks(hiddenStop);
         if (engine != null) {
             engine.onShown();
-            if (stopped) {
-                engine.wake();
-            }
         }
-        stopped = false;
         if (internet != null && !internetHeld) {
             PhoneInternet.acquire(this, internet);
             internetHeld = true;
@@ -326,9 +319,9 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
 
     /**
      * Hidden (another screen covers the app, or the display went off): the microphone closes and
-     * the page stops drawing now; after HIDDEN_STOP_MS the page stops running and the phone's
-     * internet (after PhoneInternet's grace) is let go until onStart. Before, they were held until
-     * the app was closed, all night if it was left open.
+     * the page stops; after HIDDEN_STOP_MS the phone's internet is let go too (after
+     * PhoneInternet's grace) until onStart. Before, they were held until the app was closed, all
+     * night if it was left open.
      */
     @Override
     protected void onStop() {
@@ -343,14 +336,10 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     }
 
     private void stopHidden() {
-        Log.d(TAG, "Hidden for " + HIDDEN_STOP_MS / 1000 + " s: stopping the page and the internet");
-        stopped = true;
         if (internet != null && internetHeld) {
+            Log.d(TAG, "Hidden for " + HIDDEN_STOP_MS / 1000 + " s: letting the phone's internet go");
             PhoneInternet.release(internet);
             internetHeld = false;
-        }
-        if (engine != null) {
-            engine.suspend();
         }
     }
 
