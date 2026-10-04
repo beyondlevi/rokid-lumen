@@ -79,8 +79,12 @@ demo mode and simulated notifications.
 
 Details: [docs/features.md](docs/features.md).
 
-Web apps running on Lumen, in their demo mode: the WhatsApp and Telegram examples, a Reddit
-client and a Volund OS client.
+Web apps running on Lumen, in their demo mode: the
+[WhatsApp](https://github.com/beyondlevi/lumen-whatsapp) and
+[Telegram](https://github.com/beyondlevi/lumen-telegram) examples, a
+[Reddit](https://github.com/beyondlevi/lumen-reddit) client and a Volund OS client. Also open:
+[Instagram](https://github.com/beyondlevi/lumen-instagram) (Reels and Direct, with a bridge you run).
+All unofficial and not affiliated with those services.
 
 | WhatsApp | Telegram | Reddit | Volund OS |
 | --- | --- | --- | --- |
