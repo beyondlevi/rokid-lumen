@@ -61,14 +61,20 @@ interface WebEngine {
     fun onResume()
     fun onPause()
 
-    /** The screen is back (the app came forward again, or the display came on). */
-    fun onStart() {}
+    /** The screen is seen again (onStart): undoes [onHidden]. */
+    fun onShown() {}
 
     /**
-     * Nobody sees the page now (another screen covers it, or the display is off): it stops
-     * drawing and running until [onStart].
+     * Nobody sees the screen (onStop: another screen covers it, or the display is off): the page
+     * stops drawing but keeps running, so it's as it was when it's back.
      */
-    fun onStop() {}
+    fun onHidden() {}
+
+    /** Hidden for a while: the page stops running too, until [wake]. */
+    fun suspend() {}
+
+    /** Back after [suspend] (before onResume). */
+    fun wake() {}
 
     fun destroy()
 

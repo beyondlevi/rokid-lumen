@@ -212,8 +212,8 @@ class SystemWebEngine(
     override fun onPause() = web.onPause()
 
     // pauseTimers is process-wide: one web app is open at a time.
-    override fun onStart() = web.resumeTimers()
-    override fun onStop() = web.pauseTimers()
+    override fun suspend() = web.pauseTimers()
+    override fun wake() = web.resumeTimers()
 
     override fun destroy() = web.destroy()
 

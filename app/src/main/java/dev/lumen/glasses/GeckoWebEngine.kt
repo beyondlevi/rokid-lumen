@@ -239,13 +239,24 @@ class GeckoWebEngine(
         session.setFocused(false)
     }
 
+    // The TextureView keeps its surface while the screen is hidden, and Gecko kept compositing an
+    // animated page into it (measured: Zork's GPU process at ~23% of a core with the display
+    // off). Without the view's display Gecko draws nothing; the page keeps running.
+    override fun onHidden() {
+        visible = false
+        geckoView.releaseSession()
+    }
+
+    override fun onShown() {
+        if (geckoView.session == null && session.isOpen) geckoView.setSession(session)
+    }
+
     // An inactive session is hidden to the page (visibilitychange): Gecko stops its frames, and
     // on Android suspends it. Measured before: an open app kept the main thread on Gecko's vsync
     // (~6% of a core, ~12% with a CSS animation) with the display off. Its content process drops
     // to idle priority then, and Android may kill it (measured: within seconds on these 1.8 GB
-    // glasses): onKill reloads the page.
-    override fun onStop() {
-        visible = false
+    // glasses): onKill reopens the page.
+    override fun suspend() {
         session.setActive(false)
     }
 

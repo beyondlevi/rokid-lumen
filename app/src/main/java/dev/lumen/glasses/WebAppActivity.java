@@ -311,8 +311,11 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     protected void onStart() {
         super.onStart();
         mainHandler.removeCallbacks(hiddenStop);
-        if (stopped && engine != null) {
-            engine.onStart();
+        if (engine != null) {
+            engine.onShown();
+            if (stopped) {
+                engine.wake();
+            }
         }
         stopped = false;
         if (internet != null && !internetHeld) {
@@ -322,15 +325,18 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     }
 
     /**
-     * Hidden (another screen covers the app, or the display went off): the microphone closes now;
-     * after HIDDEN_STOP_MS the page stops and the phone's internet (after PhoneInternet's grace)
-     * is let go until onStart. Before, they were held until the app was closed, all night if it
-     * was left open.
+     * Hidden (another screen covers the app, or the display went off): the microphone closes and
+     * the page stops drawing now; after HIDDEN_STOP_MS the page stops running and the phone's
+     * internet (after PhoneInternet's grace) is let go until onStart. Before, they were held until
+     * the app was closed, all night if it was left open.
      */
     @Override
     protected void onStop() {
         GlassesAudio.closeAll(this);
         WebRecognition.closeAll(this);
+        if (engine != null) {
+            engine.onHidden();
+        }
         mainHandler.removeCallbacks(hiddenStop);
         mainHandler.postDelayed(hiddenStop, HIDDEN_STOP_MS);
         super.onStop();
@@ -344,7 +350,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
             internetHeld = false;
         }
         if (engine != null) {
-            engine.onStop();
+            engine.suspend();
         }
     }
 
