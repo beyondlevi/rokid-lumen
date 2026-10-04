@@ -3,7 +3,7 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
-## [Unreleased]
+## [0.2.0-beta.7]
 
 ### Glasses
 
@@ -18,12 +18,19 @@
 - The band streams motion only while pinch and turn can use it (not paused, the dial set to an
   action, the display on), and its link wakes 4 times a second when the band is quiet, not 20.
 - The accessibility watchdog checks the app's process every 3 s with shell builtins and does
-  its full check every 30 s (it started ~18 processes a second).
+  its full check every 30 s (version 1 ran it every second, starting several processes each
+  time).
 
 ### Companion
 
 - A notification removed from the phone is sent to the glasses only when they have it, and a
   re-post that says the same isn't sent again.
+
+### Web apps
+
+- A hidden page gets `visibilitychange` and is suspended: refresh what's stale when it's
+  visible again (docs/building-apps.md).
+- The shim asks the app for the phone's proxy at most every 5 s, not once per request.
 
 ## [0.2.0-beta.6]
 

@@ -22,6 +22,10 @@ and hands the glasses an action name for each one. The navigation gestures are f
 - **The middle double tap turns the screen off and on**, as on Meta's glasses. With the screen
   off it is the only gesture that does anything; the others are ignored. A gesture right after
   the screen wakes is also ignored, so nothing runs blindly.
+- **The screen goes off by itself** after 2 minutes without input (the companion's *Screen off
+  after*: 30 seconds to 10 minutes, or Never, which keeps Rokid's own 10 days). Band gestures
+  and the touchpad count as input, and an app that asks to keep the screen on (a video, the
+  Rokid assistant) keeps it on.
 - **The middle hold pauses the controls.** The band stays connected and still vibrates, but
   its gestures do nothing until the next hold. The settings screen shows *Band connected,
   controls off*.
@@ -43,8 +47,8 @@ The glasses' touchpad keys work everywhere too.
 
 ### Band power saving
 
-With the glasses' screen off the band always stops its motion streams (gyro and orientation,
-which only pinch and turn needs). With **band power saving** on, it also stops its gestures: it
+The band streams motion (gyro and orientation, which only pinch and turn needs) only while the
+glasses' screen is on, the controls aren't paused and pinch and turn does something. With **band power saving** on, it also stops its gestures: it
 recognises nothing and doesn't vibrate, and only the glasses' button turns the screen (and the
 band) back on. With it off, the middle double tap still wakes the screen.
 
