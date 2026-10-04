@@ -53,9 +53,12 @@ class GeckoWebEngine(
     private var pendingUrl: String? = null
     /** The address last loaded ([load]), for a reload when the page's process is gone. */
     private var loadedUrl: String? = null
+    /** The session's history and scroll as Gecko last saved them, to restore after a kill. */
+    private var savedState: GeckoSession.SessionState? = null
     /** The page's content process died (killed or crashed): load it again when shown. */
     private var pageLost = false
     private var visible = false
+    private val geckoRuntime = runtime(activity, side.toFloat() / WebEngine.MRBD_VIEWPORT)
     private val startedAt = SystemClock.elapsedRealtime()
     /** Gecko's own text input delegate: the system's keyboard. */
     private val keyboard: GeckoSession.TextInputDelegate = session.textInput.delegate
@@ -63,7 +66,7 @@ class GeckoWebEngine(
     override val view: View get() = geckoView
 
     init {
-        val runtime = runtime(activity, side.toFloat() / WebEngine.MRBD_VIEWPORT)
+        val runtime = geckoRuntime
         session.navigationDelegate = object : GeckoSession.NavigationDelegate {
             override fun onLocationChange(
                 s: GeckoSession,
@@ -98,6 +101,10 @@ class GeckoWebEngine(
         session.progressDelegate = object : GeckoSession.ProgressDelegate {
             override fun onPageStop(s: GeckoSession, success: Boolean) {
                 Log.d(TAG, "Page stop success=$success after ${SystemClock.elapsedRealtime() - startedAt} ms")
+            }
+
+            override fun onSessionStateChange(s: GeckoSession, state: GeckoSession.SessionState) {
+                savedState = state
             }
         }
         session.contentDelegate = object : GeckoSession.ContentDelegate {
@@ -154,10 +161,21 @@ class GeckoWebEngine(
         if (visible) reloadLost()
     }
 
+    /**
+     * GeckoView closes a session whose process died: open it again, attach it to the view and
+     * restore its history (the page reloads; what it kept only in memory is gone).
+     */
     private fun reloadLost() {
         if (!pageLost) return
         pageLost = false
-        (pageUrl ?: loadedUrl)?.let { session.loadUri(it) }
+        geckoView.releaseSession()
+        session.open(geckoRuntime)
+        geckoView.setSession(session)
+        geckoView.coverUntilFirstPaint(android.graphics.Color.BLACK)
+        session.setActive(true)
+        val state = savedState
+        if (state != null) session.restoreState(state) else (pageUrl ?: loadedUrl)?.let { session.loadUri(it) }
+        Log.d(TAG, "Page reopened (${if (state != null) "history restored" else "loaded again"})")
     }
 
     /** Without focus Gecko drops the first key (measured): the session and the view both need it. */
