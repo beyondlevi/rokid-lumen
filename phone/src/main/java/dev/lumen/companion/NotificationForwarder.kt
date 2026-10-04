@@ -51,12 +51,17 @@ class NotificationForwarder : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         val message = describe(this, sbn ?: return, alert = true) ?: return
-        if (CompanionService.sendNotify(message)) forwarded.add(sbn.key)
+        // Apps re-post a notification to update something the glasses don't show: what says
+        // the same and isn't news stays on the phone (a message over the link wakes the glasses).
+        val content = contentOf(message)
+        if (!message.optBoolean("live") && forwarded.isUnchanged(sbn.key, content)) return
+        if (CompanionService.sendNotify(message)) forwarded.add(sbn.key, content)
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         sbn ?: return
-        forwarded.remove(sbn.key)
+        // Most removals are of notifications that stayed on the phone (ongoing, summaries).
+        if (!forwarded.remove(sbn.key)) return
         if (!CompanionPrefs.notificationsEnabled(this)) return
         CompanionService.sendNotify(NotifyEvent.remove(sbn.key))
     }
@@ -71,7 +76,7 @@ class NotificationForwarder : NotificationListenerService() {
         // 228 active notifications, 186 of them admitted.
         val sent = active.sortedByDescending { it.postTime }.asSequence()
             .mapNotNull { describe(this, it, alert = false) }.take(SYNC_LIMIT).toList()
-            .reversed().onEach { if (CompanionService.sendNotify(it)) forwarded.add(it.optString("key")) }.size
+            .reversed().onEach { if (CompanionService.sendNotify(it)) forwarded.add(it.optString("key"), contentOf(it)) }.size
         Log.d(TAG, "synced $sent of ${active.size} active notifications")
     }
 
@@ -135,6 +140,10 @@ class NotificationForwarder : NotificationListenerService() {
             notification.actions.orEmpty().firstOrNull { action ->
                 action.actionIntent != null && action.remoteInputs.orEmpty().any { it.allowFreeFormInput }
             }
+
+        /** What a post says, whether or not it's news ([forwarded] compares it with the last). */
+        fun contentOf(message: JSONObject): Int =
+            JSONObject(message.toString()).apply { remove("live"); remove("alert") }.toString().hashCode()
 
         /** The glasses' `sync`: resend all, if notification access is granted. */
         fun requestSync() {

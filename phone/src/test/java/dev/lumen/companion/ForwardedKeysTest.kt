@@ -15,10 +15,25 @@ class ForwardedKeysTest {
         assertEquals(listOf("0|mail|7|null|10002"), keys.sentOf(listOf("0|bank|3|null|10003", "0|mail|7|null|10002")))
         assertEquals(emptyList<String>(), keys.sentOf(listOf("0|bank|3|null|10003")))
         // Gone from the phone: no longer dismissable.
-        keys.remove("0|chat|1|null|10001")
+        assertTrue(keys.remove("0|chat|1|null|10001"))
         assertFalse("0|chat|1|null|10001" in keys)
+        // A removal the glasses never had: nothing to tell them.
+        assertFalse(keys.remove("0|bank|3|null|10003"))
         keys.clear()
         assertEquals(0, keys.size)
+    }
+
+    @Test
+    fun `a key remembers what it last said`() {
+        val keys = ForwardedKeys(capacity = 10)
+        assertFalse(keys.isUnchanged("a", 1))
+        keys.add("a", 1)
+        assertTrue(keys.isUnchanged("a", 1))
+        assertFalse(keys.isUnchanged("a", 2))
+        keys.add("a", 2)
+        assertTrue(keys.isUnchanged("a", 2))
+        keys.clear()
+        assertFalse(keys.isUnchanged("a", 2))
     }
 
     @Test
