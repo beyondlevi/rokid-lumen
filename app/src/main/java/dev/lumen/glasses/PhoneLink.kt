@@ -150,6 +150,12 @@ object PhoneLink {
      * remove {key}
      * reset  {} (a full sync follows as posts with alert false)
      */
+    /** Debug builds: [notification] as if the phone had alerted it (its banner shows). */
+    @JvmStatic
+    fun debugAlert(notification: PhoneNotification) {
+        alertListener?.onAlert(notification)
+    }
+
     private fun onNotify(json: JSONObject) {
         Log.d(TAG, "← phone notify ${json.optString("type")} ${json.optString("key").takeLast(24)}")
         when (json.optString("type")) {
