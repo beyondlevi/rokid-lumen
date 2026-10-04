@@ -1,6 +1,6 @@
 #!/system/bin/sh
 
-VERSION="1"
+VERSION="2"
 PKG="${NEURALBAND_PACKAGE:-dev.lumen.glasses}"
 SVC="${NEURALBAND_A11Y_SERVICE:-dev.lumen.glasses/dev.lumen.glasses.BandAccessibilityService}"
 SCRIPT_NAME="lumen-a11y-watchdog.sh"
@@ -8,8 +8,13 @@ PIDFILE="${NEURALBAND_A11Y_PIDFILE:-/data/local/tmp/lumen-a11y-watchdog.pid}"
 VERSIONFILE="${NEURALBAND_A11Y_VERSIONFILE:-/data/local/tmp/lumen-a11y-watchdog.version}"
 LOGFILE="${NEURALBAND_A11Y_LOGFILE:-/data/local/tmp/lumen-a11y-watchdog.log}"
 HEARTBEAT="${NEURALBAND_A11Y_HEARTBEAT:-/data/local/tmp/lumen-a11y-watchdog.heartbeat}"
-POLL_SECONDS="${NEURALBAND_A11Y_POLL_SECONDS:-1}"
-LOG_HEALTHY_EVERY="${NEURALBAND_A11Y_LOG_HEALTHY_EVERY:-30}"
+# Every POLL_SECONDS the loop only checks that the app's process is still there, with shell
+# builtins (no process but sleep). The full check (settings, pidof) runs every FULL_CHECK_EVERY
+# ticks, or as soon as the process is gone. Version 1 ran the full check every second: about 18
+# processes a second, all day, measured on the glasses (/proc/stat).
+POLL_SECONDS="${NEURALBAND_A11Y_POLL_SECONDS:-3}"
+FULL_CHECK_EVERY="${NEURALBAND_A11Y_FULL_CHECK_EVERY:-10}"
+LOG_HEALTHY_EVERY="${NEURALBAND_A11Y_LOG_HEALTHY_EVERY:-20}"
 MAX_LOG_BYTES="${NEURALBAND_A11Y_MAX_LOG_BYTES:-65536}"
 
 log_msg() {
@@ -95,16 +100,26 @@ run_loop() {
     echo "$VERSION" > "$VERSIONFILE"
     log_msg "start pid=$$ version=$VERSION service=$SVC"
     tick=0
+    checks=0
+    pid=""
+    healthy=0
     while true; do
         tick=$((tick + 1))
-        now="$(date +%s)"
-        echo "$now" > "$HEARTBEAT"
+        # Cheap path: the last full check was fine and the app's process is still there.
+        if [ "$healthy" = 1 ] && [ -d "/proc/$pid" ] && [ $((tick % FULL_CHECK_EVERY)) -ne 0 ]; then
+            sleep "$POLL_SECONDS"
+            continue
+        fi
+        checks=$((checks + 1))
+        echo "$(date +%s)" > "$HEARTBEAT"
         if state_ok; then
-            if [ "$LOG_HEALTHY_EVERY" -gt 0 ] && [ $((tick % LOG_HEALTHY_EVERY)) -eq 0 ]; then
+            healthy=1
+            if [ "$LOG_HEALTHY_EVERY" -gt 0 ] && [ $((checks % LOG_HEALTHY_EVERY)) -eq 0 ]; then
                 log_msg "healthy tick=$tick pid=$pid"
                 rotate_log
             fi
         else
+            healthy=0
             log_msg "repair_needed tick=$tick reason='$reason' a11y='$a11y_enabled' pid='$pid' svcs='$enabled_services'"
             repair_accessibility
             rotate_log

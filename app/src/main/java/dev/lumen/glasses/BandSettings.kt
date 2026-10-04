@@ -152,6 +152,7 @@ object BandSettings {
             key == KEY_DIAL -> {
                 val mode = DialMode.entries.firstOrNull { it.key == value } ?: return "unknown dial mode $value"
                 GestureMappings.setDial(context, mode)
+                BandRuntime.applyStreams(context)
             }
             key == KEY_NAVIGATION -> {
                 if (value != "stable" && value != "fast") return "unknown navigation $value"

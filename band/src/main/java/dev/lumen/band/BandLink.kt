@@ -60,6 +60,10 @@ class BandLink(
     @Volatile private var generation = 0
     /** Failed attempts in a row (see [retry]). */
     @Volatile private var failures = 0
+    /** When the band last sent anything (elapsedRealtime). */
+    @Volatile private var lastInput = 0L
+    /** When [drain] last asked the bridge for its status (elapsedRealtime). */
+    private var lastStatusCheck = 0L
     @Volatile private var motion = true
     @Volatile private var gestures = true
     /** The input-channel read of the current attempt answered. */
@@ -291,7 +295,11 @@ class BandLink(
             write(synchronized(lock) { Bridge.request(handle) })
             thread(name = "band-tick") {
                 while (attempt == generation) {
-                    SystemClock.sleep(50)
+                    // Fast only while the band is talking: a held tap, a double tap or the dial
+                    // need 50 ms; idle, the tick has only request deadlines (seconds) to keep.
+                    // Before, it woke 20 times a second for the whole connection.
+                    val talking = SystemClock.elapsedRealtime() - lastInput < FAST_TICK_WINDOW_MS
+                    SystemClock.sleep(if (talking) FAST_TICK_MS else IDLE_TICK_MS)
                     try {
                         val out = synchronized(lock) { if (handle == 0L) null else Bridge.tick(handle, now()) }
                         out?.let(write)
@@ -306,6 +314,7 @@ class BandLink(
             while (attempt == generation) {
                 val count = input.read(buffer)
                 if (count < 0) break
+                lastInput = SystemClock.elapsedRealtime()
                 val out = synchronized(lock) {
                     if (handle == 0L) null else Bridge.feed(handle, buffer.copyOf(count), now())
                 }
@@ -331,6 +340,11 @@ class BandLink(
             if (Identity.pendingFile(context).renameTo(Identity.keyFile(context))) log("the band accepted the claimed key")
         }
         if (actions.isNotEmpty()) listener.onActions(actions.lines())
+        // The status is a JSON the bridge builds on request: at most every STATUS_EVERY_MS while
+        // samples stream in, right away when something happened (an action or a log line).
+        val now = SystemClock.elapsedRealtime()
+        if (actions.isEmpty() && lines.isEmpty() && now - lastStatusCheck < STATUS_EVERY_MS) return
+        lastStatusCheck = now
         synchronized(lock) { publishStatus() }
     }
 
@@ -359,5 +373,15 @@ class BandLink(
 
         /** The longest wait between attempts. */
         const val MAX_RETRY_MS = 30_000L
+
+        /** The tick while the band talks, and how long after its last message that lasts. */
+        const val FAST_TICK_MS = 50L
+        const val FAST_TICK_WINDOW_MS = 1_500L
+
+        /** The tick while the band is quiet: request deadlines are seconds long. */
+        const val IDLE_TICK_MS = 250L
+
+        /** The least time between two status reads while samples stream in. */
+        const val STATUS_EVERY_MS = 200L
     }
 }

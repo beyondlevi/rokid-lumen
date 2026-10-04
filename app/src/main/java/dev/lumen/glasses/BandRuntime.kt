@@ -89,6 +89,7 @@ object BandRuntime {
                 main.post { note(line) }
             }
         }
+        motion = wantsMotion(app)
         device = (if (simulated) SimulatedBand(listener, app) else BandLink(app, listener, config(app))).also {
             it.setMotion(motion)
             it.setGestures(gestures)
@@ -134,7 +135,7 @@ object BandRuntime {
 
     /** The glasses' screen, as last reported ([setScreenOn]). */
     private var screenOn = true
-    /** Motion streams wanted: off while the screen is off (nothing needs pinch and turn). */
+    /** Motion streams wanted ([wantsMotion]). */
     private var motion = true
     /** Gesture stream wanted: off while the screen is off in power saving. */
     private var gestures = true
@@ -150,13 +151,22 @@ object BandRuntime {
         applyStreams(context)
     }
 
-    /** The streams for the screen and the power saving setting now; kept for new links. */
+    /**
+     * The motion streams (gyro, orientation) feed pinch and turn only: on while the screen is on,
+     * the controls aren't paused and the dial does something. Before, a paused band or a dial set to
+     * No action still streamed them (the radio and a thread wakeup per sample, ~190 a second).
+     */
+    private fun wantsMotion(context: Context) =
+        screenOn && !GestureMappings.isPaused(context) && GestureMappings.dial(context) != DialMode.NONE
+
+    /** The streams for the screen, the pause, the dial and power saving now; kept for new links. */
     @JvmStatic
     fun applyStreams(context: Context) {
         val wantGestures = screenOn || !GestureMappings.isPowerSaving(context)
-        if (motion != screenOn) {
-            motion = screenOn
-            device?.setMotion(screenOn)
+        val wantMotion = wantsMotion(context)
+        if (motion != wantMotion) {
+            motion = wantMotion
+            device?.setMotion(wantMotion)
         }
         if (gestures != wantGestures) {
             gestures = wantGestures
@@ -168,6 +178,7 @@ object BandRuntime {
     fun setPaused(context: Context, paused: Boolean) {
         GestureMappings.setPaused(context, paused)
         device?.setPaused(paused)
+        applyStreams(context)
         notifyListeners()
     }
 
@@ -219,7 +230,10 @@ object BandRuntime {
     private fun setStatus(context: Context, status: JSONObject) {
         this.status = status
         // The middle hold toggles the controls on the band itself: remember it for the next link.
-        if (status.has("paused")) GestureMappings.setPaused(context, status.optBoolean("paused"))
+        if (status.has("paused") && status.optBoolean("paused") != GestureMappings.isPaused(context)) {
+            GestureMappings.setPaused(context, status.optBoolean("paused"))
+            applyStreams(context)
+        }
         notifyListeners()
     }
 

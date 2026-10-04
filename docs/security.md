@@ -60,8 +60,9 @@ on, reads the pairing code from the screen, and pairs with the glasses' adbd ove
 - asks the bridge to turn Wi-Fi off again.
 
 After every boot the app reconnects to 127.0.0.1:5555 with the paired key and restarts the
-helpers. The watchdog checks every second that the accessibility service is enabled and the app
-runs, and otherwise re-enables the service and relaunches the app. With `WRITE_SECURE_SETTINGS`
+helpers. The watchdog checks every 3 seconds that the app's process is there, every 30 seconds
+(or as soon as the process is gone) that the accessibility service is enabled and the app runs,
+and otherwise re-enables the service and relaunches the app. With `WRITE_SECURE_SETTINGS`
 the app also repairs its accessibility entry itself.
 
 The same shell route is used for what a normal app can't do: turning Wi-Fi on, joining the
