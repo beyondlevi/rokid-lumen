@@ -319,14 +319,13 @@ The screenshots below come from its demo mode (fictitious chats, no server), set
 companion with the app's own *Demo mode* setting.
 
 <!-- media: whatsapp-chats -->
-![The chat list: unread chats, a group, a photo and a document preview](media/whatsapp-chats.png)
+![The chat list: voice search, unread chats, a group and a reaction](media/whatsapp-chats.png)
 ![A conversation with both sides' bubbles and the Reply, Voice and Photos bar](media/whatsapp-thread.png)
-![The message menu with reactions over a received message](media/whatsapp-reactions.png)
+![A dictated reply sent, and the answer arriving](media/whatsapp-sent.png)
 
-<!-- media: whatsapp-reply -->
-![Replying: the field, Send, "Message sent", the answer arriving and a reaction](media/whatsapp-reply.gif)
-
-[The same flow as a video](media/whatsapp-reply.mp4) (26 s, recorded with `adb shell screenrecord`).
+<!-- media: demo -->
+[A 35-second video](media/lumen-demo.mp4) goes from a WhatsApp notification to this app: the
+reaction, the chat, a dictated reply. Recorded with `adb shell screenrecord`, in demo mode.
 
 ## Testing on the glasses
 

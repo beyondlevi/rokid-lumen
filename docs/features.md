@@ -93,17 +93,24 @@ exist:
   (`--es notify_title "Title" --es notify_text "Line one\nLine two"`). The home logs each
   command and what the page did with it (`adb logcat -s BandLauncher BandNotifPage`).
 
+  For screenshots and demos, a simulated notification also takes `--es notify_app WhatsApp`,
+  `--es notify_pkg com.whatsapp`, `--es notify_icon <a PNG's name in the app's external files
+  folder>`, `--ei notify_time <minutes ago>`, `--ez notify_reply true` (quick replies, which
+  answer "Sent" on the glasses alone), `--es notify_key <key>` and `--ez notify_alert true` (its
+  banner shows). `--es grid_order <ids> --es grid_hidden <ids>` (comma-separated, as in
+  `lumen_grid.xml`) arranges the apps grid.
+
 An official API, if Meta publishes one, would be a third implementation of the same interface.
 
 ## The home
 
-<!-- media: grid (to retake: the home's Apps tab) -->
-![The apps grid on the HUD](media/grid.png)
+<!-- media: grid -->
+![The home's Apps tab: the tabs pill, the time and Wi-Fi, and the apps grid](media/grid.png)
 
 Rokid Lumen's icon on the Rokid launcher opens the home, on top of the Rokid launcher. The time
 sits at the top right, level with the tabs, with Wi-Fi's icon beside it while the glasses are on
-Wi-Fi (the phone's hotspot for a web app included). It is the UI Toolkit's SubNavigationPager: a pill of two tabs at the top, **Notifications** and
-**Apps**, over a page that slides from one to the other.
+Wi-Fi (the phone's hotspot for a web app included). It is the UI Toolkit's SubNavigationPager: a pill of three tabs at the top, **Notifications**,
+**Apps** and **Controls**, over a page that slides from one to the next.
 
 - **Notifications**: the phone's notification inbox (below). A dot on its tab icon says
   there's something new.
@@ -122,6 +129,9 @@ Controls tab's Rokid launcher tile does). A banner's index tap opens the Notific
 notification.
 
 ### The Controls tab
+
+<!-- media: controls -->
+![The Controls tab: the glasses', band's and phone's batteries, the Rokid's camera, gallery and music, volume, brightness, do not disturb and Rokid settings](media/controls.png)
 
 Right of Apps (right from the last app, or the tabs), the toolkit's control tiles. It scrolls.
 
@@ -204,7 +214,8 @@ behind it with black, which the additive display shows as see-through, so only t
 notification stays.
 
 <!-- media: inbox -->
-![The notification inbox, grouped by app](media/inbox.png)
+![The notification inbox, grouped by app: WhatsApp, Telegram, Calendar and Slack](media/inbox.png)
+![An app's notifications in the inbox, after the index tap](media/inbox-app.png)
 
 **The inbox** is the home's Notifications tab. It holds up to 50 notifications, grouped by app (the
 app with the newest one first, with its count). The index tap expands an app, then opens one
@@ -212,6 +223,9 @@ notification in full; the middle tap goes back a level. A left swipe on a row sh
 second one dismisses it (a whole app at the first level), on the glasses and in the phone's
 shade; a right swipe puts the bin away or, with none shown, goes on to the Apps tab. The last row of the first level is the banners' snooze. The inbox and the banner follow
 the Meta Ray-Ban Display UI Toolkit's look.
+
+<!-- media: notification-replies -->
+![An open WhatsApp notification with the quick replies; a thumbs up was just sent](media/notification-reaction.png)
 
 **Opening a notification** (the banner's index tap, or the inbox) shows a row of the toolkit's
 QuickReplyButtons under it, with the focus on the first:

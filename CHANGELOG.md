@@ -12,6 +12,14 @@
   License 2.0. NOTICE lists the files and carries R08 Access Bridge's notice; each file says
   so in its header.
 
+### Docs
+
+- **New screenshots and a demo video** of 0.2.0-beta.7, in demo data only: the home's three tabs,
+  the notification banner, inbox and quick replies, dictation, the WhatsApp, Telegram, Reddit
+  and Volund OS apps in demo mode, the companion's tabs, and a 35-second clip (MP4 and GIF).
+- **Debug builds**: a simulated notification takes its app's name and icon, its age, a banner
+  and quick replies that answer on the glasses alone; the apps grid can be arranged from adb.
+
 ## [0.2.0-beta.7]
 
 ### Glasses
