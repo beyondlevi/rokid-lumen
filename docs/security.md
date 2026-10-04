@@ -39,9 +39,6 @@ These are real gaps in this version. They are on the [roadmap](../ROADMAP.md).
 5. **Web app secrets are not encrypted at rest on the glasses.** A `secret` setting is kept in
    the glasses app's private storage as plain preferences. It never goes back to the phone and
    never appears in a log.
-6. **The code derived from R08 Access Bridge** (input, navigation, the settings screen, the
-   self-arm) has no license yet; the terms are being arranged with its author: see
-   [NOTICE](../NOTICE).
 
 ## The self-arm
 

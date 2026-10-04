@@ -11,10 +11,9 @@ Rokid Lumen is not affiliated with Meta or Rokid. "Rokid" names the glasses it r
 <!-- media: hero -->
 ![Three Lumen screens as the lens shows them: the apps grid, the WhatsApp example app's chats and a conversation](docs/media/hero.png)
 
-> **License note.** The glasses' input, navigation, settings screen and self-arm are derived
-> from [R08 Access Bridge](https://github.com/Anezium/R08-Access-Bridge) by Anezium, whose
-> repository states no license; the terms are being arranged with its author. That code is not
-> covered by this project's MIT License. Details in [NOTICE](NOTICE).
+> **Built on [R08 Access Bridge](https://github.com/Anezium/R08-Access-Bridge) by
+> [Anezium](https://github.com/Anezium).** The glasses' input, navigation, settings screen and
+> self-arm come from it, used under the Apache License 2.0. Thank you, Anezium.
 
 ## What is in the repository
 
@@ -137,10 +136,10 @@ More in [CONTRIBUTING.md](CONTRIBUTING.md).
   from (`band/`, `rust/`).
 - [kinesis](https://github.com/callbacked/kinesis) (MIT): the Neural Band protocol, ported to
   Rust in `rust/band-core/`.
-- [R08 Access Bridge](https://github.com/Anezium/R08-Access-Bridge) by Anezium: the glasses'
-  input, navigation, settings screen and self-arm are derived from it; it showed that the Rokid
-  glasses can be driven through an accessibility service and armed from the glasses themselves.
-  Its terms are being arranged (see [NOTICE](NOTICE)).
+- [R08 Access Bridge](https://github.com/Anezium/R08-Access-Bridge) by Anezium (Apache-2.0):
+  the glasses' input, navigation, settings screen and self-arm are derived from it; it showed
+  that the Rokid glasses can be driven through an accessibility service and armed from the
+  glasses themselves. The derived files are listed in [NOTICE](NOTICE).
 - [rokid-r08-wake](https://github.com/hacha/rokid-r08-wake) by hacha (MIT): the loopback
   self-arm technique the accessibility watchdog recovery is built on.
 - [Rokid Nexus](https://github.com/Anezium/Rokid-Nexus) (Apache-2.0): the notification text
@@ -155,5 +154,5 @@ More in [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 MIT, see [LICENSE](LICENSE). Copyright (c) 2026 Levi Nóbrega. Third-party code and its
-licenses are listed in [NOTICE](NOTICE). The code derived from R08 Access Bridge is not covered
-by the MIT License; see [NOTICE](NOTICE).
+licenses are listed in [NOTICE](NOTICE); the code derived from R08 Access Bridge is under the
+Apache License 2.0 (its files say so in their headers).

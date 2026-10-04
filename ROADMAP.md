@@ -60,4 +60,3 @@ The open items in [docs/security.md](docs/security.md#known-open-issues):
   phone.
 - **A way to undo the self-arm from the app**, instead of the adb steps in
   [docs/getting-started.md](docs/getting-started.md#undo-the-self-arm).
-- **Licensing**: settle the terms for the code derived from R08 Access Bridge, or replace it.
