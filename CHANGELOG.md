@@ -3,6 +3,23 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [Unreleased]
+
+### Licensing
+
+- **R08 Access Bridge is now Apache-2.0**: Anezium licensed it on 2026-10-04, so the glasses'
+  input, navigation, settings screen and self-arm derived from it are used under the Apache
+  License 2.0. NOTICE lists the files and carries R08 Access Bridge's notice; each file says
+  so in its header.
+
+### Docs
+
+- **New screenshots and a demo video** of 0.2.0-beta.7, in demo data only: the home's three tabs,
+  the notification banner, inbox and quick replies, dictation, the WhatsApp, Telegram, Reddit
+  and Volund OS apps in demo mode, the companion's tabs, and a 35-second clip (MP4 and GIF).
+- **Debug builds**: a simulated notification takes its app's name and icon, its age, a banner
+  and quick replies that answer on the glasses alone; the apps grid can be arranged from adb.
+
 ## [0.2.0-beta.7]
 
 ### Glasses
@@ -132,5 +149,4 @@ Companion (`dev.lumen.companion`).
 
 ### Known issues
 
-See [docs/security.md](docs/security.md#known-open-issues). The code derived from R08 Access
-Bridge has no license yet; the terms are being arranged with its author (see NOTICE).
+See [docs/security.md](docs/security.md#known-open-issues).

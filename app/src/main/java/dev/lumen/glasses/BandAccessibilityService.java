@@ -1,3 +1,8 @@
+/*
+ * Derived from R08 Access Bridge (https://github.com/Anezium/R08-Access-Bridge),
+ * Copyright 2026 Anezium, licensed under the Apache License, Version 2.0
+ * (LICENSES/Apache-2.0.txt). Modified for Rokid Lumen; see NOTICE.
+ */
 package dev.lumen.glasses;
 
 import android.accessibilityservice.AccessibilityService;
@@ -9,6 +14,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.hardware.display.DisplayManager;
 import android.media.AudioManager;
 import android.os.Build;
@@ -21,6 +28,7 @@ import android.util.Log;
 import android.view.Display;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.Toast;
+import java.io.File;
 
 /**
  * Keeps the band connected and turns its gestures into glasses navigation. The navigation,
@@ -37,7 +45,14 @@ public final class BandAccessibilityService extends AccessibilityService {
      * routed as the band's own, while the real band stays connected.
      */
     public static final String EXTRA_COMMAND = "command";
-    /** Debug builds: a notification put in the inbox as if the phone sent it (title, then text). */
+    /**
+     * Debug builds: a notification put in the inbox as if the phone sent it (title, then text).
+     * Optional: `notify_app` (the app's name), `notify_pkg`, `notify_icon` (a PNG's file name in the
+     * app's external files folder), `notify_time` (minutes ago), `notify_reply`, `notify_shortcut`
+     * `notify_key` (the same key updates the notification) and `notify_alert` (its banner shows, as
+     * for news from the phone). For screenshots and demos.
+     * `grid_order` and `grid_hidden` (comma-separated item ids) arrange the apps grid instead.
+     */
     public static final String EXTRA_NOTIFY_TITLE = "notify_title";
     public static final String EXTRA_NOTIFY_TEXT = "notify_text";
 
@@ -105,11 +120,33 @@ public final class BandAccessibilityService extends AccessibilityService {
             if (notifyTitle != null) {
                 String text = intent.getStringExtra(EXTRA_NOTIFY_TEXT);
                 String pkg = intent.getStringExtra("notify_pkg");
-                PhoneNotification notification = new PhoneNotification("debug|" + notifyTitle, "Lumen debug",
+                String app = intent.getStringExtra("notify_app");
+                String key = intent.getStringExtra("notify_key");
+                long postedAt = System.currentTimeMillis() - intent.getIntExtra("notify_time", 0) * 60_000L;
+                PhoneNotification notification = new PhoneNotification("debug|" + (key == null ? notifyTitle : key),
+                        app == null ? "Lumen debug" : app,
                         pkg == null ? getPackageName() : pkg, notifyTitle, text == null ? "" : text.replace("\\n", "\n"),
-                        System.currentTimeMillis(), false, null, false, intent.getBooleanExtra("notify_reply", false),
+                        postedAt, false, debugIcon(intent.getStringExtra("notify_icon")), false,
+                        intent.getBooleanExtra("notify_reply", false),
                         intent.getStringExtra("notify_shortcut") == null ? "" : intent.getStringExtra("notify_shortcut"));
-                mainHandler.post(() -> NotificationInbox.put(notification, true));
+                boolean alert = intent.getBooleanExtra("notify_alert", false);
+                mainHandler.post(() -> {
+                    NotificationInbox.put(notification, true);
+                    if (alert) {
+                        PhoneLink.debugAlert(notification);
+                    }
+                });
+                return;
+            }
+            String gridOrder = intent.getStringExtra("grid_order");
+            if (gridOrder != null) {
+                // Debug builds: the grid's order and hidden items (comma-separated ids), for demos.
+                String gridHidden = intent.getStringExtra("grid_hidden");
+                mainHandler.post(() -> {
+                    GridStore.set(context, splitIds(gridOrder), splitIds(gridHidden));
+                    GridStore.notifyChanged();
+                    GridApi.pushState();
+                });
                 return;
             }
             String command = intent.getStringExtra(EXTRA_COMMAND);
@@ -124,6 +161,28 @@ public final class BandAccessibilityService extends AccessibilityService {
             }
         }
     };
+
+    private static java.util.List<String> splitIds(String ids) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        if (ids == null) {
+            return out;
+        }
+        for (String id : ids.split(",")) {
+            if (!id.trim().isEmpty()) {
+                out.add(id.trim());
+            }
+        }
+        return out;
+    }
+
+    /** A simulated notification's icon: a PNG in the app's external files folder, by name only. */
+    private Bitmap debugIcon(String name) {
+        if (name == null || name.contains("/")) {
+            return null;
+        }
+        File dir = getExternalFilesDir(null);
+        return dir == null ? null : BitmapFactory.decodeFile(new File(dir, name).getPath());
+    }
 
     @Override
     protected void onServiceConnected() {

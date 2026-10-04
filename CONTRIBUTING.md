@@ -63,7 +63,8 @@ In the pull request, say what you tested on real glasses and phone, and what you
 - Debug builds can run without a band: **Settings > Band > Simulated band**, then
   `adb shell am broadcast -a dev.lumen.glasses.SIMULATE --es gesture swipe_right`.
   With a real band connected: `--es command nav.down` (the action as the band's bridge hands
-  it back) and `--es notify_title … --es notify_text …` (a test notification).
+  it back) and `--es notify_title … --es notify_text …` (a test notification; the other
+  options, for screenshots and demos, are in [docs/features.md](docs/features.md)).
 - Logs:
 
   ```sh

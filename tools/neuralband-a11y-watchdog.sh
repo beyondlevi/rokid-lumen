@@ -1,4 +1,7 @@
 #!/system/bin/sh
+# Derived from R08 Access Bridge (https://github.com/Anezium/R08-Access-Bridge),
+# Copyright 2026 Anezium, licensed under the Apache License, Version 2.0
+# (LICENSES/Apache-2.0.txt). Modified for Rokid Lumen; see NOTICE.
 
 VERSION="2"
 PKG="${NEURALBAND_PACKAGE:-dev.lumen.glasses}"

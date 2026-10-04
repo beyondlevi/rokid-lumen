@@ -9,12 +9,19 @@ Companion**, an app on the phone.
 Rokid Lumen is not affiliated with Meta or Rokid. "Rokid" names the glasses it runs on.
 
 <!-- media: hero -->
-![Three Lumen screens as the lens shows them: the apps grid, the WhatsApp example app's chats and a conversation](docs/media/hero.png)
+![Three Lumen screens as the lens shows them: the apps grid, a WhatsApp notification answered with a reaction, and the WhatsApp example app's conversation after a dictated reply](docs/media/hero.png)
 
-> **License note.** The glasses' input, navigation, settings screen and self-arm are derived
-> from [R08 Access Bridge](https://github.com/Anezium/R08-Access-Bridge) by Anezium, whose
-> repository states no license; the terms are being arranged with its author. That code is not
-> covered by this project's MIT License. Details in [NOTICE](NOTICE).
+<!-- media: demo -->
+![A WhatsApp notification arrives, the band opens it and reacts, the WhatsApp example app opens on the chat, a reply is dictated and sent, then the apps grid, the Controls tab and the display off](docs/media/lumen-demo-lens.gif)
+
+[The same 35-second clip as an MP4](docs/media/lumen-demo.mp4), recorded on the glasses with
+`adb shell screenrecord` ([as the lens shows it](docs/media/lumen-demo-lens.mp4)). The band's
+gestures are simulated (`SIMULATE`), and everything on screen is demo data: the example apps'
+demo mode and simulated notifications.
+
+> **Built on [R08 Access Bridge](https://github.com/Anezium/R08-Access-Bridge) by
+> [Anezium](https://github.com/Anezium).** The glasses' input, navigation, settings screen and
+> self-arm come from it, used under the Apache License 2.0. Thank you, Anezium.
 
 ## What is in the repository
 
@@ -71,6 +78,13 @@ Rokid Lumen is not affiliated with Meta or Rokid. "Rokid" names the glasses it r
   (media, volume, brightness, flashlight, screen gestures). Either side hands it back.
 
 Details: [docs/features.md](docs/features.md).
+
+Web apps running on Lumen, in their demo mode: the WhatsApp and Telegram examples, a Reddit
+client and a Volund OS client.
+
+| WhatsApp | Telegram | Reddit | Volund OS |
+| --- | --- | --- | --- |
+| ![WhatsApp example: the chat list](docs/media/whatsapp-chats-lens.png) | ![Telegram example: a group conversation](docs/media/telegram-thread-lens.png) | ![Reddit client: a post](docs/media/reddit-post-lens.png) | ![Volund OS client: the conversations with agents](docs/media/volund-conversations-lens.png) |
 
 ## Install
 
@@ -137,10 +151,10 @@ More in [CONTRIBUTING.md](CONTRIBUTING.md).
   from (`band/`, `rust/`).
 - [kinesis](https://github.com/callbacked/kinesis) (MIT): the Neural Band protocol, ported to
   Rust in `rust/band-core/`.
-- [R08 Access Bridge](https://github.com/Anezium/R08-Access-Bridge) by Anezium: the glasses'
-  input, navigation, settings screen and self-arm are derived from it; it showed that the Rokid
-  glasses can be driven through an accessibility service and armed from the glasses themselves.
-  Its terms are being arranged (see [NOTICE](NOTICE)).
+- [R08 Access Bridge](https://github.com/Anezium/R08-Access-Bridge) by Anezium (Apache-2.0):
+  the glasses' input, navigation, settings screen and self-arm are derived from it; it showed
+  that the Rokid glasses can be driven through an accessibility service and armed from the
+  glasses themselves. The derived files are listed in [NOTICE](NOTICE).
 - [rokid-r08-wake](https://github.com/hacha/rokid-r08-wake) by hacha (MIT): the loopback
   self-arm technique the accessibility watchdog recovery is built on.
 - [Rokid Nexus](https://github.com/Anezium/Rokid-Nexus) (Apache-2.0): the notification text
@@ -155,5 +169,5 @@ More in [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 MIT, see [LICENSE](LICENSE). Copyright (c) 2026 Levi Nóbrega. Third-party code and its
-licenses are listed in [NOTICE](NOTICE). The code derived from R08 Access Bridge is not covered
-by the MIT License; see [NOTICE](NOTICE).
+licenses are listed in [NOTICE](NOTICE); the code derived from R08 Access Bridge is under the
+Apache License 2.0 (its files say so in their headers).

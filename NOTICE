@@ -10,6 +10,29 @@ air-gestures (https://gitlab.com/896kb/air-gestures), Copyright (c) 2026 896kb, 
 kinesis (https://github.com/callbacked/kinesis), Copyright (c) 2026 callbacked, MIT License
 (LICENSE-kinesis): the Meta Neural Band protocol, ported to Rust in rust/band-core/.
 
+R08 Access Bridge (https://github.com/Anezium/R08-Access-Bridge), Copyright 2026 Anezium,
+Apache License, Version 2.0 (LICENSES/Apache-2.0.txt). The glasses' input, navigation,
+settings screen and self-arm are derived from it and modified for the Meta Neural Band and
+Lumen's grid, in app/src/main/java/dev/lumen/glasses/: AccessibilityNavigator,
+AccessibilityWindowRoots, LauncherNavigator, GestureDispatcher, GlassesAction,
+RokidSystemActions, BandAccessibilityService, MainActivity, BootReceiver, BridgeCommandActivity,
+BridgeProtocol, PrivilegedShortcutBridge, LocalSelfArmStatus, SelfArmController,
+SelfArmLocalAdbBootstrapper, SelfArmWirelessAdbController, SelfArmWirelessDebuggingAutomator,
+SelfArmSettingsTextMatcher, and the ReadEra, ArBook and NewPipe compatibility modes
+(ReaderaCompatibility, ArbookCompatibility, NewPipeCompatibility); and the helper scripts in
+tools/. Each of these files says so in its header. R08 Access Bridge's NOTICE:
+
+    R08 Access Bridge
+    Copyright 2026 Anezium
+
+    This product includes software developed by Anezium (https://github.com/Anezium).
+
+    Licensed under the Apache License, Version 2.0.
+
+Thanks to Anezium for R08 Access Bridge, and for licensing it for this project: it showed that
+the Rokid glasses can be driven through an accessibility service and armed from the glasses
+themselves, and most of what makes Lumen usable day to day comes from it.
+
 Rokid Nexus (https://github.com/Anezium/Rokid-Nexus), Copyright Anezium, Apache License,
 Version 2.0 (LICENSES/Apache-2.0.txt). Ported and modified in
 phone/src/main/java/dev/lumen/companion/relay/ (and their tests): NotificationTextExtractor,
@@ -19,6 +42,11 @@ dictation engines in phone/src/main/java/dev/lumen/companion/speech/ follow
 phone-hub/.../speech/ (the engines and their model ids, endpoints and message formats, the
 transcription languages, the voice activity thresholds, the patience levels and the encrypted
 key store), rewritten for this app's continuous dictation.
+
+rokid-r08-wake (https://github.com/hacha/rokid-r08-wake), Copyright (c) 2026 hacha, MIT
+License (LICENSE-rokid-r08-wake): the loopback self-arm technique that R08 Access Bridge's
+accessibility watchdog recovery, and so Lumen's, is built on. A short part of SelfArmController
+follows its SelfArm code.
 
 Noto Sans (app/src/main/assets/fonts/ and phone/src/main/res/font/), Copyright 2022 The Noto
 Project Authors, SIL Open Font License, Version 1.1 (app/src/main/assets/fonts/OFL.txt).
@@ -52,31 +80,3 @@ Apache License, Version 2.0 (LICENSES/Apache-2.0.txt):
 
 Rokid's CXR SDKs (com.rokid.cxr:client-l, com.rokid.cxr:cxr-service-bridge) belong to Rokid
 and are used as published on https://maven.rokid.com.
-
-Code derived from R08 Access Bridge
------------------------------------
-
-R08 Access Bridge (https://github.com/Anezium/R08-Access-Bridge), Copyright Anezium. The
-glasses' input, navigation, settings screen and self-arm are derived from it and modified for
-the Meta Neural Band and Lumen's grid, in app/src/main/java/dev/lumen/glasses/:
-AccessibilityNavigator, AccessibilityWindowRoots, LauncherNavigator, GestureDispatcher,
-GlassesAction, RokidSystemActions, BandAccessibilityService, MainActivity, BootReceiver,
-BridgeCommandActivity, BridgeProtocol, PrivilegedShortcutBridge, LocalSelfArmStatus,
-SelfArmController, SelfArmLocalAdbBootstrapper, SelfArmWirelessAdbController,
-SelfArmWirelessDebuggingAutomator, SelfArmSettingsTextMatcher, and the ReadEra, ArBook and
-NewPipe compatibility modes (ReaderaCompatibility, ArbookCompatibility, NewPipeCompatibility);
-and the helper scripts in tools/.
-
-R08 Access Bridge's repository does not state a license. Its author has not granted one for
-this project yet; the terms are being arranged with him and will be recorded here. This code is
-not covered by Rokid Lumen's MIT License. If you are Anezium and want anything changed, open an
-issue or contact the maintainer.
-
-Thanks to Anezium for R08 Access Bridge: it showed that the Rokid glasses can be driven through
-an accessibility service and armed from the glasses themselves, and most of what makes Lumen
-usable day to day comes from it. Thanks also for Rokid Nexus, credited above.
-
-rokid-r08-wake (https://github.com/hacha/rokid-r08-wake), Copyright (c) 2026 hacha, MIT
-License (LICENSE-rokid-r08-wake): the loopback self-arm technique that R08 Access Bridge's
-accessibility watchdog recovery, and so Lumen's, is built on. A short part of SelfArmController
-follows its SelfArm code.

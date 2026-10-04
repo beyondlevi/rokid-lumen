@@ -12,6 +12,9 @@ import dev.lumen.protocol.NotifyCommand
  */
 object NotificationReplies {
     private const val TIMEOUT_MS = 20_000L
+    /** The key prefix of the simulated notifications ([BandAccessibilityService.EXTRA_NOTIFY_TITLE]). */
+    private const val SIMULATED = "debug|"
+    private const val SIMULATED_DELAY_MS = 600L
 
     /** How a reply went: [ok], or not (the phone said so, or never answered). */
     fun interface Listener {
@@ -25,8 +28,15 @@ object NotificationReplies {
     /** Sends [text] as the answer to [key]; false when the phone link is down. */
     @JvmStatic
     fun send(key: String, text: String): Boolean {
-        if (!PhoneLink.send(Link.NOTIFY, NotifyCommand.reply(key, text))) return false
         pending.remove(key)?.let(main::removeCallbacks)
+        if (key.startsWith(SIMULATED)) {
+            // A debug build's simulated notification: nothing on the phone to answer it.
+            val done = Runnable { finish(key, true) }
+            pending[key] = done
+            main.postDelayed(done, SIMULATED_DELAY_MS)
+            return true
+        }
+        if (!PhoneLink.send(Link.NOTIFY, NotifyCommand.reply(key, text))) return false
         val timeout = Runnable { finish(key, false) }
         pending[key] = timeout
         main.postDelayed(timeout, TIMEOUT_MS)
