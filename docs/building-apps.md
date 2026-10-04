@@ -19,14 +19,14 @@ For coding agents there is a condensed version: [skills/lumen-app/SKILL.md](../s
 - Meta's [UI Toolkit for Meta Ray-Ban Display](https://github.com/facebook/meta-ray-ban-display-ui-toolkit-web)
   (React; components, design tokens, focus navigation) is the reference design. Lumen's own
   screens follow its tokens.
-- **A hidden app stops after 5 minutes.** The display goes off after a couple of minutes without
-  input (the wearer's setting); an app hidden by it or by another screen stays as it was for 5
-  minutes. After that the page turns hidden (`visibilitychange`) and GeckoView suspends it:
-  timers, animations and network wait until it's visible again, and the phone's internet is
-  gone. Android may also end the page's process meanwhile; Lumen then loads the page again
-  when it's shown. Refresh what's stale (a feed, a chat) on `visibilitychange`, retry a request
-  that failed meanwhile, and keep what the wearer was doing (the open chat, the post) in the
-  URL or in storage so a reload comes back to it.
+- **A hidden app is suspended.** The display goes off after a couple of minutes without input
+  (the wearer's setting). When it does, or another screen covers the app, the page turns hidden
+  (`visibilitychange`) and GeckoView suspends it: timers, animations and network wait until it's
+  visible again, and it comes back as it was. The phone's internet stays for 5 minutes, then
+  goes until the app is back. Refresh what's stale (a feed, a chat) on `visibilitychange` and
+  retry a request that failed meanwhile. Android may still end the page's process (Lumen then
+  loads the page again when it's shown), so keep what the wearer was doing (the open chat, the
+  post) in the URL or in storage.
 - **Animations run at 30 fps**, and an animated GIF plays once.
 
 ## Input
