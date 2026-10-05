@@ -8,7 +8,7 @@ import org.junit.Test
 class KeyboardTest {
     @Test
     fun `keyboard commands and fields round-trip`() {
-        val text = KeyboardCommand(KeyboardCommand.TEXT, "olá\nmundo", 7)
+        val text = KeyboardCommand(KeyboardCommand.TEXT, "café\nworld", 7)
         assertEquals(text, KeyboardCommand.from(text.toJson()))
         val field = KeyboardField(true, "WhatsApp", "Mensagem", "text", true, "oi", KeyboardField.SYNC)
         assertEquals(field, KeyboardField.from(field.toJson()))
