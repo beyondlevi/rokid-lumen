@@ -132,6 +132,9 @@
     <string name="band_use_glasses">Use on the glasses</string>
     <string name="band_key_missing">To use the band on this phone, import its key: the air-gestures-band.json file exported by the original phone app or the Linux app.</string>
     <string name="band_import_key">Import the key</string>
+    <string name="band_export_key">Export the key</string>
+    <string name="band_key_exported">Key exported. Anyone holding the file controls the band: keep it private.</string>
+    <string name="band_key_export_failed">The key couldn\'t be written to that file.</string>
     <string name="band_bluetooth_missing">Allow Bluetooth so this phone can connect to the band.</string>
     <string name="band_allow_bluetooth">Allow Bluetooth</string>
     <string name="band_paused">Paused</string>
@@ -490,4 +493,19 @@
     <string name="setup_key_not_sent">No key on this phone, or the glasses aren\'t connected.</string>
     <string name="setup_arm_hint_usb">In Hi Rokid\'s developer settings, turn on USB debugging, then tap Prepare again.</string>
     <string name="setup_arm_hint_wifi">Connect the glasses to a Wi-Fi network in Hi Rokid and keep them on, then tap Prepare again.</string>
+    <string name="meta_login_loading">Opening Meta\'s sign-in…</string>
+    <string name="meta_login_unconfirmed">Meta didn\'t confirm this sign-in. Try again.</string>
+    <string name="meta_login_exchanging">Signed in. Getting the account session…</string>
+    <string name="claim_button">Generate the key with my Meta account</string>
+    <string name="claim_dry_run">Test the sign-in and the band (no claim)</string>
+    <string name="claim_confirm_title">Claim the band for Lumen?</string>
+    <string name="claim_confirm_text">You sign in on Meta\'s own page, and this phone claims the band with a new key, as air-gestures does. The band then leaves Meta\'s app and glasses, and any key you had for it stops working. Meta\'s routes are unofficial and can change.\n\nFirst, factory reset the band: hold its button about 16 seconds. It then waits in pairing mode; keep it near the phone.</string>
+    <string name="claim_confirm_go">Sign in and claim</string>
+    <string name="claim_step_waiting">Looking for the band in pairing mode…</string>
+    <string name="claim_step_found">Found %1$s; connecting…</string>
+    <string name="claim_pairing_hint">Factory reset the band (hold its button about 16 s) and keep it near the phone.</string>
+    <string name="claim_done">The band is claimed: its new key is on this phone and was sent to the glasses.</string>
+    <string name="claim_dry_run_done">Test passed: signed in, and the band answered (serial %1$s). Nothing was claimed.</string>
+    <string name="claim_failed">The claim stopped: %1$s</string>
+    <string name="claim_sign_in_failed">Meta sign-in failed: %1$s</string>
 </resources>

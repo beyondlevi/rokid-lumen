@@ -4,6 +4,7 @@
 //! desktop daemon's link loop does) and the gesture controller (copied from
 //! air-gestures: held taps, the double-tap wait, the toggle hold, the dial).
 
+use band_core::ceremony::{CeremonyHttpRequest, OwnershipCeremony};
 use band_core::events::Event;
 use band_core::identity::EnrollmentIdentity;
 use band_core::session::BandSession;
@@ -45,6 +46,24 @@ pub struct Connection {
     streams_sent: (bool, bool),
     actions: Vec<String>,
     log: Vec<String>,
+    /// The ownership ceremony's events (claim mode), as JSON lines for the app.
+    claim: Vec<String>,
+    /// The owner key the band is about to commit (after `claim_pair_completed`).
+    claim_pending: Option<Vec<u8>>,
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// The owner key file's bytes for an identity: the 32-byte scalar, plus the band's
+/// 65-byte key when known (97 bytes), as `owner.key` holds them.
+fn owner_key(identity: &EnrollmentIdentity) -> Vec<u8> {
+    let mut bytes = identity.private_bytes().to_vec();
+    if let Some(band) = identity.band_key_x963() {
+        bytes.extend(band);
+    }
+    bytes
 }
 
 #[derive(Serialize)]
@@ -71,6 +90,28 @@ impl Connection {
             length => return Err(format!("owner.key must be 32 or 97 bytes, not {length}")),
         };
         let identity = EnrollmentIdentity::from_bytes(private, band).map_err(|e| e.to_string())?;
+        Ok(Self::with_session(
+            BandSession::new(Some(identity), None, false).with_scheme_guess(scheme_guess),
+            paused,
+            dial,
+            mapping,
+        ))
+    }
+
+    /// A connection that claims a band in pairing mode (the ownership ceremony, with a fresh
+    /// app key) instead of signing in with a stored one. Its HTTP steps and outcome come out of
+    /// `take_claim_events`; the app answers with `claim_pair_request_completed` and
+    /// `claim_pair_completed`. Once claimed it carries on as a normal connection.
+    pub fn new_claim(scheme_guess: usize, paused: bool, dial: &str, mapping: &str) -> Self {
+        Self::with_session(
+            BandSession::new(None, Some(OwnershipCeremony::default()), false).with_scheme_guess(scheme_guess),
+            paused,
+            dial,
+            mapping,
+        )
+    }
+
+    fn with_session(session: BandSession, paused: bool, dial: &str, mapping: &str) -> Self {
         let mut controller = Controller::new(config_with(mapping));
         if paused {
             controller.pause();
@@ -79,8 +120,8 @@ impl Connection {
         if !dial.is_empty() {
             controller.set_dial_target(DialTarget::from_name(dial));
         }
-        Ok(Self {
-            session: BandSession::new(Some(identity), None, false).with_scheme_guess(scheme_guess),
+        Self {
+            session,
             controller,
             live: false,
             last_read: 0.0,
@@ -91,7 +132,9 @@ impl Connection {
             streams_sent: (true, true),
             actions: Vec::new(),
             log: Vec::new(),
-        })
+            claim: Vec::new(),
+            claim_pending: None,
+        }
     }
 
     /// The first bytes to write once the L2CAP channel is open.
@@ -159,6 +202,45 @@ impl Connection {
         Ok(outgoing)
     }
 
+    /// The ceremony's events since the last call, one JSON object each (claim mode).
+    pub fn take_claim_events(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.claim)
+    }
+
+    /// Resume the claim after `pair_request`: the server's signature and pending receipt.
+    pub fn claim_pair_request_completed(&mut self, signature: &[u8], receipt: &str) -> Result<Vec<u8>, String> {
+        self.session
+            .ceremony_pair_request_completed(signature, receipt)
+            .map_err(|e| e.to_string())
+    }
+
+    /// Resume the claim after `pair`. Returns the bytes to write; `claim_pending_key` then holds
+    /// the owner key the band is about to commit: persist it as pending BEFORE writing (the band
+    /// may commit even if its confirmation never arrives).
+    pub fn claim_pair_completed(
+        &mut self,
+        signature: &[u8],
+        receipt: &str,
+        device_public_key: Option<&[u8]>,
+    ) -> Result<Vec<u8>, String> {
+        let bytes = self
+            .session
+            .ceremony_pair_completed(signature, receipt, device_public_key)
+            .map_err(|e| e.to_string())?;
+        self.claim_pending = Some(
+            self.session
+                .pending_identity()
+                .map(|identity| owner_key(&identity))
+                .ok_or("the claim has no identity to commit")?,
+        );
+        Ok(bytes)
+    }
+
+    /// The owner key `claim_pair_completed` prepared; persist it before writing its bytes.
+    pub fn claim_pending_key(&self) -> Option<Vec<u8>> {
+        self.claim_pending.clone()
+    }
+
     /// Action names to run since the last call ("media.next", "volume.up", …).
     pub fn take_actions(&mut self) -> Vec<String> {
         std::mem::take(&mut self.actions)
@@ -220,6 +302,39 @@ impl Connection {
 
     fn on_event(&mut self, event: &Event, now: f64) -> Result<Vec<u8>, String> {
         match event {
+            Event::CeremonyStage(stage) => {
+                self.log.push(format!("claim: {stage}"));
+                self.claim.push(serde_json::json!({"type": "stage", "text": stage}).to_string());
+            }
+            Event::CeremonyHttp(CeremonyHttpRequest::PairRequest(request)) => {
+                self.claim.push(
+                    serde_json::json!({
+                        "type": "pair_request",
+                        "device_cert": hex(&request.identity.device_certificate),
+                        "serial": request.identity.serial,
+                        "secondary_cert": hex(&request.identity.secondary_certificate),
+                        "nonce": hex(&request.nonce),
+                        "app_pubkey": hex(&request.app_public_key),
+                    })
+                    .to_string(),
+                );
+            }
+            Event::CeremonyHttp(CeremonyHttpRequest::Pair(pair)) => {
+                self.claim.push(
+                    serde_json::json!({
+                        "type": "pair",
+                        "receipt": pair.receipt,
+                        "signature": hex(&pair.signature),
+                    })
+                    .to_string(),
+                );
+            }
+            Event::CeremonyCompleted(identity) => {
+                self.claim.push(
+                    serde_json::json!({"type": "completed", "owner_key": hex(&owner_key(identity))})
+                        .to_string(),
+                );
+            }
             Event::Connected => {
                 self.live = true;
                 self.log.push("connected".into());

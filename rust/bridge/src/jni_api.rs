@@ -69,6 +69,108 @@ pub extern "system" fn Java_dev_lumen_band_Bridge_open<'local>(
     }
 }
 
+/// A connection that claims a band in pairing mode ([Connection::new_claim]).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_openClaim<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    scheme_guess: jint,
+    paused: jboolean,
+    dial: JString<'local>,
+    mapping: JString<'local>,
+) -> jlong {
+    let strings = env.get_string(&dial).map(String::from).and_then(|dial| {
+        env.get_string(&mapping)
+            .map(|mapping| (dial, String::from(mapping)))
+    });
+    match strings {
+        Ok((dial, mapping)) => {
+            let connection = Connection::new_claim(scheme_guess.max(0) as usize, paused != 0, &dial, &mapping);
+            Box::into_raw(Box::new(connection)) as jlong
+        }
+        Err(error) => {
+            throw(&mut env, &error.to_string());
+            0
+        }
+    }
+}
+
+/// The ceremony's events since the last call: one JSON object per line.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_claimEvents<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+) -> jstring {
+    let lines = unsafe { connection(handle) }.take_claim_events().join("\n");
+    string_out(&mut env, lines)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_claimPairRequestCompleted<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    signature: JByteArray<'local>,
+    receipt: JString<'local>,
+) -> jbyteArray {
+    let result = env
+        .convert_byte_array(&signature)
+        .map_err(|e| e.to_string())
+        .and_then(|signature| {
+            env.get_string(&receipt)
+                .map(String::from)
+                .map_err(|e| e.to_string())
+                .map(|receipt| (signature, receipt))
+        })
+        .and_then(|(signature, receipt)| unsafe { connection(handle) }.claim_pair_request_completed(&signature, &receipt));
+    bytes_out(&mut env, result)
+}
+
+/// `device_key` may be null (the server didn't return the band's key).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_claimPairCompleted<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    signature: JByteArray<'local>,
+    receipt: JString<'local>,
+    device_key: JByteArray<'local>,
+) -> jbyteArray {
+    let device = if device_key.is_null() {
+        Ok(None)
+    } else {
+        env.convert_byte_array(&device_key).map(Some).map_err(|e| e.to_string())
+    };
+    let result = env
+        .convert_byte_array(&signature)
+        .map_err(|e| e.to_string())
+        .and_then(|signature| {
+            env.get_string(&receipt)
+                .map(String::from)
+                .map_err(|e| e.to_string())
+                .map(|receipt| (signature, receipt))
+        })
+        .and_then(|(signature, receipt)| device.map(|device| (signature, receipt, device)))
+        .and_then(|(signature, receipt, device)| {
+            unsafe { connection(handle) }.claim_pair_completed(&signature, &receipt, device.as_deref())
+        });
+    bytes_out(&mut env, result)
+}
+
+/// The owner key the band is about to commit, or null before `claimPairCompleted`.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_claimPendingKey<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+) -> jbyteArray {
+    match unsafe { connection(handle) }.claim_pending_key() {
+        Some(key) => bytes_out(&mut env, Ok(key)),
+        None => std::ptr::null_mut(),
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_lumen_band_Bridge_request<'local>(
     mut env: JNIEnv<'local>,

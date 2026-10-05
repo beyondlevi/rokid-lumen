@@ -3,6 +3,23 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.12]
+
+### Companion
+
+- **Generate the band's key with your Meta account**: on the setup page and the Band tab, the
+  companion signs in on Meta's own page, claims a factory-reset band for this phone and sends the
+  new key to the glasses, as kinesis and air-gestures do on a computer. No computer is needed for
+  any step of the setup now. A warning comes first: claiming unlinks the band from Meta's app and
+  glasses. Debug builds also have a test that signs in and reads the band's identity, stopping
+  before anything is claimed.
+
+### Band
+
+- The band link can run the ownership ceremony (from the kinesis port in band-core) over the
+  phone's Bluetooth, with Meta's two answers coming from the companion. The new key is kept
+  aside until the band accepts it, so a claim cut short never leaves a key the band doesn't know.
+
 ## [0.2.0-beta.11]
 
 ### Companion
