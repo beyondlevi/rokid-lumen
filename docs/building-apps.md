@@ -176,7 +176,9 @@ Each `lumen_notifications` entry is `{packages, open}`:
 - `packages`: the phone apps whose notifications it takes (Android package names).
 - `open`: the page to open, a path of the app (`/…`), with placeholders filled from the
   notification and URL-encoded: `{shortcut}` (the conversation's shortcut id on the phone;
-  WhatsApp's is the chat's JID), `{title}`, `{package}`. When a placeholder it uses is empty,
+  WhatsApp's is the chat's JID, Telegram's `ndid_<dialog id>`), `{tag}` (the notification's tag
+  on the phone; Reddit's names the post, as in `agg:t2_…:t3_<post>:3`), `{title}`, `{package}`.
+  When a placeholder it uses is empty,
   or without `open`, the app opens on its start page. A single-page app's route works: the
   glasses serve `index.html` for any path that isn't a file.
 

@@ -3,6 +3,15 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [Unreleased]
+
+### Glasses
+
+- **The last row's names**: the Apps grid's last row (and the last row of the Notifications and
+  Controls tabs) scrolls fully into view; its names were hidden under the bottom fade.
+- Web apps can open a notification at the page its **tag** names (`{tag}` in
+  `lumen_notifications`; Reddit's tag names the post).
+
 ## [0.2.0-beta.8]
 
 ### Companion

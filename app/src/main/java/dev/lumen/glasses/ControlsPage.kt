@@ -9,7 +9,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PorterDuff
-import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
@@ -500,7 +499,7 @@ class ControlsPage(private val activity: Activity, private val say: (String) -> 
                 if (animate) scroll.smoothScrollTo(0, 0) else scroll.scrollTo(0, 0)
                 return@post
             }
-            scroll.requestChildRectangleOnScreen(row, Rect(0, -px(TOP_PAD), row.width, row.height + px(BOTTOM_PAD)), !animate)
+            ScrollReveal.reveal(scroll, row, px(TOP_PAD), px(BOTTOM_PAD), animate)
         }
     }
 

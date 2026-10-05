@@ -34,4 +34,15 @@ class WebAppNotificationsTest {
         assertEquals("/", WebAppNotifications.path("", notification()))
         assertEquals("/search?q=Ana%20Lu", WebAppNotifications.path("/search?q={title}", notification(title = "Ana Lu")))
     }
+
+    @Test
+    fun theTagComesFromThePhonesKey() {
+        assertEquals("agg:t2_abc:t3_1xyz:3", WebAppNotifications.tag("0|com.reddit.frontpage|0|agg:t2_abc:t3_1xyz:3|10392"))
+        // A tag with "|" in it (a group summary's), no tag, and a key that isn't the phone's.
+        assertEquals("0|com.example|g:Aggregate", WebAppNotifications.tag("0|com.example|0|0|com.example|g:Aggregate|10392"))
+        assertEquals("", WebAppNotifications.tag("0|org.telegram.messenger.web|-1194773307|null|10385"))
+        assertEquals("", WebAppNotifications.tag("debug|Maya Chen"))
+        val reddit = PhoneNotification("0|com.reddit.frontpage|0|agg:t2_abc:t3_1xyz:3|10392", "Reddit", "com.reddit.frontpage", "t", "x", 0L, false, null)
+        assertEquals("/notification/agg%3At2_abc%3At3_1xyz%3A3", WebAppNotifications.path("/notification/{tag}", reddit))
+    }
 }
