@@ -48,6 +48,17 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     private val snoozeListener: () -> Unit = { refresh() }
     private val snoozeEnded = Runnable { refresh() }
     private val updateListener: () -> Unit = { refresh() }
+    /** The logs zip shared once when it's ready (not again on every refresh). */
+    private var sharedLogs: java.io.File? = null
+    private val logsListener: () -> Unit = {
+        (LogShare.state as? LogShare.State.Ready)?.file?.let { file ->
+            if (file != sharedLogs) {
+                sharedLogs = file
+                LogShare.share(this, file)
+            }
+        }
+        refresh()
+    }
     /** The page the launching intent asks for (the update notification's). */
     private val startPage = mutableStateOf<String?>(null)
 
@@ -72,8 +83,10 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         BandStore.listeners += bandListener
         PhoneBand.listeners += bandListener
         GridCache.listeners += gridListener
+        KeyboardLink.listeners += gridListener
         PhoneSnooze.listeners += snoozeListener
         dev.lumen.companion.update.UpdateManager.listeners += updateListener
+        LogShare.listeners += logsListener
         dev.lumen.companion.update.UpdateManager.checkIfDue(this)
         if (CompanionPrefs.token(this) != null) CompanionService.start(this)
         refresh()
@@ -84,8 +97,10 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         BandStore.listeners -= bandListener
         PhoneBand.listeners -= bandListener
         GridCache.listeners -= gridListener
+        KeyboardLink.listeners -= gridListener
         PhoneSnooze.listeners -= snoozeListener
         dev.lumen.companion.update.UpdateManager.listeners -= updateListener
+        LogShare.listeners -= logsListener
         window.decorView.removeCallbacks(snoozeEnded)
         super.onPause()
     }
@@ -141,6 +156,8 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
                 missing = SpeechSettings.missing(this),
             ),
             update = dev.lumen.companion.update.UpdateManager.state(this),
+            logs = LogShare.state,
+            keyboardField = KeyboardLink.field,
         )
         // The switch turns off by itself when the snooze runs out.
         window.decorView.removeCallbacks(snoozeEnded)
@@ -211,6 +228,17 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     }
 
     override fun openWifiSettings() = startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
+
+    override fun shareLogs() {
+        // A zip already made is shared again; a tap while collecting does nothing.
+        when (val logs = LogShare.state) {
+            is LogShare.State.Collecting -> Unit
+            else -> {
+                if (logs is LogShare.State.Ready) LogShare.dismiss()
+                LogShare.start(this)
+            }
+        }
+    }
 
     override fun stop() {
         stopService(Intent(this, CompanionService::class.java))
@@ -356,6 +384,14 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         CompanionService.requestSettings(SettingsOps.action(name))
     }
 
+    override fun keyboardOpen() = KeyboardLink.open()
+
+    override fun keyboardClose() = KeyboardLink.close()
+
+    override fun keyboardText(text: String) = KeyboardLink.text(text)
+
+    override fun keyboardEnter() = KeyboardLink.enter()
+
     override fun refreshGrid() {
         CompanionService.requestGrid(GridOps.describe())
     }
@@ -426,6 +462,14 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
 
     override fun deleteWebApp(id: String) {
         CompanionService.requestGrid(GridOps.remove(id))
+    }
+
+    override fun renameWebApp(id: String, name: String) {
+        CompanionService.requestGrid(GridOps.rename(id, name))
+    }
+
+    override fun copyWebApp(id: String, name: String) {
+        CompanionService.requestGrid(GridOps.copy(id, name))
     }
 
     private fun hasNotificationAccess(): Boolean =

@@ -161,6 +161,9 @@ class ChunkReceiver(val size: Int, val sha256: String, val chunks: Int) {
 
     val complete: Boolean get() = pieces.all { it != null }
 
+    /** Whether piece [seq] arrived. */
+    fun has(seq: Int): Boolean = seq in 0 until chunks && pieces[seq] != null
+
     /** Stores a piece; false for one out of range or of the wrong length. */
     fun put(seq: Int, piece: ByteArray): Boolean {
         if (seq !in 0 until chunks) return false

@@ -3,7 +3,26 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
-## [Unreleased]
+## [0.2.0-beta.8]
+
+### Companion
+
+- **Keyboard** (Home): the field focused in a web app on the glasses, and a page that types into
+  it as you type; its Send key is an Enter on the glasses. While it's open, Enter on a field
+  there goes to the app instead of opening dictation. Passwords, email, URL, phone and number
+  fields get the matching keyboard.
+- **Copies of a web app**: Apps > an app > **Add a copy** installs it again under another name
+  (a personal and a work WhatsApp), with its own data and settings; **Rename** gives any web app
+  a name that updates keep. Updating the original updates its copies.
+- **Share logs** (Settings): both apps' logs in `rokid-lumen-logs-<date>-<time>.zip`, through
+  Android's share sheet, no adb needed. The glasses send theirs over Rokid's link.
+
+### Glasses
+
+- A notification that a web app and its copy both take shows each one's name on its button
+  (a copy has the original's icon).
+- The Wi-Fi the glasses turned on for the phone's internet goes off again even when the phone's
+  network drops during the 30 s after leaving the app.
 
 ### Licensing
 

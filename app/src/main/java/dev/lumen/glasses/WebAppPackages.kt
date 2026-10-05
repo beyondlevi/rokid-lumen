@@ -315,7 +315,9 @@ object WebAppPackages {
             val icon = WebAppIcons.savePackageIcon(context, target, staged.manifest, staged.id) ?: existing?.icon
             val app = WebApp(
                 id = staged.id,
-                name = staged.name,
+                // A name given by hand stays.
+                name = if (existing?.renamed == true) existing.name else staged.name,
+                renamed = existing?.renamed ?: false,
                 offline = true,
                 remoteUrl = "",
                 port = port,
@@ -328,9 +330,26 @@ object WebAppPackages {
                 source = if (trusted && staged.source.isEmpty()) existing?.source.orEmpty() else staged.source,
             )
             WebAppLibrary.put(context, app)
+            updateCopies(context, app, target)
             return app
         } finally {
             discard(staged)
+        }
+    }
+
+    /**
+     * The copies of [app] ([WebAppLibrary.copy]) get its new package: the files, the version and
+     * what the manifest asks for; each keeps its name, port, settings and data.
+     */
+    private fun updateCopies(context: Context, app: WebApp, files: File) {
+        WebAppLibrary.copiesOf(context, app.id).forEach { copy ->
+            runCatching {
+                val dir = dir(context, copy.id)
+                dir.deleteRecursively()
+                check(files.copyRecursively(dir))
+                val icon = app.icon?.let { path -> File(path).copyTo(File(File(path).parentFile, "${copy.id}.png"), overwrite = true).absolutePath } ?: copy.icon
+                WebAppLibrary.put(context, copy.copy(version = app.version, configFields = app.configFields, internet = app.internet, icon = icon, source = app.source))
+            }.onFailure { android.util.Log.w("BandPackages", "couldn't update the copy ${copy.id}", it) }
         }
     }
 

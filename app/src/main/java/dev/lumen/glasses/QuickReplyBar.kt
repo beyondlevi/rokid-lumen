@@ -18,7 +18,8 @@ import android.widget.TextView
 
 /**
  * A row of the toolkit's QuickReplyButtons under an open notification: the web app that takes
- * it (its icon only, first) and quick replies (reactions as icon-only buttons, then short texts).
+ * it (its icon only, first; icon and name when several do) and quick replies (reactions as
+ * icon-only buttons, then short texts).
  * The toolkit's metrics: 72 high, fully rounded, 24 padding, a 24 px label, icon-only buttons a
  * 72 circle, at rest inset 8; the focused one full size on the focused material, its label
  * primary. Outlines on black, as [MetaStyle] explains for this display. The band's commands come
@@ -26,8 +27,8 @@ import android.widget.TextView
  */
 class QuickReplyBar(private val activity: Activity) {
     sealed class Action {
-        /** Opens [target]'s web app (at its page for the notification). */
-        data class OpenApp(val target: WebAppNotifications.Target, val icon: Bitmap?) : Action()
+        /** Opens [target]'s web app (at its page for the notification); [named]: its name by the icon. */
+        data class OpenApp(val target: WebAppNotifications.Target, val icon: Bitmap?, val named: Boolean = false) : Action()
 
         /** Sends [text] through the notification's reply action; [iconOnly] for a reaction. */
         data class Reply(val text: String, val iconOnly: Boolean) : Action()
@@ -120,20 +121,26 @@ class QuickReplyBar(private val activity: Activity) {
                     clipToOutline = true
                     contentDescription = action.target.app.name
                 }
-                frame.addView(icon, FrameLayout.LayoutParams(px(APP_ICON), px(APP_ICON), Gravity.CENTER))
-                Button(frame, null, px(HEIGHT))
+                if (!action.named) {
+                    frame.addView(icon, FrameLayout.LayoutParams(px(APP_ICON), px(APP_ICON), Gravity.CENTER))
+                    return Button(frame, null, px(HEIGHT))
+                }
+                // Several apps take the notification (a copy and its original share the icon).
+                val label = label(action.target.app.name, 24f)
+                val content = LinearLayout(activity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    addView(icon, LinearLayout.LayoutParams(px(APP_ICON), px(APP_ICON)))
+                    addView(label, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = px(GAP) })
+                }
+                // The icon sits as far from the left edge as from the top: (72 - 52) / 2.
+                val inset = (px(HEIGHT) - px(APP_ICON)) / 2
+                frame.addView(content, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.START or Gravity.CENTER_VERTICAL).apply { marginStart = inset })
+                label.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+                Button(frame, label, inset + px(APP_ICON) + px(GAP) + label.measuredWidth + px(PADDING))
             }
             is Action.Reply -> {
-                val label = TextView(activity).apply {
-                    text = action.text
-                    setTextColor(MetaStyle.TEXT_SECONDARY)
-                    setTextSize(TypedValue.COMPLEX_UNIT_PX, MetaStyle.textPx(context, if (action.iconOnly) 30f else 24f))
-                    typeface = MetaStyle.REGULAR
-                    isSingleLine = true
-                    ellipsize = TextUtils.TruncateAt.END
-                    includeFontPadding = false
-                    gravity = Gravity.CENTER
-                }
+                val label = label(action.text, if (action.iconOnly) 30f else 24f)
                 frame.addView(label, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
                 val width = if (action.iconOnly) px(HEIGHT) else {
                     label.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
@@ -142,6 +149,17 @@ class QuickReplyBar(private val activity: Activity) {
                 Button(frame, label, width)
             }
         }
+    }
+
+    private fun label(text: String, size: Float) = TextView(activity).apply {
+        this.text = text
+        setTextColor(MetaStyle.TEXT_SECONDARY)
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, MetaStyle.textPx(context, size))
+        typeface = MetaStyle.REGULAR
+        isSingleLine = true
+        ellipsize = TextUtils.TruncateAt.END
+        includeFontPadding = false
+        gravity = Gravity.CENTER
     }
 
     private fun applyFocus(animate: Boolean) {

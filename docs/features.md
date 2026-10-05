@@ -285,6 +285,24 @@ The proxy goes to the public internet only, and serves at most 64 connections at
 
 Without the self-arm the glasses can't join the hotspot, and the app says so.
 
+## Phone keyboard
+
+The companion's Home tab has a **Keyboard** row that names the text field focused in the web app
+on the glasses ("Field in focus: Message · WhatsApp"). Tapping it opens a keyboard page: what
+you type there goes into that field live, as its whole value, and the keyboard's Send key (or
+the Enter button) is an Enter on the glasses. Passwords, email, URL, phone and number fields get
+the matching keyboard on the phone; a multi-line field gets new lines instead of Send.
+
+While the page is open the phone keyboard takes the composer's place: Enter on a field there goes
+to the page instead of opening dictation. Leaving the page (or the companion) closes it; the
+glasses also forget a keyboard they stop hearing from for 75 seconds (it confirms every 30).
+
+How: the page script reports `focusin`/`focusout` of text fields (with the value, type and
+label) to the glasses, which pass it on as `nb.keyboard.field`; the phone sends `nb.keyboard`
+(open, close, text with a growing sequence number so a late one never wins, enter). After an
+Enter the glasses read the field again, so a box the app clears (a sent message) clears on the
+phone too.
+
 ## Dictation
 
 <!-- media: composer -->
@@ -343,7 +361,10 @@ tabs:
   check it), or an offline package by address (a `.mrbd.zip`; the glasses download it, through
   the phone's internet when they have none). Icons come from each app: its manifest's icons,
   its page's touch icon or favicon. A secret setting shows only whether it's set: its value
-  stays on the glasses.
+  stays on the glasses. **Rename** gives an app a name its updates keep; **Add a copy**
+  installs it again under another name (a personal and a work WhatsApp): the copy has its own
+  cookies, storage and settings (empty at first) and, offline, its own origin, and updating the
+  original's package updates its copies. A notification such an app opens offers each copy, by its name next to the shared icon.
 - **Band**: the band's state (connection, battery, charging), the glasses' gestures and band
   settings, which device the band controls, and the gestures on the phone.
 - **Notifications**: send to the glasses or not, banner only with the phone screen off, hide
@@ -353,6 +374,21 @@ tabs:
   key (also what web apps' transcriptions use), the offline voice model, **wireless debugging**
   on the glasses (keeps their Wi-Fi on and awake, shows the `adb connect` command with Copy and
   Share, and notifies when they come back at a new address), the version and **Updates**.
+
+### Sharing logs
+
+**Settings > Share logs** gathers both apps' logs without adb: the companion asks the glasses
+for theirs over Rokid's link (gzipped, in acknowledged chunks, up to 2 MB), adds its own and a
+summary, and opens Android's share sheet with `rokid-lumen-logs-<yyyyMMdd-HHmmss>.zip`:
+
+- `info.txt`: the time, both apps' versions, the phone, the link and the band;
+- `companion.log`: the companion's own log (`logcat` of its process);
+- `glasses.log`: the glasses app's log, the band's recent log, the state of things and the
+  self-arm helpers' logs (when the self-arm's shell can read them); or
+  `glasses-unavailable.txt` saying why not (no link, no answer in 90 s).
+
+An app can only read its own log lines, so nothing of other apps goes in; notifications' keys
+and the apps' names can, so look before sending it to someone.
 
 ### Updates
 

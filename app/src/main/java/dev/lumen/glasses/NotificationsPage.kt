@@ -243,7 +243,10 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
     /** The web app that takes [item] first, then quick replies when the phone can send them. */
     private fun quickActions(item: PhoneNotification): List<QuickReplyBar.Action> {
         val out = mutableListOf<QuickReplyBar.Action>()
-        WebAppNotifications.target(activity, item)?.let { out += QuickReplyBar.Action.OpenApp(it, WebAppIcons.load(it.app)) }
+        // Each app that takes it: a personal and a work WhatsApp both offer their icon, and then
+        // their names too, since a copy has the original's icon.
+        val targets = WebAppNotifications.targets(activity, item)
+        targets.forEach { out += QuickReplyBar.Action.OpenApp(it, WebAppIcons.load(it.app), named = targets.size > 1) }
         if (item.replyable && !item.redacted) {
             activity.resources.getStringArray(R.array.quick_reactions).forEach { out += QuickReplyBar.Action.Reply(it, iconOnly = true) }
             activity.resources.getStringArray(R.array.quick_replies).forEach { out += QuickReplyBar.Action.Reply(it, iconOnly = false) }

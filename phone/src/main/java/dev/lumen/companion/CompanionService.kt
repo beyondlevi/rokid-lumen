@@ -166,6 +166,7 @@ class CompanionService : Service() {
             ACTION_NET_DOWN -> network.down()
             ACTION_BENCH -> bench(intent.getIntExtra("size", 4096), intent.getIntExtra("count", 64))
             ACTION_TEST_NOTIFICATION -> TestReplyReceiver.post(this)
+            ACTION_COLLECT_LOGS -> LogShare.start(this)
             ACTION_DICTATE_FILE -> dictateFile(File(filesDir, intent.getStringExtra("file") ?: "speech.pcm"))
         }
         // Not sticky: a crash here must not become a restart loop.
@@ -324,6 +325,8 @@ class CompanionService : Service() {
                 NotifyCommand.replyOf(json)?.let { (key, text) -> NotificationForwarder.reply(this, key, text) }
             }
             Link.AUDIO -> audio.onMessage(json, Protocol.binary(data))
+            Link.LOGS_EVENT -> LogShare.onGlassesEvent(json, Protocol.binary(data))
+            Link.KEYBOARD_FIELD -> main.post { KeyboardLink.onGlassesField(json) }
             Link.NET -> when (NetCommand.from(json)) {
                 NetCommand.UP -> main.post { network.up() }
                 NetCommand.DOWN -> main.post { network.down() }
@@ -696,6 +699,7 @@ class CompanionService : Service() {
         const val ACTION_NET_UP = "dev.lumen.companion.NET_UP"
         const val ACTION_NET_DOWN = "dev.lumen.companion.NET_DOWN"
         const val ACTION_TEST_NOTIFICATION = "dev.lumen.companion.TEST_NOTIFICATION"
+        const val ACTION_COLLECT_LOGS = "dev.lumen.companion.COLLECT_LOGS"
         const val ACTION_BENCH = "dev.lumen.companion.BENCH"
         const val ACTION_DICTATE_FILE = "dev.lumen.companion.DICTATE_FILE"
 
@@ -721,6 +725,22 @@ class CompanionService : Service() {
             val service = instance ?: return false
             if (service.link == null) return false
             service.main.post { service.sendSettings(json) }
+            return true
+        }
+
+        /** A logs request or ack for the glasses ([dev.lumen.protocol.LogsOps]); false while the link is down. */
+        fun requestLogs(json: JSONObject): Boolean {
+            val service = instance ?: return false
+            val cxr = service.link ?: return false
+            service.main.post { runCatching { cxr.sendCustomCmd(Link.LOGS, Protocol.encode(json)) } }
+            return true
+        }
+
+        /** The companion keyboard's command for the glasses ([dev.lumen.protocol.KeyboardCommand]); false while the link is down. */
+        fun requestKeyboard(json: JSONObject): Boolean {
+            val service = instance ?: return false
+            val cxr = service.link ?: return false
+            service.main.post { runCatching { cxr.sendCustomCmd(Link.KEYBOARD, Protocol.encode(json)) } }
             return true
         }
 

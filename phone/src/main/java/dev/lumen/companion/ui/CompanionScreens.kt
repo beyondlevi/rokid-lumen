@@ -102,6 +102,10 @@ data class CompanionUiState(
     val dictation: DictationUiState = DictationUiState(),
     /** Updates from GitHub's releases, for this companion and the glasses app. */
     val update: dev.lumen.companion.update.UpdateManager.State = dev.lumen.companion.update.UpdateManager.State(),
+    /** "Share logs" in progress, ready or failed. */
+    val logs: dev.lumen.companion.LogShare.State = dev.lumen.companion.LogShare.State.Idle,
+    /** The text field focused in the glasses' web app, for the companion's keyboard. */
+    val keyboardField: dev.lumen.protocol.KeyboardField = dev.lumen.protocol.KeyboardField(false),
 )
 
 /** What the screens can ask for. */
@@ -124,6 +128,11 @@ interface CompanionActions {
     fun bandAction(name: String)
     /** Ask the glasses for the grid again. */
     fun refreshGrid()
+    /** The companion's keyboard for the glasses' web apps ([dev.lumen.companion.KeyboardLink]). */
+    fun keyboardOpen()
+    fun keyboardClose()
+    fun keyboardText(text: String)
+    fun keyboardEnter()
     /** The grid in this order (the rest hidden as before), after a drag in the Apps tab. */
     fun reorderGrid(order: List<String>)
     fun hideGridItem(id: String)
@@ -149,6 +158,10 @@ interface CompanionActions {
     /** One of a web app's configuration values; empty clears it. */
     fun setGridConfig(id: String, key: String, value: String)
     fun deleteWebApp(id: String)
+    /** Gives a web app a name that updates keep. */
+    fun renameWebApp(id: String, name: String)
+    /** Installs a web app a second time under [name] (its own data and settings). */
+    fun copyWebApp(id: String, name: String)
     fun setSpeechEngine(engine: dev.lumen.companion.speech.SpeechEngine)
     fun setSpeechLanguage(language: dev.lumen.companion.speech.SpeechLanguage)
     fun setSpeechPatience(patience: dev.lumen.companion.speech.SpeechPatience)
@@ -166,11 +179,14 @@ interface CompanionActions {
     /** Android's "install unknown apps" for this app (its own updates). */
     fun allowInstalls()
     fun openWifiSettings()
+    /** Gathers both apps' logs into a zip and shares it. */
+    fun shareLogs()
 }
 
 /** A page over the tabs: the updates, or one release's notes (`notes:<tag>`). */
 const val PAGE_UPDATES = "updates"
 const val PAGE_NOTES = "notes"
+const val PAGE_KEYBOARD = "keyboard"
 
 /** Set while a list row is dragged: the page doesn't scroll under the finger meanwhile. */
 internal val LocalScrollLock = androidx.compose.runtime.staticCompositionLocalOf { mutableStateOf(false) }
@@ -229,6 +245,7 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: 
             androidx.compose.runtime.CompositionLocalProvider(LocalScrollLock provides scrollLock) {
             val current = page
             when {
+                current == PAGE_KEYBOARD -> KeyboardPage(state.keyboardField, state.link.healthy, actions, onBack = { page = null })
                 current == PAGE_UPDATES -> UpdatesPage(state.update, actions, onNotes = { page = PAGE_NOTES }, onBack = { page = null })
                 current != null && current.startsWith(PAGE_NOTES) -> NotesPage(
                     state.update, current.substringAfter(':', "").ifEmpty { null }, actions,
@@ -236,7 +253,7 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: 
                     onBack = { page = if (tab == Tab.SETTINGS) PAGE_UPDATES else null },
                 )
                 else -> when (tab) {
-                Tab.HOME -> HomeScreen(state, actions) { page = PAGE_NOTES }
+                Tab.HOME -> HomeScreen(state, actions, onKeyboard = { page = PAGE_KEYBOARD }) { page = PAGE_NOTES }
                 Tab.APPS -> AppsScreen(state.gridItems, state.gridAvailable, state.gridKnown, state.gridIcons, state.gridError, state.packageTransfer, actions)
                 Tab.BAND -> BandScreen(state, actions)
                 Tab.NOTIFICATIONS -> NotificationsScreen(state, actions)
@@ -252,7 +269,7 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: 
 }
 
 @Composable
-private fun HomeScreen(state: CompanionUiState, actions: CompanionActions, onUpdate: () -> Unit) {
+private fun HomeScreen(state: CompanionUiState, actions: CompanionActions, onKeyboard: () -> Unit, onUpdate: () -> Unit) {
     Header(stringResource(R.string.home_title), stringResource(R.string.home_subtitle))
     state.update.offered?.let { UpdateCard(it, onUpdate) }
     Card {
@@ -275,6 +292,16 @@ private fun HomeScreen(state: CompanionUiState, actions: CompanionActions, onUpd
             subtitle = engineName(state.dictation.engine) + " · " +
                 stringResource(if (state.dictation.missing == null) R.string.speech_ready else R.string.speech_needs_setup),
             icon = LumenIcons.mic,
+        )
+        ListRow(
+            title = stringResource(R.string.keyboard_title),
+            subtitle = if (state.keyboardField.focused) {
+                stringResource(R.string.home_keyboard_field, fieldName(state.keyboardField), state.keyboardField.app)
+            } else {
+                stringResource(R.string.home_keyboard_no_field)
+            },
+            icon = LumenIcons.keyboard,
+            onClick = onKeyboard,
         )
         ListRow(
             title = stringResource(R.string.notifications_title),
@@ -373,6 +400,26 @@ private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions, o
                 ?: stringResource(R.string.updates_up_to_date),
             icon = LumenIcons.download,
             onClick = onUpdates,
+        )
+        val logs = state.logs
+        ListRow(
+            title = stringResource(R.string.logs_share),
+            subtitle = when (logs) {
+                is dev.lumen.companion.LogShare.State.Collecting ->
+                    if (logs.total == 0) stringResource(R.string.logs_asking) else stringResource(R.string.logs_receiving, logs.done, logs.total)
+                is dev.lumen.companion.LogShare.State.Ready ->
+                    if (logs.withGlasses) logs.file.name else stringResource(R.string.logs_without_glasses, logs.file.name)
+                dev.lumen.companion.LogShare.State.Failed -> stringResource(R.string.logs_failed)
+                else -> stringResource(R.string.logs_share_hint)
+            },
+            trailing = {
+                if (logs is dev.lumen.companion.LogShare.State.Collecting) {
+                    androidx.compose.material3.CircularProgressIndicator(Modifier.size(22.dp), color = Lumen.accent, strokeWidth = 2.dp)
+                } else {
+                    Icon(LumenIcons.download, contentDescription = null, modifier = Modifier.size(20.dp), tint = Lumen.textSecondary)
+                }
+            },
+            onClick = actions::shareLogs,
         )
     }
 }

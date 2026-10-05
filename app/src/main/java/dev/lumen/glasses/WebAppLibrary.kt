@@ -46,6 +46,13 @@ data class WebApp(
      * from the owner's own channels (adb, the phone). An update from elsewhere loses the secrets.
      */
     val source: String = "",
+    /**
+     * The app this one is a copy of (its id), "" for an original: a second WhatsApp with its own
+     * name, data, cookies and settings. An update of the original's package updates its copies.
+     */
+    val copyOf: String = "",
+    /** The name was given by hand (a copy, a rename): package updates keep it. */
+    val renamed: Boolean = false,
 ) {
     /** What the engine loads. */
     val url: String get() = if (offline) LocalAppServer.origin(port) + "/" else remoteUrl
@@ -68,6 +75,8 @@ object WebAppLibrary {
      */
     const val FIRST_PORT = 47_100
     const val LAST_PORT = 65_535
+    /** The longest name given by hand. */
+    const val MAX_NAME = 40
 
     @JvmStatic
     fun isAcceptable(url: String?): Boolean = runCatching {
@@ -107,6 +116,46 @@ object WebAppLibrary {
         val index = apps.indexOfFirst { it.id == app.id }
         save(context, if (index < 0) apps + app else apps.toMutableList().also { it[index] = app })
     }
+
+    /** Gives the app [id] the name [name] (kept across updates); null when there's no such app. */
+    @JvmStatic
+    fun rename(context: Context, id: String, name: String): WebApp? {
+        val label = name.trim().take(MAX_NAME).ifEmpty { return null }
+        val app = find(context, id) ?: return null
+        return app.copy(name = label, renamed = true).also { put(context, it) }
+    }
+
+    /**
+     * A second install of the app [id] named [name]: its own id, and so its own GeckoView
+     * context (cookies, storage), settings and, offline, its own port (origin) and copy of the
+     * package. Settings start empty: a copy is usually another account. Null when there's no
+     * such app or the name is empty.
+     */
+    @JvmStatic
+    fun copy(context: Context, id: String, name: String): WebApp? {
+        val label = name.trim().take(MAX_NAME).ifEmpty { return null }
+        val original = find(context, id) ?: return null
+        val root = original.copyOf.ifEmpty { original.id }
+        val taken = all(context).map { it.id }.toSet()
+        val newId = generateSequence { root + "-" + java.util.UUID.randomUUID().toString().take(6) }.first { it !in taken }
+        val port = if (original.offline) allocatePort(context) else 0
+        if (original.offline) {
+            val target = WebAppPackages.dir(context, newId)
+            target.deleteRecursively()
+            check(WebAppPackages.dir(context, original.id).copyRecursively(target)) { "couldn't copy the package" }
+        }
+        val icon = original.icon?.let { path ->
+            val to = File(File(path).parentFile, "$newId.png")
+            runCatching { File(path).copyTo(to, overwrite = true).absolutePath }.getOrNull()
+        }
+        val app = original.copy(id = newId, name = label, port = port, icon = icon, copyOf = root, renamed = true)
+        put(context, app)
+        return app
+    }
+
+    /** The copies of [id] ([copy]). */
+    @JvmStatic
+    fun copiesOf(context: Context, id: String): List<WebApp> = all(context).filter { it.copyOf == id }
 
     @JvmStatic
     fun setEngine(context: Context, id: String, engine: WebEngineKind) {
@@ -177,6 +226,8 @@ object WebAppLibrary {
                 configFields = AppConfigField.list(json.optJSONArray("config")),
                 internet = json.optBoolean("internet"),
                 source = json.optString("source"),
+                copyOf = json.optString("copy_of"),
+                renamed = json.optBoolean("renamed"),
             )
         }
     }.getOrDefault(emptyList())
@@ -197,7 +248,9 @@ object WebAppLibrary {
                     .put("version", it.version)
                     .put("config", JSONArray().apply { it.configFields.forEach { field -> put(field.toJson()) } })
                     .put("internet", it.internet)
-                    .put("source", it.source),
+                    .put("source", it.source)
+                    .put("copy_of", it.copyOf)
+                    .put("renamed", it.renamed),
             )
         }
         return array.toString()
