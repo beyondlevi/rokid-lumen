@@ -85,12 +85,17 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         GridCache.listeners += gridListener
         KeyboardLink.listeners += gridListener
         GlassesSetup.listeners += gridListener
+        BandClaim.listeners += gridListener
         PhoneSnooze.listeners += snoozeListener
         dev.lumen.companion.update.UpdateManager.listeners += updateListener
         LogShare.listeners += logsListener
         dev.lumen.companion.update.UpdateManager.checkIfDue(this)
         if (CompanionPrefs.token(this) != null) CompanionService.start(this)
         refresh()
+        dev.lumen.companion.meta.MetaLoginActivity.lastError?.let {
+            dev.lumen.companion.meta.MetaLoginActivity.lastError = null
+            say(getString(R.string.claim_sign_in_failed, it))
+        }
         // Setup isn't confirmed until the glasses app answers: ask it (and Rokid's link) again.
         if (!GlassesSetup.state(this).done) GlassesSetup.check()
     }
@@ -102,6 +107,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         GridCache.listeners -= gridListener
         KeyboardLink.listeners -= gridListener
         GlassesSetup.listeners -= gridListener
+        BandClaim.listeners -= gridListener
         PhoneSnooze.listeners -= snoozeListener
         dev.lumen.companion.update.UpdateManager.listeners -= updateListener
         LogShare.listeners -= logsListener
@@ -163,6 +169,8 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
             logs = LogShare.state,
             keyboardField = KeyboardLink.field,
             setup = GlassesSetup.state(this),
+            claim = BandClaim.state,
+            debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0,
         )
         // The switch turns off by itself when the snooze runs out.
         window.decorView.removeCallbacks(snoozeEnded)
@@ -290,6 +298,16 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
 
     override fun importBandKey() = keyPicker.launch(arrayOf("*/*"))
 
+    /** The key held here as an air-gestures-band.json file, for a computer or another phone. */
+    private val keyExporter = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@registerForActivityResult
+        val bundle = Identity.exportBundle(this)
+        val written = bundle != null && runCatching { contentResolver.openOutputStream(uri, "wt")?.use { it.write(bundle) } != null }.getOrDefault(false)
+        say(getString(if (written) R.string.band_key_exported else R.string.band_key_export_failed))
+    }
+
+    override fun exportBandKey() = keyExporter.launch("air-gestures-band.json")
+
     /** The app a picked package updates (its grid id), or empty for a new one. */
     private var packageTarget = ""
 
@@ -396,6 +414,17 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     override fun checkSetup() = GlassesSetup.check()
 
     override fun prepareGlasses() = GlassesSetup.prepareGlasses()
+
+    override fun claimWithMeta(dryRun: Boolean) {
+        if (PhoneBand.problem(this) == PhoneBand.Problem.NO_BLUETOOTH) {
+            allowBluetooth()
+            return
+        }
+        dev.lumen.companion.meta.MetaLoginActivity.onSession = { session -> BandClaim.start(this, session, dryRun) }
+        startActivity(Intent(this, dev.lumen.companion.meta.MetaLoginActivity::class.java))
+    }
+
+    override fun cancelClaim() = BandClaim.cancel(this)
 
     override fun openHiRokid() {
         val launch = listOf("com.rokid.sprite.global.aiapp", "com.rokid.sprite.aiapp")

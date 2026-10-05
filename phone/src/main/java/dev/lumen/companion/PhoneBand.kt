@@ -80,6 +80,8 @@ object PhoneBand {
         val before = glassesSaidPhone
         glassesSaidPhone = glasses.onPhone
         if (before == glasses.onPhone) return
+        // A claim asked the glasses to let go for its own link: this one stays off the band.
+        if (BandClaim.state is BandClaim.State.Running) return
         val here = CompanionPrefs.bandOnPhone(context)
         if (glasses.onPhone && !here) {
             Log.d(TAG, "the glasses handed the band over")

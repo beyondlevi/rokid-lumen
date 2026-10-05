@@ -8,16 +8,17 @@ minutes, most of it spent on the band's key and the self-arm.
 - **Rokid RG glasses** (YodaOS-Sprite, Android 12, a 480x640 monochrome green HUD), set up with
   the Hi Rokid app. The glasses app needs Android 10 (API 29) or later, and the self-arm needs
   Android 11 (API 30) or later; the RG glasses' Android 12 meets both.
-- **A Meta Neural Band**, claimed with [air-gestures](https://gitlab.com/896kb/air-gestures)
-  (or another tool that exports the same `air-gestures-band.json` file). Lumen does not claim a
-  band itself: Meta's sign-in page doesn't fit the HUD. Claiming the band unlinks it from Meta's
-  glasses and app, and the link is unofficial: a band firmware update could break it.
+- **A Meta Neural Band**. The companion claims it with your Meta account (step 3), as
+  [kinesis](https://github.com/callbacked/kinesis) and
+  [air-gestures](https://gitlab.com/896kb/air-gestures) do; a band already claimed with
+  air-gestures works too, through its `air-gestures-band.json` file. Claiming the band unlinks it
+  from Meta's glasses and app, and the link is unofficial: a band firmware update, or a change in
+  Meta's sign-in routes, could break it.
 - **An Android phone with Android 12 (API 31) or later**, with the Hi Rokid app installed,
   signed in and connected to the glasses. The companion's Rokid SDK (CXR-L) needs API 31.
-- **No computer for the install**: the companion installs the glasses app over Rokid's link
-  (step 1). A computer with adb is still needed, for now, to hand the band's key to the glasses
-  (step 3). Turn on USB debugging for the glasses in the Hi Rokid app's developer settings: the
-  self-arm needs it too.
+- **No computer**: the companion installs the glasses app over Rokid's link (step 1), claims
+  the band and hands its key to the glasses (step 3). Turn on USB debugging for the glasses in
+  the Hi Rokid app's developer settings: the self-arm needs it.
 - **A Wi-Fi network the glasses can join**, for the self-arm. Android's Wireless debugging
   only works on Wi-Fi.
 
@@ -76,6 +77,32 @@ The link comes back by itself after the phone reboots.
 
 ## 3. Give the glasses the band's key
 
+**With your Meta account, from the phone.** In the companion's setup page (Settings > Glasses
+setup) or on the Band tab, tap **Generate the key with my Meta account**:
+
+1. Factory reset the band first: hold its button for about 16 seconds (holding it 3 seconds
+   only starts pairing mode, which isn't enough). It then waits in pairing mode; keep it near
+   the phone. This unlinks it from Meta's app and glasses, and any key you had for it stops
+   working. A band that wasn't reset shows up but turns the connection down: the claim stops
+   after a few attempts and asks for the reset.
+2. Sign in on Meta's own page, which opens in the companion (your password and two-factor code
+   stay on Meta's page; the companion keeps only the session it needs, in memory, for this
+   claim).
+3. The companion finds the band, asks Meta to make this phone its owner, and stores the band's
+   new key. It then sends the key to the glasses (as **Send the key to the glasses** below). The
+   claim itself takes a few seconds (measured: 8 s); with the sign-in, about a minute.
+4. Pair the band with the glasses (step 4): it's bonded to the phone now, so put it in pairing
+   mode once more (hold its button 3 seconds) near the glasses. The glasses forget their bond
+   to the band from before the reset by themselves.
+
+Debug builds also have **Test the sign-in and the band (no claim)**: it signs in and reads the
+band's serial, then stops before anything goes to Meta. A band that wasn't reset passes it too.
+
+Keep a copy of the key (Band tab, **Export the key**) if you also want to use the band from a
+computer.
+
+**With a key from air-gestures** (a band you already claimed on a computer):
+
 1. Claim the band with air-gestures (`air-gestures pair`) and export its key
    (`air-gestures export`). You get `air-gestures-band.json`. Anyone holding that file controls
    the band: keep it private.
@@ -108,7 +135,8 @@ Until the band is connected, move through the glasses' screens with the touchpad
 1. In Settings, open **System > Accessibility** and enable **Rokid Lumen**. The band link
    lives in this service: it starts as soon as the service runs.
 2. Put the band in pairing mode (hold its button for 3 seconds) and select **Pair /
-   Reconnect** on the Settings home screen. The status line shows *Waiting for the band*,
+   Reconnect** on the Settings home screen. Keep the glasses' display on meanwhile: Android
+   pauses the search for the band while the display is off. The status line shows *Waiting for the band*,
    *Connecting to the band*, then *Band connected*. Once bonded, the band reconnects on its
    own, without pairing mode.
 3. **Band > Gesture guide** lists what each gesture does. The rest of the band's settings

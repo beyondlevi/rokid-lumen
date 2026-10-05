@@ -36,7 +36,42 @@ class BandLink(
     private val context: Context,
     private val listener: GestureDevice.Listener,
     private val config: Config,
+    /** Claims a band in pairing mode instead of signing in with the stored key ([Claim]). */
+    private val claim: Claim? = null,
 ) : GestureDevice {
+    /**
+     * Claiming a band: the ownership ceremony (kinesis', in rust/band-core) runs on a band in
+     * pairing mode with a fresh key; its two Meta exchanges are the app's. Called off the main
+     * thread. The new key goes to [Identity]'s files (pending before the band commits, then
+     * confirmed), and the connection carries on as a normal one.
+     */
+    interface Claim {
+        /** A step for the screen ("reading the band identity", …). */
+        fun onStage(text: String)
+
+        /**
+         * Meta's `pair_request` for this band; [request] has device_cert, serial,
+         * secondary_cert, nonce and app_pubkey (bytes in hex). Returns the pending receipt's
+         * signature and the receipt itself, or throws.
+         */
+        fun pairRequest(request: JSONObject): Pair<ByteArray, String>
+
+        /** Meta's `pair` for the band's receipt ([pair]: receipt, signature in hex): signature, final receipt and the band's key (or null). */
+        fun pair(pair: JSONObject): Triple<ByteArray, String, ByteArray?>
+
+        /** The band committed the new key; it's in [Identity.keyFile]. */
+        fun onClaimed()
+
+        fun onFailed(message: String)
+
+        /**
+         * A test that touches nothing: stop right after the band's identity read, before any
+         * Meta exchange ([onDryRun] then reports the band's serial).
+         */
+        val dryRun: Boolean get() = false
+
+        fun onDryRun(serial: String) = Unit
+    }
     /** What the app wants of the band when a connection opens: paused, and the mapping. */
     interface Config {
         fun paused(): Boolean
@@ -68,9 +103,34 @@ class BandLink(
     @Volatile private var gestures = true
     /** The input-channel read of the current attempt answered. */
     @Volatile private var psmRead = false
+    /** Writes to the open channel (the claim's answers come from other threads). */
+    @Volatile private var writer: ((ByteArray) -> Unit)? = null
+    /** The claim finished: later connections sign in with the new key. */
+    @Volatile private var claimed = false
+    @Volatile private var claimDevice: BluetoothDevice? = null
 
+    private val bondedBands: List<BluetoothDevice>
+        get() = adapter?.bondedDevices?.filter { it.name?.lowercase()?.startsWith("meta band") == true }.orEmpty()
+
+    /** The bonded band band.json names (any bonded band without one): not a bond from before a reset. */
     val bondedBand: BluetoothDevice?
-        get() = adapter?.bondedDevices?.firstOrNull { it.name?.lowercase()?.startsWith("meta band") == true }
+        get() {
+            val known = Identity.bandAddress(context) ?: return bondedBands.firstOrNull()
+            return bondedBands.firstOrNull { it.address.equals(known, ignoreCase = true) }
+        }
+
+    /**
+     * Bonds to bands other than band.json's (the band before a factory reset, which changed its
+     * address): the stack would keep waiting on them, and they can't come back.
+     */
+    private fun forgetStaleBonds() {
+        val known = Identity.bandAddress(context) ?: return
+        bondedBands.filterNot { it.address.equals(known, ignoreCase = true) }.forEach { stale ->
+            // Removing a bond is a hidden API for ordinary apps; many builds still allow it.
+            val removed = runCatching { stale.javaClass.getMethod("removeBond").invoke(stale) as Boolean }.getOrDefault(false)
+            log("an old bond to ${stale.name} (before a reset): ${if (removed) "forgotten" else "couldn't be removed"}")
+        }
+    }
 
     override fun start() {
         if (wanted) return
@@ -114,14 +174,15 @@ class BandLink(
             retry(5000)
             return
         }
-        val bonded = bondedBand
+        val bonded = bondedBand.takeIf { claim == null || claimed }
+        if (bonded == null && claim == null) forgetStaleBonds()
         if (bonded != null) {
             listener.onPhase(Phase.SEARCHING, bonded.name)
             log("waiting for ${bonded.name}")
             gatt = bonded.connectGatt(context, true, gattCallback, BluetoothDevice.TRANSPORT_LE)
         } else {
             listener.onPhase(Phase.SEARCHING, null)
-            log("scanning for a band in pairing mode (hold its button 3 s)")
+            log(if (claim != null && !claimed) "scanning for a band in pairing mode to claim" else "scanning for a band in pairing mode (hold its button 3 s)")
             scanner.startScan(
                 null,
                 ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(),
@@ -154,6 +215,15 @@ class BandLink(
      */
     private fun retry(delayMs: Long) {
         teardown()
+        // A claim that can't even connect: most often a band that wasn't factory reset (it
+        // shows up, then turns each connection down). Stop and say so instead of trying forever.
+        val claim = claim
+        if (claim != null && !claimed && failures >= CLAIM_MAX_FAILURES) {
+            log("claim: no connection after $failures attempts")
+            claim.onFailed(CLAIM_NO_CONNECTION)
+            main.post { stop() }
+            return
+        }
         val delay = (delayMs shl failures.coerceAtMost(4)).coerceAtMost(MAX_RETRY_MS)
         failures++
         if (wanted) main.postDelayed({ connect() }, delay)
@@ -251,6 +321,10 @@ class BandLink(
     private fun now() = SystemClock.elapsedRealtimeNanos() / 1e9
 
     private fun openSession(): Boolean {
+        if (claim != null && !claimed) {
+            synchronized(lock) { handle = Bridge.openClaim(0, config.paused(), "", config.mapping()) }
+            return true
+        }
         val dir = context.filesDir
         // A pending key is always newer: the band may have committed a claim whose
         // confirmation was lost (the desktop's rule).
@@ -291,6 +365,8 @@ class BandLink(
         val input = channel.inputStream
         val output = channel.outputStream
         val write = { bytes: ByteArray -> if (bytes.isNotEmpty()) synchronized(output) { output.write(bytes) } }
+        writer = write
+        claimDevice = device
         try {
             write(synchronized(lock) { Bridge.request(handle) })
             thread(name = "band-tick") {
@@ -324,6 +400,13 @@ class BandLink(
             if (attempt == generation) log("the band closed the input channel")
         } catch (e: Exception) {
             if (attempt == generation) log("link: ${e.message}")
+            // The band turned the claim down (another account's band, a rejected receipt):
+            // trying again wouldn't change its answer.
+            val claim = claim
+            if (claim != null && !claimed && attempt == generation && e.message.orEmpty().contains("rejected|belongs to|ownership".toRegex())) {
+                claimFailed(claim, e)
+                return
+            }
         }
         main.post { if (attempt == generation) retry(2000) }
     }
@@ -340,6 +423,10 @@ class BandLink(
             if (Identity.pendingFile(context).renameTo(Identity.keyFile(context))) log("the band accepted the claimed key")
         }
         if (actions.isNotEmpty()) listener.onActions(actions.lines())
+        if (claim != null && !claimed) {
+            val events = synchronized(lock) { if (handle == 0L) "" else Bridge.claimEvents(handle) }
+            if (events.isNotEmpty()) events.lines().forEach { onClaimEvent(claim, JSONObject(it)) }
+        }
         // The status is a JSON the bridge builds on request: at most every STATUS_EVERY_MS while
         // samples stream in, right away when something happened (an action or a log line).
         val now = SystemClock.elapsedRealtime()
@@ -347,6 +434,66 @@ class BandLink(
         lastStatusCheck = now
         synchronized(lock) { publishStatus() }
     }
+
+    /** One ceremony event; the Meta exchanges run on their own thread and answer the band. */
+    private fun onClaimEvent(claim: Claim, event: JSONObject) {
+        val attempt = generation
+        when (event.optString("type")) {
+            "stage" -> claim.onStage(event.optString("text"))
+            "pair_request" -> {
+                if (claim.dryRun) {
+                    claim.onDryRun(event.optString("serial"))
+                    main.post { stop() }
+                    return
+                }
+                thread(name = "band-claim") {
+                    try {
+                        val (signature, receipt) = claim.pairRequest(event)
+                        val out = synchronized(lock) { if (handle == 0L || attempt != generation) null else Bridge.claimPairRequestCompleted(handle, signature, receipt) }
+                        out?.let { writer?.invoke(it) }
+                    } catch (e: Exception) {
+                        claimFailed(claim, e)
+                    }
+                }
+            }
+            "pair" -> thread(name = "band-claim") {
+                try {
+                    val (signature, receipt, deviceKey) = claim.pair(event)
+                    val (out, pendingKey) = synchronized(lock) {
+                        if (handle == 0L || attempt != generation) return@thread
+                        Bridge.claimPairCompleted(handle, signature, receipt, deviceKey) to Bridge.claimPendingKey(handle)
+                    }
+                    // The band may commit even if its confirmation never arrives: the key is kept
+                    // as pending first (BandLink tries it next time and confirms it).
+                    pendingKey?.let { Identity.pendingFile(context).writeBytes(it) }
+                    writer?.invoke(out)
+                } catch (e: Exception) {
+                    claimFailed(claim, e)
+                }
+            }
+            "completed" -> {
+                val key = hexBytes(event.optString("owner_key"))
+                Identity.keyFile(context).writeBytes(key)
+                Identity.pendingFile(context).delete()
+                claimDevice?.let { device ->
+                    Identity.bandFile(context).writeText(
+                        JSONObject().put("address", device.address).put("name", device.name.orEmpty()).put("scheme_guess", 0).toString(2),
+                    )
+                }
+                claimed = true
+                log("the band is claimed with a new key")
+                claim.onClaimed()
+            }
+        }
+    }
+
+    private fun claimFailed(claim: Claim, error: Exception) {
+        log("claim: ${error.message}")
+        claim.onFailed(error.message ?: error.javaClass.simpleName)
+        main.post { stop() }
+    }
+
+    private fun hexBytes(hex: String) = ByteArray(hex.length / 2) { hex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
 
     /** Call with `lock` held. */
     private fun publishStatus() {
@@ -357,14 +504,32 @@ class BandLink(
         val status = JSONObject(json)
         if (status.optBoolean("connected")) {
             failures = 0
+            gatt?.device?.let { rememberAddress(it) }
             listener.onPhase(Phase.CONNECTED, gatt?.device?.name)
         }
         listener.onStatus(status)
     }
 
+    /**
+     * The band answered with the key: its address here goes to band.json. A band in pairing
+     * mode shows a new address each time, so the one the claim saw (on another device) isn't
+     * this device's bond; [bondedBand] then finds this one, and [forgetStaleBonds] keeps it.
+     */
+    private fun rememberAddress(device: BluetoothDevice) {
+        if (Identity.bandAddress(context).equals(device.address, ignoreCase = true)) return
+        val band = runCatching { JSONObject(Identity.bandFile(context).readText()) }.getOrDefault(JSONObject())
+        band.put("address", device.address)
+        if (!band.has("name")) device.name?.let { band.put("name", it) }
+        runCatching { Identity.bandFile(context).writeText(band.toString(2)) }
+        log("the band's address here is now ${device.address}")
+    }
+
     private fun log(line: String) = listener.onLog(line)
 
     companion object {
+        /** [Claim.onFailed]'s message when the band never let the claim connect. */
+        const val CLAIM_NO_CONNECTION = "no_connection"
+        private const val CLAIM_MAX_FAILURES = 4
         val BAND_SERVICE: UUID = UUID.fromString("0000feb8-0000-1000-8000-00805f9b34fb")
         val PSM_CHARACTERISTIC: UUID = UUID.fromString("2d41da7c-82b6-42aa-b34e-e2e01df8cc1a")
 

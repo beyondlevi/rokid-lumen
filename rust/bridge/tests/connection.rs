@@ -156,3 +156,51 @@ fn a_band_on_the_other_wrist_is_set_to_the_chosen_hand_after_connecting() {
         connection.status_json()
     );
 }
+
+fn claim_events(connection: &mut Connection) -> Vec<serde_json::Value> {
+    connection
+        .take_claim_events()
+        .iter()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect()
+}
+
+fn unhex(text: &str) -> Vec<u8> {
+    (0..text.len()).step_by(2).map(|i| u8::from_str_radix(&text[i..i + 2], 16).unwrap()).collect()
+}
+
+#[test]
+fn a_claim_connection_runs_the_ceremony_through_its_events_and_ends_connected() {
+    let band_key = SigningKey::random(&mut OsRng);
+    let mut band = Responder::new(SimMode::Ceremony, band_key.clone());
+    let mut connection = Connection::new_claim(0, false, "volume", "");
+    let request = connection.request().unwrap();
+    pump(&mut connection, &mut band, request, 1.0);
+    // Identity read and skip challenge done: the app is asked for pair_request.
+    let events = claim_events(&mut connection);
+    let request = events.iter().find(|e| e["type"] == "pair_request").expect("pair_request");
+    assert_eq!(unhex(request["nonce"].as_str().unwrap()), (0..16).collect::<Vec<u8>>());
+    assert_eq!(unhex(request["app_pubkey"].as_str().unwrap()).len(), 64);
+    assert!(events.iter().any(|e| e["type"] == "stage"));
+    assert!(connection.claim_pending_key().is_none());
+    // The server's pending receipt: StartChangeOwner, then the band's receipt asks for pair.
+    let signature = [vec![0x30, 0x45, 0x02, 0x20], vec![3; 67]].concat();
+    let out = connection.claim_pair_request_completed(&signature, r#"{"receipt_type":"pending"}"#).unwrap();
+    pump(&mut connection, &mut band, out, 2.0);
+    let pair = claim_events(&mut connection).into_iter().find(|e| e["type"] == "pair").expect("pair");
+    assert!(!pair["receipt"].as_str().unwrap().is_empty());
+    // The final receipt: the pending key exists before the bytes go out, and the band commits it.
+    let band_point = band_core::identity::point64(band_key.verifying_key());
+    let out = connection
+        .claim_pair_completed(&[vec![0x30, 0x45, 0x02, 0x21], vec![5; 67]].concat(), r#"{"receipt_type":"final"}"#, Some(&band_point))
+        .unwrap();
+    let pending = connection.claim_pending_key().expect("pending key before writing");
+    assert_eq!(pending.len(), 97);
+    pump(&mut connection, &mut band, out, 3.0);
+    let completed = claim_events(&mut connection).into_iter().find(|e| e["type"] == "completed").expect("completed");
+    assert_eq!(unhex(completed["owner_key"].as_str().unwrap()), pending);
+    // The new identity signs in and the connection carries on as usual.
+    assert!(connection.take_log().contains(&"connected".to_owned()));
+    // The committed key opens a normal connection to the same band.
+    assert!(Connection::new(&pending, 0, false, "volume", "").is_ok());
+}

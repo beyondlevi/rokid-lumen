@@ -28,5 +28,22 @@ object Bridge {
     @JvmStatic external fun setDial(handle: Long, dial: String)
     /** `gesture=action;…` (see [BandLink.Config.mapping]). */
     @JvmStatic external fun setMapping(handle: Long, mapping: String)
+    /**
+     * A connection that claims a band in pairing mode (the ownership ceremony with a fresh key)
+     * instead of signing in with a stored one; it carries on as a normal connection once claimed.
+     */
+    @JvmStatic external fun openClaim(schemeGuess: Int, paused: Boolean, dial: String, mapping: String): Long
+    /**
+     * The ceremony's events since the last call, '\n'-joined JSON objects: `stage` (text),
+     * `pair_request` (device_cert, serial, secondary_cert, nonce, app_pubkey; bytes in hex),
+     * `pair` (receipt, signature), `completed` (owner_key, hex). Never log them.
+     */
+    @JvmStatic external fun claimEvents(handle: Long): String
+    /** After `pair_request`: the server's signature and pending receipt; returns bytes to write. */
+    @JvmStatic external fun claimPairRequestCompleted(handle: Long, signature: ByteArray, receipt: String): ByteArray
+    /** After `pair`; [deviceKey] may be null. Persist [claimPendingKey] BEFORE writing the bytes returned. */
+    @JvmStatic external fun claimPairCompleted(handle: Long, signature: ByteArray, receipt: String, deviceKey: ByteArray?): ByteArray
+    /** The owner key the band is about to commit, null before [claimPairCompleted]. */
+    @JvmStatic external fun claimPendingKey(handle: Long): ByteArray?
     @JvmStatic external fun close(handle: Long)
 }

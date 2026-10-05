@@ -108,9 +108,11 @@ page. Each release has `rokid-lumen-glasses-<version>.apk`,
 
 Install the companion on the phone. Its **Set up your glasses** page installs the glasses app
 over Rokid's link, with no computer: authorize in Hi Rokid, turn on the phone's Wi-Fi, tap
-**Install on the glasses**, then turn Lumen on in the glasses' Accessibility settings. Then
-follow [docs/getting-started.md](docs/getting-started.md): the band's key, pairing the band and
-the self-arm. (adb still works: `adb install` both APKs.)
+**Install on the glasses**, then turn Lumen on in the glasses' Accessibility settings. The same
+page prepares the glasses (the self-arm) and gives them the band's key: **Generate the key with
+my Meta account** signs in on Meta's own page and claims a factory-reset band from the phone, as
+kinesis and air-gestures do on a computer, or import a key you already have. Details in
+[docs/getting-started.md](docs/getting-started.md). (adb still works: `adb install` both APKs.)
 
 ## Recommended use
 
@@ -160,7 +162,8 @@ More in [CONTRIBUTING.md](CONTRIBUTING.md).
 - [air-gestures](https://gitlab.com/896kb/air-gestures) (MIT): the band link this project grew
   from (`band/`, `rust/`).
 - [kinesis](https://github.com/callbacked/kinesis) (MIT): the Neural Band protocol, ported to
-  Rust in `rust/band-core/`.
+  Rust in `rust/band-core/`, and the Meta sign-in and band claim, ported to Kotlin in the
+  companion (`phone/.../meta/`).
 - [R08 Access Bridge](https://github.com/Anezium/R08-Access-Bridge) by Anezium (Apache-2.0):
   the glasses' input, navigation, settings screen and self-arm are derived from it; it showed
   that the Rokid glasses can be driven through an accessibility service and armed from the
