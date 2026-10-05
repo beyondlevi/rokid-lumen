@@ -252,7 +252,7 @@ private fun ProgressSection(state: UpdateManager.State, actions: CompanionAction
     }
 }
 
-private enum class StepState { DONE, NOW, TODO }
+internal enum class StepState { DONE, NOW, TODO }
 
 @Composable
 private fun AppHeading(icon: ImageVector, title: String, subtitle: String?) {
@@ -268,7 +268,7 @@ private fun AppHeading(icon: ImageVector, title: String, subtitle: String?) {
 }
 
 @Composable
-private fun StepLine(state: StepState, title: String, subtitle: String?) {
+internal fun StepLine(state: StepState, title: String, subtitle: String?) {
     Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed), modifier = Modifier.padding(start = Lumen.spacingSmall)) {
         Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
             when (state) {
@@ -288,7 +288,7 @@ private fun StepLine(state: StepState, title: String, subtitle: String?) {
 
 /** What went wrong and, when there's one, the way out. */
 @Composable
-private fun ProblemLine(problem: Problem, actions: CompanionActions) {
+internal fun ProblemLine(problem: Problem, actions: CompanionActions, onRetry: () -> Unit = { actions.updateAll() }) {
     val (title, text) = when (problem) {
         Problem.NO_WIFI -> R.string.update_problem_wifi_title to R.string.update_problem_wifi
         Problem.GLASSES_OFFLINE -> R.string.update_problem_glasses_title to R.string.update_problem_glasses
@@ -304,7 +304,7 @@ private fun ProblemLine(problem: Problem, actions: CompanionActions) {
         Problem.NO_WIFI -> PillButton(stringResource(R.string.update_open_wifi), primary = true) { actions.openWifiSettings() }
         Problem.GLASSES_OFFLINE -> PillButton(stringResource(R.string.action_reconnect), primary = false) { actions.reconnect() }
         Problem.NO_PERMISSION -> PillButton(stringResource(R.string.update_allow_installs), primary = true) { actions.allowInstalls() }
-        Problem.OFFLINE, Problem.INSTALL_FAILED -> PillButton(stringResource(R.string.update_try_again), primary = false) { actions.updateAll() }
+        Problem.OFFLINE, Problem.INSTALL_FAILED -> PillButton(stringResource(R.string.update_try_again), primary = false, onClick = onRetry)
         else -> Unit
     }
 }
@@ -373,7 +373,7 @@ private fun inline(text: String): AnnotatedString = buildAnnotatedString {
     append(text.substring(at))
 }
 
-private fun formatSize(bytes: Long): String = when {
+internal fun formatSize(bytes: Long): String = when {
     bytes >= 1_000_000 -> "%.1f MB".format(bytes / 1_000_000.0)
     bytes >= 1_000 -> "%d KB".format(bytes / 1_000)
     else -> "$bytes B"

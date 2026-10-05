@@ -225,7 +225,56 @@ object UpdateManager {
         setSteps(if (phone.running && phone !is Step.Confirming) Step.Idle else phone, if (glasses is Step.Downloading || glasses is Step.Waiting) Step.Idle else glasses)
     }
 
+    /** The glasses app's setup entry, opened over Rokid's link after a first install. */
+    const val SETUP_ENTRY = "$GLASSES_PACKAGE.SetupEntryActivity"
+
+    /**
+     * First setup: installs the glasses app from the newest release (a beta when there's no
+     * stable one yet) through Rokid's link, then opens its setup entry there, which hands the
+     * wearer to the accessibility switch. There's no rearm wait: nothing on the glasses answers
+     * the phone until that switch is on.
+     */
+    @JvmStatic
+    fun installGlassesFirstTime(context: Context) {
+        val app = context.applicationContext
+        if (steps.second.running) return
+        cancelled.set(false)
+        setSteps(steps.first, Step.Waiting)
+        worker.execute {
+            val all = releases?.takeIf { it.isNotEmpty() }
+                ?: ReleaseFeed.fetch(app).getOrNull()?.also { releases = it }
+                ?: ReleaseFeed.cached(app)
+            val release = Release.newest(all, "0.0.0", false) { it.glassesApk }
+                ?: Release.newest(all, "0.0.0", true) { it.glassesApk }
+            if (release == null) {
+                failGlasses(Problem.OFFLINE)
+                return@execute
+            }
+            if (installGlassesApk(app, release)) {
+                setSteps(steps.first, Step.Done)
+                CompanionService.openOnGlasses(SETUP_ENTRY)
+            }
+        }
+    }
+
     private fun updateGlasses(context: Context, release: Release): Boolean {
+        if (!installGlassesApk(context, release)) return false
+        // The app restarts on the glasses (the self-arm's watchdog brings its service back) and
+        // says its version again when asked: done when it's the new one.
+        setSteps(steps.first, Step.Rearming)
+        val deadline = System.currentTimeMillis() + REARM_TIMEOUT_MS
+        while (System.currentTimeMillis() < deadline) {
+            if (SemVer.parse(glassesVersion()) == release.version) break
+            CompanionService.requestSettings(dev.lumen.protocol.SettingsOps.describe())
+            Thread.sleep(10_000)
+        }
+        // Installed either way (Rokid's link said so); the version only confirms the restart.
+        setSteps(steps.first, Step.Done)
+        return true
+    }
+
+    /** Downloads, checks and hands [release]'s glasses APK to Rokid's link; false (and Failed) if any step fails. */
+    private fun installGlassesApk(context: Context, release: Release): Boolean {
         val asset = release.glassesApk ?: return false
         val wifi = context.getSystemService(WifiManager::class.java)
         if (wifi?.isWifiEnabled != true) return failGlasses(Problem.NO_WIFI)
@@ -241,17 +290,6 @@ object UpdateManager {
         val ok = CompanionService.installOnGlasses(apk)
         apk.delete()
         if (!ok) return failGlasses(Problem.INSTALL_FAILED)
-        // The app restarts on the glasses (the self-arm's watchdog brings its service back) and
-        // says its version again when asked: done when it's the new one.
-        setSteps(steps.first, Step.Rearming)
-        val deadline = System.currentTimeMillis() + REARM_TIMEOUT_MS
-        while (System.currentTimeMillis() < deadline) {
-            if (SemVer.parse(glassesVersion()) == release.version) break
-            CompanionService.requestSettings(dev.lumen.protocol.SettingsOps.describe())
-            Thread.sleep(10_000)
-        }
-        // Installed either way (Rokid's link said so); the version only confirms the restart.
-        setSteps(steps.first, Step.Done)
         return true
     }
 

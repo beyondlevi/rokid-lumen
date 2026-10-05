@@ -77,6 +77,15 @@
             android:screenOrientation="portrait"
             tools:ignore="DiscouragedApi,LockedOrientationActivity" />
 
+        <!-- Opened from the phone during setup (Rokid's link, appStart): no UI; it hands the
+             wearer to the accessibility switch, or opens the home once that's on. -->
+        <activity
+            android:name=".SetupEntryActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <!-- The app's home and its one icon on the Rokid launcher: the apps grid. -->
         <activity
             android:name=".LauncherActivity"

@@ -456,4 +456,24 @@
     <string name="keyboard_field_text">a text field</string>
     <string name="keyboard_field_password">a password</string>
     <string name="home_keyboard_field">Field in focus: %1$s · %2$s</string>
+    <string name="setup_card_title">Set up your glasses</string>
+    <string name="setup_card_subtitle">%1$d of %2$d steps done. No computer needed.</string>
+    <string name="setup_title">Glasses setup</string>
+    <string name="setup_intro">Everything happens from this phone. The one thing you do on the glasses is turn on a switch.</string>
+    <string name="setup_step_auth">Authorize in Hi Rokid</string>
+    <string name="setup_step_auth_hint">Lets this app talk to your glasses through Rokid\'s app.</string>
+    <string name="setup_step_auth_done">Connected to the glasses through Hi Rokid</string>
+    <string name="setup_step_wifi">Turn on the phone\'s Wi-Fi</string>
+    <string name="setup_step_wifi_hint">Lumen travels to the glasses over Wi-Fi.</string>
+    <string name="setup_step_install">Install Lumen on the glasses</string>
+    <string name="setup_step_install_hint">Downloads the latest release and sends it to the glasses through Rokid\'s link.</string>
+    <string name="setup_step_install_done">Installed on the glasses</string>
+    <string name="setup_install">Install on the glasses</string>
+    <string name="setup_step_access">Turn Lumen on, on the glasses</string>
+    <string name="setup_step_access_hint">On the glasses, Settings opens at Accessibility: with the touchpad, open Rokid Lumen and turn it on. Only a person can turn it on.</string>
+    <string name="setup_step_access_done">The glasses app answers</string>
+    <string name="setup_open_on_glasses">Open it on the glasses</string>
+    <string name="setup_done">Your glasses are ready. Next, the band: the Band tab.</string>
+    <string name="setup_settings_hint">Install Lumen on the glasses and turn it on, from this phone</string>
+    <string name="setup_settings_done">Done: the glasses app answers</string>
 </resources>

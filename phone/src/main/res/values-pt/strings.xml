@@ -447,4 +447,24 @@
     <string name="keyboard_field_text">um campo de texto</string>
     <string name="keyboard_field_password">uma senha</string>
     <string name="home_keyboard_field">Campo em foco: %1$s · %2$s</string>
+    <string name="setup_card_title">Configure seus óculos</string>
+    <string name="setup_card_subtitle">%1$d de %2$d etapas feitas. Sem computador.</string>
+    <string name="setup_title">Configurar os óculos</string>
+    <string name="setup_intro">Tudo acontece por este celular. Nos óculos, você só liga uma chave.</string>
+    <string name="setup_step_auth">Autorizar no Hi Rokid</string>
+    <string name="setup_step_auth_hint">Deixa este app falar com os seus óculos pelo app da Rokid.</string>
+    <string name="setup_step_auth_done">Conectado aos óculos pelo Hi Rokid</string>
+    <string name="setup_step_wifi">Ligar o Wi-Fi do celular</string>
+    <string name="setup_step_wifi_hint">O Lumen chega aos óculos pelo Wi-Fi.</string>
+    <string name="setup_step_install">Instalar o Lumen nos óculos</string>
+    <string name="setup_step_install_hint">Baixa a versão mais recente e envia aos óculos pelo link da Rokid.</string>
+    <string name="setup_step_install_done">Instalado nos óculos</string>
+    <string name="setup_install">Instalar nos óculos</string>
+    <string name="setup_step_access">Ligar o Lumen nos óculos</string>
+    <string name="setup_step_access_hint">Nos óculos, os Ajustes abrem em Acessibilidade: com o touchpad, abra o Rokid Lumen e ligue. Só uma pessoa pode ligá-lo.</string>
+    <string name="setup_step_access_done">O app dos óculos responde</string>
+    <string name="setup_open_on_glasses">Abrir nos óculos</string>
+    <string name="setup_done">Seus óculos estão prontos. Agora, a band: aba Banda.</string>
+    <string name="setup_settings_hint">Instale o Lumen nos óculos e ligue, por este celular</string>
+    <string name="setup_settings_done">Pronto: o app dos óculos responde</string>
 </resources>

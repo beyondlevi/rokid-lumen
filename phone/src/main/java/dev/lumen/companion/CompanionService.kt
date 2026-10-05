@@ -761,7 +761,24 @@ class CompanionService : Service() {
          * installed (its success alone isn't trusted, as Rokid Nexus found). Blocks up to 15
          * minutes: call it off the main thread.
          */
+        /**
+         * Rokid's link keeps ONE callback for its app calls (install, query, open): a second call
+         * while one is waiting takes the first one's answer (measured: a query during an install
+         * left the install waiting its full 15 minutes). One call at a time.
+         */
+        private val appCalls = java.util.concurrent.Semaphore(1)
+
         fun installOnGlasses(apk: java.io.File): Boolean {
+            if (instance?.link == null) return false
+            appCalls.acquire()
+            try {
+                return installLocked(apk)
+            } finally {
+                appCalls.release()
+            }
+        }
+
+        private fun installLocked(apk: java.io.File): Boolean {
             val service = instance ?: return false
             val cxr = service.link ?: return false
             val installed = java.util.concurrent.CountDownLatch(1)
@@ -783,22 +800,71 @@ class CompanionService : Service() {
                     .onFailure { Log.w(TAG, "appUploadAndInstall", it); installed.countDown() }
             }
             if (!installed.await(15, java.util.concurrent.TimeUnit.MINUTES) || !ok) return false
-            val queried = java.util.concurrent.CountDownLatch(1)
-            var present = false
-            val query = object : IGlassAppCbk {
-                override fun onInstallAppResult(result: Boolean) = Unit
-                override fun onUnInstallAppResult(result: Boolean) = Unit
-                override fun onOpenAppResult(result: Boolean) = Unit
-                override fun onStopAppResult(result: Boolean) = Unit
-                override fun onGlassAppResume(resumed: Boolean) = Unit
-                override fun onQueryAppResult(result: Boolean) {
-                    present = result
-                    queried.countDown()
-                }
-            }
-            service.main.post { runCatching { cxr.appIsInstalled(query) }.onFailure { queried.countDown() } }
             // An answer that doesn't come doesn't undo what the install said.
-            return if (queried.await(30, java.util.concurrent.TimeUnit.SECONDS)) present else true
+            return queryInstalled(30) ?: true
+        }
+
+        /**
+         * Whether the glasses app is installed, as Rokid's link says (CXR-L `appIsInstalled`, for
+         * the session's package); null without a link or an answer. Blocks up to [seconds]: call it
+         * off the main thread.
+         */
+        fun isInstalledOnGlasses(seconds: Long = 30): Boolean? {
+            // Busy with another app call (an install): no answer now rather than stealing its callback.
+            if (!appCalls.tryAcquire()) return null
+            try {
+                return queryInstalled(seconds)
+            } finally {
+                appCalls.release()
+            }
+        }
+
+        private fun queryInstalled(seconds: Long): Boolean? {
+            val service = instance ?: return null
+            val cxr = service.link ?: return null
+            val queried = java.util.concurrent.CountDownLatch(1)
+            var present: Boolean? = null
+            val query = appCallback(onQuery = { present = it; queried.countDown() })
+            service.main.post { runCatching { cxr.appIsInstalled(query) }.onFailure { queried.countDown() } }
+            queried.await(seconds, java.util.concurrent.TimeUnit.SECONDS)
+            Log.d(TAG, "glasses app installed=$present")
+            return present
+        }
+
+        /**
+         * Opens [activity] (a class of the glasses app, fully qualified) on the glasses through
+         * Rokid's link (CXR-L `appStart`). False without a link, or if the link says it failed;
+         * true when it says it opened or doesn't answer in 30 s (Nexus found the answer unreliable).
+         * Call it off the main thread.
+         */
+        fun openOnGlasses(activity: String): Boolean {
+            if (!appCalls.tryAcquire(60, java.util.concurrent.TimeUnit.SECONDS)) return false
+            try {
+                return openLocked(activity)
+            } finally {
+                appCalls.release()
+            }
+        }
+
+        private fun openLocked(activity: String): Boolean {
+            val service = instance ?: return false
+            val cxr = service.link ?: return false
+            val opened = java.util.concurrent.CountDownLatch(1)
+            var ok: Boolean? = null
+            val callback = appCallback(onOpen = { ok = it; opened.countDown() })
+            service.main.post { runCatching { cxr.appStart(activity, callback) }.onFailure { Log.w(TAG, "appStart", it); ok = false; opened.countDown() } }
+            opened.await(30, java.util.concurrent.TimeUnit.SECONDS)
+            Log.d(TAG, "glasses open $activity=$ok")
+            return ok != false
+        }
+
+        private fun appCallback(onOpen: (Boolean) -> Unit = {}, onQuery: (Boolean) -> Unit = {}) = object : IGlassAppCbk {
+            override fun onInstallAppResult(result: Boolean) = Unit
+            override fun onUnInstallAppResult(result: Boolean) = Unit
+            override fun onOpenAppResult(result: Boolean) = onOpen(result)
+            override fun onStopAppResult(result: Boolean) = Unit
+            override fun onGlassAppResume(resumed: Boolean) = Unit
+            override fun onQueryAppResult(result: Boolean) = onQuery(result)
         }
 
         /** One notification sync shortly, however many ask for it (listener, link, glasses). */
