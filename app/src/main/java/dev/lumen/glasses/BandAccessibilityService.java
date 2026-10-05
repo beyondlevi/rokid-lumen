@@ -57,6 +57,8 @@ public final class BandAccessibilityService extends AccessibilityService {
     public static final String EXTRA_NOTIFY_TEXT = "notify_text";
 
     private static final String TAG = "BandService";
+    private static final long SELF_ARM_WAKE_DELAY_MS = 800L;
+    private static final long SELF_ARM_SCREEN_MS = 120_000L;
     private static final long DIRECTION_DEBOUNCE_MS = 55L;
     private static final long LAUNCHER_DIRECTION_DEBOUNCE_MS = 150L;
     private static final long BACK_DEBOUNCE_MS = 350L;
@@ -292,7 +294,10 @@ public final class BandAccessibilityService extends AccessibilityService {
         if (service != null && service.selfArmWirelessDebuggingAutomator != null) {
             service.mainHandler.post(() -> {
                 LocalSelfArmStatus.reportSimple(service, "requested");
-                service.selfArmWirelessDebuggingAutomator.start();
+                // Started from the phone the display is often off, and the automator can't
+                // touch Settings then (measured: the Wi-Fi step timed out): on, for its length.
+                service.keepScreenOnForSelfArm();
+                service.mainHandler.postDelayed(service.selfArmWirelessDebuggingAutomator::start, SELF_ARM_WAKE_DELAY_MS);
             });
             return true;
         }
@@ -535,6 +540,27 @@ public final class BandAccessibilityService extends AccessibilityService {
     private void lockScreen() {
         boolean locked = performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN);
         Log.d(TAG, "Screen off from the band: " + locked);
+    }
+
+    /** Wakes the display and keeps it on while the self-arm walks Settings ([SELF_ARM_SCREEN_MS]). */
+    private void keepScreenOnForSelfArm() {
+        if (powerManager == null) {
+            powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        }
+        if (powerManager == null) {
+            return;
+        }
+        try {
+            @SuppressWarnings("deprecation")
+            PowerManager.WakeLock wakeLock = powerManager.newWakeLock(
+                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK
+                            | PowerManager.ACQUIRE_CAUSES_WAKEUP
+                            | PowerManager.ON_AFTER_RELEASE,
+                    "Lumen:selfArm");
+            wakeLock.acquire(SELF_ARM_SCREEN_MS);
+        } catch (RuntimeException exception) {
+            Log.w(TAG, "Could not keep the screen on for the self-arm", exception);
+        }
     }
 
     private boolean wakeScreenForBandInput(String source) {

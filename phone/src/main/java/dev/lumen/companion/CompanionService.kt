@@ -744,6 +744,19 @@ class CompanionService : Service() {
             return true
         }
 
+        /**
+         * The band's key for the glasses ([Link.BAND_KEY]): [bundle] is the `air-gestures-band`
+         * export. False while the link is down. The payload is never logged.
+         */
+        fun sendBandKey(bundle: ByteArray): Boolean {
+            val service = instance ?: return false
+            val cxr = service.link ?: return false
+            val json = Link.request().put("bundle", String(bundle))
+            service.main.post { runCatching { cxr.sendCustomCmd(Link.BAND_KEY, Protocol.encode(json)) } }
+            Log.d(TAG, "→ glasses band key")
+            return true
+        }
+
         /** A grid request for the glasses ([GridOps]); false while the link is down. */
         fun requestGrid(json: JSONObject): Boolean {
             val service = instance ?: return false

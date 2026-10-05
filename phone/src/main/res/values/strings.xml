@@ -476,4 +476,18 @@
     <string name="setup_done">Your glasses are ready. Next, the band: the Band tab.</string>
     <string name="setup_settings_hint">Install Lumen on the glasses and turn it on, from this phone</string>
     <string name="setup_settings_done">Done: the glasses app answers</string>
+    <string name="setup_step_arm">Prepare the glasses</string>
+    <string name="setup_step_arm_hint">The glasses arm themselves through their Wireless debugging (the self-arm), so Lumen keeps working after a reboot and can switch Wi-Fi for the phone\'s internet. First, in Hi Rokid: turn on USB debugging in the developer settings, and connect the glasses to a Wi-Fi network. Then tap Prepare and leave the glasses alone for a minute.</string>
+    <string name="setup_step_arm_done">The glasses are armed</string>
+    <string name="setup_open_hi_rokid">Open Hi Rokid</string>
+    <string name="setup_arm">Prepare</string>
+    <string name="setup_step_key">Give the glasses the band\'s key</string>
+    <string name="setup_step_key_hint">The key that lets Lumen talk to your Meta Neural Band. Import the key file on this phone (the air-gestures export), then send it to the glasses.</string>
+    <string name="setup_step_key_done">The glasses have the band\'s key</string>
+    <string name="setup_import_key">Import the key file</string>
+    <string name="setup_send_key">Send the key to the glasses</string>
+    <string name="setup_key_refused">The glasses refused the key: %1$s</string>
+    <string name="setup_key_not_sent">No key on this phone, or the glasses aren\'t connected.</string>
+    <string name="setup_arm_hint_usb">In Hi Rokid\'s developer settings, turn on USB debugging, then tap Prepare again.</string>
+    <string name="setup_arm_hint_wifi">Connect the glasses to a Wi-Fi network in Hi Rokid and keep them on, then tap Prepare again.</string>
 </resources>

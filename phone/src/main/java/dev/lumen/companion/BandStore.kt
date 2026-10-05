@@ -9,6 +9,8 @@ import dev.lumen.protocol.SettingsEvent
  * glasses own them: this is a copy for the screen, refreshed on every schema and status push.
  */
 object BandStore {
+    const val BAND_KEY = "band_key"
+
     @Volatile var schema: SettingsEvent.Schema? = null
         private set
 
@@ -23,6 +25,14 @@ object BandStore {
     @Volatile var lastError: SettingsEvent.Result? = null
         private set
 
+    /** The glasses' self-arm as they last said ([SettingsEvent.SelfArm]). */
+    @Volatile var selfArm: SettingsEvent.SelfArm? = null
+        private set
+
+    /** The glasses' answer to the band key sent from the phone (subject "band_key"). */
+    @Volatile var bandKeyResult: SettingsEvent.Result? = null
+        private set
+
     val listeners = mutableSetOf<() -> Unit>()
 
     fun onEvent(event: SettingsEvent) {
@@ -35,7 +45,10 @@ object BandStore {
             }
             is SettingsEvent.Status -> status = event.status
             is SettingsEvent.Debug -> debug = event.debug
-            is SettingsEvent.Result -> lastError = event.takeIf { !it.ok }
+            is SettingsEvent.Result -> {
+                if (event.subject == BAND_KEY) bandKeyResult = event else lastError = event.takeIf { !it.ok }
+            }
+            is SettingsEvent.SelfArm -> selfArm = event
         }
         listeners.toList().forEach { it() }
     }

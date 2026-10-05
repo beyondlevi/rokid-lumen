@@ -105,6 +105,23 @@ object Identity {
     }
 
     /**
+     * The key and band record as an `air-gestures-band` export, the format [import] reads: for
+     * handing the key to the glasses from the phone. The pending key when there's no confirmed
+     * one yet. Null without a key. Anyone holding it controls the band: never log it.
+     */
+    @JvmStatic
+    fun exportBundle(context: Context): ByteArray? {
+        val file = keyFile(context).takeIf { it.isFile } ?: pendingFile(context).takeIf { it.isFile } ?: return null
+        val key = runCatching { file.readBytes() }.getOrNull() ?: return null
+        val bundle = JSONObject()
+            .put("format", BUNDLE_FORMAT)
+            .put("version", BUNDLE_VERSION)
+            .put("owner_key", Base64.encodeToString(key, Base64.NO_WRAP))
+        runCatching { JSONObject(bandFile(context).readText()) }.getOrNull()?.let { bundle.put("band", it) }
+        return bundle.toString().toByteArray()
+    }
+
+    /**
      * Forget the band here: the key and record, and the Bluetooth bond (stop the link first).
      * The band keeps its owner; a factory reset (hold its button about 16 s) clears that.
      * Returns true when the bond couldn't be removed by the app.

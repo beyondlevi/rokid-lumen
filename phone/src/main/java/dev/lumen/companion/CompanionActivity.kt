@@ -395,6 +395,18 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
 
     override fun checkSetup() = GlassesSetup.check()
 
+    override fun prepareGlasses() = GlassesSetup.prepareGlasses()
+
+    override fun openHiRokid() {
+        val launch = listOf("com.rokid.sprite.global.aiapp", "com.rokid.sprite.aiapp")
+            .firstNotNullOfOrNull { packageManager.getLaunchIntentForPackage(it) }
+        if (launch == null) say(getString(R.string.auth_hi_rokid_missing)) else startActivity(launch)
+    }
+
+    override fun sendBandKey() {
+        if (!GlassesSetup.sendKey(this)) say(getString(R.string.setup_key_not_sent))
+    }
+
     override fun keyboardOpen() = KeyboardLink.open()
 
     override fun keyboardClose() = KeyboardLink.close()

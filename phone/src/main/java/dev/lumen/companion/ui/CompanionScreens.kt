@@ -135,6 +135,10 @@ interface CompanionActions {
     fun installGlasses()
     fun openSetupOnGlasses()
     fun checkSetup()
+    /** Setup, on the glasses: run the self-arm; open Hi Rokid (USB debugging, Wi-Fi); send the band's key. */
+    fun prepareGlasses()
+    fun openHiRokid()
+    fun sendBandKey()
     fun keyboardOpen()
     fun keyboardClose()
     fun keyboardText(text: String)

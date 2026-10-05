@@ -81,14 +81,19 @@ The link comes back by itself after the phone reboots.
    the band: keep it private.
 2. Free the band: it talks to one device at a time. Run `air-gestures disconnect` on the
    computer.
-3. Copy the file to the glasses:
+3. **From the phone, no cable**: put the file on the phone, then in the companion's setup page
+   (Settings > Glasses setup) tap **Import the key file** and **Send the key to the glasses**
+   (or Band tab > **Send the key to the glasses**). The key goes over Rokid's link and the
+   glasses import it as below; the band link starts over with it. Skip steps 4 and 5.
+
+   With a computer instead, copy the file to the glasses:
 
    ```sh
    scripts/push-band-file.sh air-gestures-band.json
    ```
 
    It lands in `/sdcard/Android/data/dev.lumen.glasses/files/`.
-4. On the glasses, open Rokid Lumen from the Rokid launcher. The apps grid opens; allow the
+4. (Computer only) On the glasses, open Rokid Lumen from the Rokid launcher. The apps grid opens; allow the
    Bluetooth permission when asked. Go to the grid's last item, **Settings**, then **Band >
    Import band key**. The app copies the key into its private storage and deletes the file
    from that folder.
@@ -111,6 +116,13 @@ Until the band is connected, move through the glasses' screens with the touchpad
    tab.
 
 ## 5. Run the self-arm
+
+**From the phone**: in the companion's setup page, step **Prepare the glasses**. First, in Hi
+Rokid, turn on USB debugging (developer settings) and connect the glasses to a Wi-Fi network;
+then tap **Prepare**. The glasses wake their display and run the same self-arm as below; its
+steps show on the phone, and the page says when they're armed (about 20 s, measured). The
+glasses' Settings row described below does the same on the glasses.
+
 
 The Rokid firmware force-stops the app in front and strips its accessibility service when a
 temple is folded or the glasses sleep, and the band goes with it. The self-arm gives the app

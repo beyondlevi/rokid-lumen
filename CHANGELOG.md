@@ -3,6 +3,22 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.11]
+
+### Companion
+
+- **Setup, continued**: the setup page also runs the glasses' self-arm (**Prepare the glasses**,
+  with its steps and what to fix in Hi Rokid when it stops) and gives the glasses the band's key
+  (**Send the key to the glasses**, also on the Band tab): no cable for either.
+
+### Glasses
+
+- The self-arm can be started from the phone, wakes the display and keeps it on while it walks
+  Settings (from the phone it often started with the display off and timed out), and reports
+  its progress to the phone.
+- The band's key can come from the phone over Rokid's link (imported like the drop folder's
+  file; the band link starts over with it). The band's status says whether the glasses hold a key.
+
 ## [0.2.0-beta.10]
 
 ### Companion
