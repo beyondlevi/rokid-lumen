@@ -58,9 +58,10 @@ object GlassesSetup {
         // A schema the glasses sent before their app was removed doesn't count.
         responding = BandStore.schema != null && installed != false,
         checking = checking,
-        selfArm = BandStore.selfArm,
+        // Nor its armed state and key: an app installed again starts over on both.
+        selfArm = BandStore.selfArm.takeIf { installed != false },
         arming = arming && BandStore.selfArm?.let { !it.armed && it.state !in ARM_STOPPED } != false,
-        glassesHaveKey = BandStore.status.hasKey,
+        glassesHaveKey = BandStore.status.hasKey.takeIf { installed != false },
         phoneHasKey = dev.lumen.band.Identity.present(context),
         keyResult = BandStore.bandKeyResult,
     )

@@ -3,6 +3,16 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.12]
+
+### Companion
+
+- **Install on the glasses** asks GitHub for the releases again instead of trusting the list the
+  Updates page loaded from its cache: with an old cache it offered an older release than the
+  glasses had had, and the install failed as a downgrade.
+- The setup page no longer shows the glasses as prepared, or holding the band's key, while the
+  glasses app isn't installed.
+
 ## [0.2.0-beta.11]
 
 ### Companion

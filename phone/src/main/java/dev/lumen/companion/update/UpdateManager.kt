@@ -241,8 +241,10 @@ object UpdateManager {
         cancelled.set(false)
         setSteps(steps.first, Step.Waiting)
         worker.execute {
-            val all = releases?.takeIf { it.isNotEmpty() }
-                ?: ReleaseFeed.fetch(app).getOrNull()?.also { releases = it }
+            // Fresh from GitHub (a 304 when nothing changed): the list the Updates page loaded may be
+            // the cache of an old check, and its newest release older than what the glasses had.
+            val all = ReleaseFeed.fetch(app).getOrNull()?.also { releases = it }
+                ?: releases?.takeIf { it.isNotEmpty() }
                 ?: ReleaseFeed.cached(app)
             val release = Release.newest(all, "0.0.0", false) { it.glassesApk }
                 ?: Release.newest(all, "0.0.0", true) { it.glassesApk }
