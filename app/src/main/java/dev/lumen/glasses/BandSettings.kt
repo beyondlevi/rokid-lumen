@@ -54,7 +54,8 @@ object BandSettings {
     }
 
     /** The status right away (where the band is changed: the phone waits on it). */
-    private fun pushStatusNow() {
+    @JvmStatic
+    fun pushStatusNow() {
         main.removeCallbacks(pushStatus)
         main.post(pushStatus)
     }
@@ -70,7 +71,10 @@ object BandSettings {
     fun onPhoneRequest(request: JSONObject) {
         val ctx = context ?: return
         when (request.optString("op")) {
-            SettingsOps.DESCRIBE -> PhoneLink.send(Link.SETTINGS_EVENT, schema(ctx).toJson(request))
+            SettingsOps.DESCRIBE -> {
+                PhoneLink.send(Link.SETTINGS_EVENT, schema(ctx).toJson(request))
+                LocalSelfArmStatus.sendToPhone(ctx)
+            }
             SettingsOps.SET -> {
                 val key = request.optString("key")
                 val error = set(ctx, key, request.optString("value"))
@@ -93,6 +97,7 @@ object BandSettings {
         charging = BandRuntime.status.optBoolean("charging"),
         paused = BandRuntime.isPaused(),
         onPhone = context?.let { GestureMappings.isBandOnPhone(it) } ?: false,
+        hasKey = context?.let { Identity.present(it) },
     )
 
     @JvmStatic
@@ -244,6 +249,8 @@ object BandSettings {
             pushStatusNow()
             null
         }
+        // The self-arm, as the glasses' own Settings row starts it; its progress goes to the phone.
+        SettingsOps.ACTION_SELF_ARM -> if (BandAccessibilityService.requestLocalSelfArm(context)) null else LocalSelfArmStatus.state(context).ifEmpty { "not started" }
         ACTION_FORGET -> {
             BandRuntime.stop()
             Identity.forget(context)

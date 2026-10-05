@@ -7,6 +7,8 @@ package dev.lumen.glasses
 
 import android.content.Context
 import android.content.Intent
+import dev.lumen.protocol.Link
+import dev.lumen.protocol.SettingsEvent
 
 object LocalSelfArmStatus {
     const val ACTION_CHANGED = "dev.lumen.glasses.LOCAL_SELF_ARM_STATUS"
@@ -54,6 +56,19 @@ object LocalSelfArmStatus {
                     .putExtra("adbConnectPort", adbConnectPort),
             )
         }
+        sendToPhone(context)
+    }
+
+    /** Whether the self-arm is done: the app holds WRITE_SECURE_SETTINGS. */
+    @JvmStatic
+    fun armed(context: Context): Boolean =
+        context.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    /** Where the self-arm stands, to the phone's setup page. */
+    @JvmStatic
+    fun sendToPhone(context: Context) {
+        val app = context.applicationContext
+        PhoneLink.send(Link.SETTINGS_EVENT, SettingsEvent.SelfArm(state(app), summary(app), armed(app)).toJson())
     }
 
     @JvmStatic

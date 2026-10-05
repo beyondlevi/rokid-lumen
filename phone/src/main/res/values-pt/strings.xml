@@ -467,4 +467,18 @@
     <string name="setup_done">Seus óculos estão prontos. Agora, a band: aba Banda.</string>
     <string name="setup_settings_hint">Instale o Lumen nos óculos e ligue, por este celular</string>
     <string name="setup_settings_done">Pronto: o app dos óculos responde</string>
+    <string name="setup_step_arm">Preparar os óculos</string>
+    <string name="setup_step_arm_hint">Os óculos se preparam sozinhos pela Depuração sem fio (o self-arm), para o Lumen continuar funcionando depois de reiniciar e poder trocar de Wi-Fi para a internet do celular. Antes, no Hi Rokid: ligue a depuração USB nas opções de desenvolvedor e conecte os óculos a uma rede Wi-Fi. Depois toque em Preparar e deixe os óculos quietos por um minuto.</string>
+    <string name="setup_step_arm_done">Os óculos estão preparados</string>
+    <string name="setup_open_hi_rokid">Abrir o Hi Rokid</string>
+    <string name="setup_arm">Preparar</string>
+    <string name="setup_step_key">Dar aos óculos a chave da band</string>
+    <string name="setup_step_key_hint">A chave que deixa o Lumen falar com a sua Meta Neural Band. Importe o arquivo da chave neste celular (a exportação do air-gestures) e envie aos óculos.</string>
+    <string name="setup_step_key_done">Os óculos têm a chave da band</string>
+    <string name="setup_import_key">Importar o arquivo da chave</string>
+    <string name="setup_send_key">Enviar a chave aos óculos</string>
+    <string name="setup_key_refused">Os óculos recusaram a chave: %1$s</string>
+    <string name="setup_key_not_sent">Não há chave neste celular, ou os óculos não estão conectados.</string>
+    <string name="setup_arm_hint_usb">Nas opções de desenvolvedor do Hi Rokid, ligue a depuração USB e toque em Preparar de novo.</string>
+    <string name="setup_arm_hint_wifi">Conecte os óculos a uma rede Wi-Fi no Hi Rokid, deixe-os ligados e toque em Preparar de novo.</string>
 </resources>

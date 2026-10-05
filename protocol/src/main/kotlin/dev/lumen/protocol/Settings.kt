@@ -13,6 +13,7 @@ import org.json.JSONObject
  *                                            {type: result, ok, key|name, error?} (the answer to set and action)
  *                                            {type: status, status} (whenever the band's status changes)
  *                                            {type: debug, debug} (whenever the wireless debugging state changes)
+ *                                            {type: self_arm, state, message, armed} (after describe, and as the self-arm goes)
  *
  * Wireless debugging ([DebugStatus]) is set like a setting ([SettingsOps.KEY_WIRELESS_DEBUG],
  * "true"/"false") but isn't in the band's list: the phone shows it apart, with the address.
@@ -32,6 +33,13 @@ object SettingsOps {
      */
     const val ACTION_TO_PHONE = "to_phone"
     const val ACTION_TO_GLASSES = "to_glasses"
+
+    /**
+     * Runs the self-arm on the glasses, as their Settings row does: it needs their accessibility
+     * service on, a Wi-Fi network and USB debugging allowed in Hi Rokid. Its progress comes back
+     * as [SettingsEvent.SelfArm].
+     */
+    const val ACTION_SELF_ARM = "self_arm"
 
     /** Keeps the glasses reachable over Wi-Fi for `adb connect` ([DebugStatus]). */
     const val KEY_WIRELESS_DEBUG = "wireless_debug"
@@ -123,11 +131,14 @@ data class BandStatus(
     val paused: Boolean = false,
     /** The band is with the phone ([SettingsOps.ACTION_TO_PHONE]): the glasses leave it alone. */
     val onPhone: Boolean = false,
+    /** The glasses hold the band's key (null from glasses too old to say). */
+    val hasKey: Boolean? = null,
 ) {
     val connected: Boolean get() = phase == PHASE_CONNECTED
 
     fun toJson(): JSONObject = JSONObject().put("phase", phase).put("name", name).put("battery", battery)
         .put("charging", charging).put("paused", paused).put("on_phone", onPhone)
+        .apply { hasKey?.let { put("has_key", it) } }
 
     companion object {
         const val PHASE_STOPPED = "stopped"
@@ -142,6 +153,7 @@ data class BandStatus(
             json.optBoolean("charging"),
             json.optBoolean("paused"),
             json.optBoolean("on_phone"),
+            if (json.has("has_key")) json.optBoolean("has_key") else null,
         )
     }
 }
@@ -212,6 +224,15 @@ sealed class SettingsEvent {
             .put("subject", subject).put("error", error)
     }
 
+    /**
+     * Where the self-arm stands: [state] is the glasses' step or outcome (`requested`,
+     * `usb_debugging_off`, `wireless_bootstrap_complete`...), [message] its text in the glasses'
+     * language, [armed] whether it's done (the app holds WRITE_SECURE_SETTINGS).
+     */
+    data class SelfArm(val state: String, val message: String, val armed: Boolean) : SettingsEvent() {
+        fun toJson(): JSONObject = Link.message().put("type", "self_arm").put("state", state).put("message", message).put("armed", armed)
+    }
+
     data class Status(val status: BandStatus) : SettingsEvent() {
         fun toJson(): JSONObject = Link.message().put("type", "status").put("status", status.toJson())
     }
@@ -233,6 +254,7 @@ sealed class SettingsEvent {
             "debug" -> Debug(DebugStatus.from(json.optJSONObject("debug")))
             "result" -> Result(json.optBoolean("ok"), json.optString("subject"), json.optString("error"))
             "status" -> Status(BandStatus.from(json.optJSONObject("status")))
+            "self_arm" -> SelfArm(json.optString("state"), json.optString("message"), json.optBoolean("armed"))
             else -> null
         }
     }

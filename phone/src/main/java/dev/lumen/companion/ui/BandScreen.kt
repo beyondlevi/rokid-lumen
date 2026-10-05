@@ -188,6 +188,16 @@ private fun BandDeviceCard(state: CompanionUiState, actions: CompanionActions) {
                 else -> PillButton(stringResource(R.string.band_use_phone), primary = true, modifier = Modifier.weight(1f)) { actions.useBandOnPhone() }
             }
         }
+        // The key held here, to the glasses: after a claim or an import on this phone.
+        if (state.bandKeyPresent && state.setup.responding) {
+            PillButton(stringResource(R.string.setup_send_key), primary = false, modifier = Modifier.fillMaxWidth()) { actions.sendBandKey() }
+            state.setup.keyResult?.let {
+                Text(
+                    if (it.ok) stringResource(R.string.setup_step_key_done) else stringResource(R.string.setup_key_refused, it.error),
+                    style = MaterialTheme.typography.bodySmall, color = if (it.ok) Lumen.positive else Lumen.warning,
+                )
+            }
+        }
     }
 }
 

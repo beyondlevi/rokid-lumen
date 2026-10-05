@@ -63,6 +63,7 @@ internal fun SetupCard(setup: GlassesSetup.State, onOpen: () -> Unit) {
 internal fun SetupPage(state: CompanionUiState, actions: CompanionActions, onBack: () -> Unit) {
     val setup = state.setup
     PageHeader(stringResource(R.string.setup_title), onBack)
+    LaunchedEffect(Unit) { actions.checkSetup() }
     // While the glasses haven't answered: ask again every few seconds (the switch goes on there).
     LaunchedEffect(setup.done, setup.linkReady) {
         while (!setup.done && setup.linkReady) {
@@ -105,6 +106,36 @@ internal fun SetupPage(state: CompanionUiState, actions: CompanionActions, onBac
     SetupStep(4, setup.responding, stringResource(R.string.setup_step_access), stringResource(if (setup.responding) R.string.setup_step_access_done else R.string.setup_step_access_hint)) {
         if (installed && !setup.responding) {
             PillButton(stringResource(R.string.setup_open_on_glasses), primary = false, icon = LumenIcons.glasses) { actions.openSetupOnGlasses() }
+        }
+    }
+
+    // 5. The self-arm, run on the glasses from here
+    SetupStep(5, setup.armed, stringResource(R.string.setup_step_arm), stringResource(if (setup.armed) R.string.setup_step_arm_done else R.string.setup_step_arm_hint)) {
+        if (setup.responding) {
+            setup.selfArm?.message?.takeIf { it.isNotBlank() }?.let {
+                val hint = when (setup.selfArm.state) {
+                    "usb_debugging_off" -> stringResource(R.string.setup_arm_hint_usb)
+                    "wifi_enable_timeout", "wireless_setup_timeout" -> stringResource(R.string.setup_arm_hint_wifi)
+                    else -> null
+                }
+                StepLine(if (setup.arming) StepState.NOW else StepState.TODO, it, hint)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmall)) {
+                PillButton(stringResource(R.string.setup_open_hi_rokid), primary = false, modifier = Modifier.weight(1f)) { actions.openHiRokid() }
+                PillButton(stringResource(R.string.setup_arm), primary = true, enabled = !setup.arming, modifier = Modifier.weight(1f)) { actions.prepareGlasses() }
+            }
+        }
+    }
+
+    // 6. The band's key, from this phone to the glasses
+    SetupStep(6, setup.keyDone, stringResource(R.string.setup_step_key), stringResource(if (setup.keyDone) R.string.setup_step_key_done else R.string.setup_step_key_hint)) {
+        if (setup.responding) {
+            setup.keyResult?.takeIf { !it.ok }?.let { StepLine(StepState.TODO, stringResource(R.string.setup_key_refused, it.error), null) }
+            if (setup.phoneHasKey) {
+                PillButton(stringResource(R.string.setup_send_key), primary = true, icon = LumenIcons.band) { actions.sendBandKey() }
+            } else {
+                PillButton(stringResource(R.string.setup_import_key), primary = true, icon = LumenIcons.band) { actions.importBandKey() }
+            }
         }
     }
 

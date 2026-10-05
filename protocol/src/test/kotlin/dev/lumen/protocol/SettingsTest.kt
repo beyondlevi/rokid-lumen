@@ -74,4 +74,12 @@ class SettingsTest {
         // A schema from older glasses has no debug: off.
         assertEquals(DebugStatus(), (SettingsEvent.from(org.json.JSONObject().put("type", "schema")) as SettingsEvent.Schema).debug)
     }
+
+    @Test
+    fun `the self-arm's progress round-trips, and the band key goes to the glasses`() {
+        val event = SettingsEvent.SelfArm("usb_debugging_off", "Turn on USB debugging in Hi Rokid", false)
+        assertEquals(event, SettingsEvent.from(event.toJson()))
+        assertEquals(SettingsOps.ACTION_SELF_ARM, SettingsOps.action(SettingsOps.ACTION_SELF_ARM).getString("name"))
+        assertTrue(Link.BAND_KEY in Link.TO_GLASSES)
+    }
 }

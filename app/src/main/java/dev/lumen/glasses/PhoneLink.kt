@@ -125,6 +125,7 @@ object PhoneLink {
             Link.PHONE_EVENT -> dev.lumen.protocol.PhoneEvent.from(json)?.let { PhoneBattery.onEvent(it) }
             Link.LOGS -> appContext?.let { GlassesLogs.onPhoneMessage(it, json) }
             Link.KEYBOARD -> PhoneKeyboard.onPhoneMessage(json)
+            Link.BAND_KEY -> appContext?.let { BandKeyImport.onPhoneMessage(it, json) }
         }
     }
 
