@@ -109,8 +109,28 @@ class BandLink(
     @Volatile private var claimed = false
     @Volatile private var claimDevice: BluetoothDevice? = null
 
+    private val bondedBands: List<BluetoothDevice>
+        get() = adapter?.bondedDevices?.filter { it.name?.lowercase()?.startsWith("meta band") == true }.orEmpty()
+
+    /** The bonded band band.json names (any bonded band without one): not a bond from before a reset. */
     val bondedBand: BluetoothDevice?
-        get() = adapter?.bondedDevices?.firstOrNull { it.name?.lowercase()?.startsWith("meta band") == true }
+        get() {
+            val known = Identity.bandAddress(context) ?: return bondedBands.firstOrNull()
+            return bondedBands.firstOrNull { it.address.equals(known, ignoreCase = true) }
+        }
+
+    /**
+     * Bonds to bands other than band.json's (the band before a factory reset, which changed its
+     * address): the stack would keep waiting on them, and they can't come back.
+     */
+    private fun forgetStaleBonds() {
+        val known = Identity.bandAddress(context) ?: return
+        bondedBands.filterNot { it.address.equals(known, ignoreCase = true) }.forEach { stale ->
+            // Removing a bond is a hidden API for ordinary apps; many builds still allow it.
+            val removed = runCatching { stale.javaClass.getMethod("removeBond").invoke(stale) as Boolean }.getOrDefault(false)
+            log("an old bond to ${stale.name} (before a reset): ${if (removed) "forgotten" else "couldn't be removed"}")
+        }
+    }
 
     override fun start() {
         if (wanted) return
@@ -155,6 +175,7 @@ class BandLink(
             return
         }
         val bonded = bondedBand.takeIf { claim == null || claimed }
+        if (bonded == null && claim == null) forgetStaleBonds()
         if (bonded != null) {
             listener.onPhase(Phase.SEARCHING, bonded.name)
             log("waiting for ${bonded.name}")
@@ -194,6 +215,15 @@ class BandLink(
      */
     private fun retry(delayMs: Long) {
         teardown()
+        // A claim that can't even connect: most often a band that wasn't factory reset (it
+        // shows up, then turns each connection down). Stop and say so instead of trying forever.
+        val claim = claim
+        if (claim != null && !claimed && failures >= CLAIM_MAX_FAILURES) {
+            log("claim: no connection after $failures attempts")
+            claim.onFailed(CLAIM_NO_CONNECTION)
+            main.post { stop() }
+            return
+        }
         val delay = (delayMs shl failures.coerceAtMost(4)).coerceAtMost(MAX_RETRY_MS)
         failures++
         if (wanted) main.postDelayed({ connect() }, delay)
@@ -474,14 +504,32 @@ class BandLink(
         val status = JSONObject(json)
         if (status.optBoolean("connected")) {
             failures = 0
+            gatt?.device?.let { rememberAddress(it) }
             listener.onPhase(Phase.CONNECTED, gatt?.device?.name)
         }
         listener.onStatus(status)
     }
 
+    /**
+     * The band answered with the key: its address here goes to band.json. A band in pairing
+     * mode shows a new address each time, so the one the claim saw (on another device) isn't
+     * this device's bond; [bondedBand] then finds this one, and [forgetStaleBonds] keeps it.
+     */
+    private fun rememberAddress(device: BluetoothDevice) {
+        if (Identity.bandAddress(context).equals(device.address, ignoreCase = true)) return
+        val band = runCatching { JSONObject(Identity.bandFile(context).readText()) }.getOrDefault(JSONObject())
+        band.put("address", device.address)
+        if (!band.has("name")) device.name?.let { band.put("name", it) }
+        runCatching { Identity.bandFile(context).writeText(band.toString(2)) }
+        log("the band's address here is now ${device.address}")
+    }
+
     private fun log(line: String) = listener.onLog(line)
 
     companion object {
+        /** [Claim.onFailed]'s message when the band never let the claim connect. */
+        const val CLAIM_NO_CONNECTION = "no_connection"
+        private const val CLAIM_MAX_FAILURES = 4
         val BAND_SERVICE: UUID = UUID.fromString("0000feb8-0000-1000-8000-00805f9b34fb")
         val PSM_CHARACTERISTIC: UUID = UUID.fromString("2d41da7c-82b6-42aa-b34e-e2e01df8cc1a")
 

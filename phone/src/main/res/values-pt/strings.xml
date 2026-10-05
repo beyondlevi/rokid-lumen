@@ -495,8 +495,9 @@
     <string name="claim_step_waiting">Procurando a band em modo de pareamento…</string>
     <string name="claim_step_found">Encontrei %1$s; conectando…</string>
     <string name="claim_pairing_hint">Restaure a band de fábrica (segure o botão por uns 16 s) e deixe-a perto do celular.</string>
-    <string name="claim_done">A band foi reivindicada: a chave nova está neste celular e foi enviada aos óculos.</string>
-    <string name="claim_dry_run_done">Teste ok: login feito e a band respondeu (série %1$s). Nada foi reivindicado.</string>
+    <string name="claim_done">A band foi reivindicada: a chave nova está neste celular e foi enviada aos óculos. Para parear com os óculos, segure o botão dela por 3 s perto deles (modo de pareamento).</string>
+    <string name="claim_dry_run_done">Teste ok: login feito e a band respondeu (série %1$s). Nada foi reivindicado. Uma band sem reset de fábrica também passa neste teste: restaure-a antes do claim.</string>
+    <string name="claim_no_connection">a band apareceu, mas não aceitou a conexão. Restaure-a de fábrica (segure o botão por uns 16 s), deixe-a perto do celular e tente de novo.</string>
     <string name="claim_failed">O claim parou: %1$s</string>
     <string name="claim_sign_in_failed">O login na Meta falhou: %1$s</string>
 </resources>

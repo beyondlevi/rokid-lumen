@@ -80,15 +80,23 @@ The link comes back by itself after the phone reboots.
 **With your Meta account, from the phone.** In the companion's setup page (Settings > Glasses
 setup) or on the Band tab, tap **Generate the key with my Meta account**:
 
-1. Factory reset the band first: hold its button for about 16 seconds. It then waits in pairing
-   mode; keep it near the phone. This unlinks it from Meta's app and glasses, and any key you had
-   for it stops working.
+1. Factory reset the band first: hold its button for about 16 seconds (holding it 3 seconds
+   only starts pairing mode, which isn't enough). It then waits in pairing mode; keep it near
+   the phone. This unlinks it from Meta's app and glasses, and any key you had for it stops
+   working. A band that wasn't reset shows up but turns the connection down: the claim stops
+   after a few attempts and asks for the reset.
 2. Sign in on Meta's own page, which opens in the companion (your password and two-factor code
    stay on Meta's page; the companion keeps only the session it needs, in memory, for this
    claim).
 3. The companion finds the band, asks Meta to make this phone its owner, and stores the band's
-   new key. It then sends the key to the glasses (as **Send the key to the glasses** below). Done
-   in about a minute.
+   new key. It then sends the key to the glasses (as **Send the key to the glasses** below). The
+   claim itself takes a few seconds (measured: 8 s); with the sign-in, about a minute.
+4. Pair the band with the glasses (step 4): it's bonded to the phone now, so put it in pairing
+   mode once more (hold its button 3 seconds) near the glasses. The glasses forget their bond
+   to the band from before the reset by themselves.
+
+Debug builds also have **Test the sign-in and the band (no claim)**: it signs in and reads the
+band's serial, then stops before anything goes to Meta. A band that wasn't reset passes it too.
 
 Keep a copy of the key (Band tab, **Export the key**) if you also want to use the band from a
 computer.
@@ -127,7 +135,8 @@ Until the band is connected, move through the glasses' screens with the touchpad
 1. In Settings, open **System > Accessibility** and enable **Rokid Lumen**. The band link
    lives in this service: it starts as soon as the service runs.
 2. Put the band in pairing mode (hold its button for 3 seconds) and select **Pair /
-   Reconnect** on the Settings home screen. The status line shows *Waiting for the band*,
+   Reconnect** on the Settings home screen. Keep the glasses' display on meanwhile: Android
+   pauses the search for the band while the display is off. The status line shows *Waiting for the band*,
    *Connecting to the band*, then *Band connected*. Once bonded, the band reconnects on its
    own, without pairing mode.
 3. **Band > Gesture guide** lists what each gesture does. The rest of the band's settings

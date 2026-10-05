@@ -63,8 +63,16 @@ object BandClaim {
                     CompanionService.requestSettings(SettingsOps.action(SettingsOps.ACTION_TO_GLASSES))
                 }
             }
-            override fun onFailed(message: String) = main.post { stopLink(); set(State.Failed(message)) }.let { }
-            override fun onDryRun(serial: String) = main.post { set(State.DryRunDone(serial)) }.let { }
+            override fun onFailed(message: String) = main.post {
+                stopLink()
+                set(State.Failed(if (message == BandLink.CLAIM_NO_CONNECTION) app.getString(R.string.claim_no_connection) else message))
+                CompanionService.requestSettings(SettingsOps.action(SettingsOps.ACTION_TO_GLASSES))
+            }.let { }
+            override fun onDryRun(serial: String) = main.post {
+                stopLink()
+                set(State.DryRunDone(serial))
+                CompanionService.requestSettings(SettingsOps.action(SettingsOps.ACTION_TO_GLASSES))
+            }.let { }
         }
         val listener = object : GestureDevice.Listener {
             override fun onPhase(phase: Phase, band: String?) {

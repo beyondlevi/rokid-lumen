@@ -27,8 +27,9 @@ taps. Sources:
 
 As upstream does: the Rust `band-core` (a port of
 [callbacked/kinesis](https://github.com/callbacked/kinesis)) speaks the band's own
-Bluetooth protocol, worked out by reverse engineering. After the phone claims the band
-(which unlinks it from Meta's glasses and app), the band connects over L2CAP and the core
+Bluetooth protocol, worked out by reverse engineering. After the phone claims the band (the
+companion does it with a Meta account sign-in, as kinesis does; this unlinks it from Meta's
+glasses and app), the band connects over L2CAP and the core
 recognises swipes, index and middle taps, the middle hold, and pinch and turn. That's
 unofficial: a band firmware update could change it, and Meta doesn't support it.
 

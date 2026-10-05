@@ -504,8 +504,9 @@
     <string name="claim_step_waiting">Looking for the band in pairing mode…</string>
     <string name="claim_step_found">Found %1$s; connecting…</string>
     <string name="claim_pairing_hint">Factory reset the band (hold its button about 16 s) and keep it near the phone.</string>
-    <string name="claim_done">The band is claimed: its new key is on this phone and was sent to the glasses.</string>
-    <string name="claim_dry_run_done">Test passed: signed in, and the band answered (serial %1$s). Nothing was claimed.</string>
+    <string name="claim_done">The band is claimed: its new key is on this phone and was sent to the glasses. To pair it with the glasses, hold its button 3 s near them (pairing mode).</string>
+    <string name="claim_dry_run_done">Test passed: signed in, and the band answered (serial %1$s). Nothing was claimed. A band that wasn\'t factory reset passes this test too: reset it before the claim.</string>
+    <string name="claim_no_connection">the band was found but never accepted a connection. Factory reset it (hold its button about 16 s), keep it near the phone and try again.</string>
     <string name="claim_failed">The claim stopped: %1$s</string>
     <string name="claim_sign_in_failed">Meta sign-in failed: %1$s</string>
 </resources>

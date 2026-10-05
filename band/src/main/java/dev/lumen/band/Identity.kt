@@ -31,6 +31,12 @@ object Identity {
     @JvmStatic
     fun present(context: Context) = keyFile(context).exists() || pendingFile(context).exists()
 
+    /** The band's address from band.json, if there is one: a factory reset gives the band a new one. */
+    @JvmStatic
+    fun bandAddress(context: Context): String? = runCatching {
+        JSONObject(bandFile(context).readText()).optString("address").ifEmpty { null }
+    }.getOrNull()
+
     /** The band's name from band.json, if there is one. */
     @JvmStatic
     fun bandName(context: Context): String? = runCatching {
