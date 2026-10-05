@@ -134,7 +134,8 @@ internal fun SetupPage(state: CompanionUiState, actions: CompanionActions, onBac
             if (setup.phoneHasKey) {
                 PillButton(stringResource(R.string.setup_send_key), primary = true, icon = LumenIcons.band) { actions.sendBandKey() }
             } else {
-                PillButton(stringResource(R.string.setup_import_key), primary = true, icon = LumenIcons.band) { actions.importBandKey() }
+                ClaimSection(state, actions)
+                PillButton(stringResource(R.string.setup_import_key), primary = false) { actions.importBandKey() }
             }
         }
     }

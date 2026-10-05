@@ -108,6 +108,10 @@ data class CompanionUiState(
     val keyboardField: dev.lumen.protocol.KeyboardField = dev.lumen.protocol.KeyboardField(false),
     /** First setup with no computer ([dev.lumen.companion.GlassesSetup]). */
     val setup: dev.lumen.companion.GlassesSetup.State = dev.lumen.companion.GlassesSetup.State(),
+    /** Generating the band's key with a Meta account ([dev.lumen.companion.BandClaim]). */
+    val claim: dev.lumen.companion.BandClaim.State = dev.lumen.companion.BandClaim.State.Idle,
+    /** A debug build: the claim's test that touches nothing is offered. */
+    val debuggable: Boolean = false,
 )
 
 /** What the screens can ask for. */
@@ -137,8 +141,12 @@ interface CompanionActions {
     fun checkSetup()
     /** Setup, on the glasses: run the self-arm; open Hi Rokid (USB debugging, Wi-Fi); send the band's key. */
     fun prepareGlasses()
+    /** Sign in to Meta and claim the band; [dryRun] stops before anything is sent to Meta. */
+    fun claimWithMeta(dryRun: Boolean)
+    fun cancelClaim()
     fun openHiRokid()
     fun sendBandKey()
+    fun exportBandKey()
     fun keyboardOpen()
     fun keyboardClose()
     fun keyboardText(text: String)

@@ -188,6 +188,10 @@ private fun BandDeviceCard(state: CompanionUiState, actions: CompanionActions) {
                 else -> PillButton(stringResource(R.string.band_use_phone), primary = true, modifier = Modifier.weight(1f)) { actions.useBandOnPhone() }
             }
         }
+        ClaimSection(state, actions)
+        if (state.bandKeyPresent) {
+            PillButton(stringResource(R.string.band_export_key), primary = false, modifier = Modifier.fillMaxWidth()) { actions.exportBandKey() }
+        }
         // The key held here, to the glasses: after a claim or an import on this phone.
         if (state.bandKeyPresent && state.setup.responding) {
             PillButton(stringResource(R.string.setup_send_key), primary = false, modifier = Modifier.fillMaxWidth()) { actions.sendBandKey() }

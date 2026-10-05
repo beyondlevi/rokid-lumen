@@ -45,6 +45,12 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:theme="@android:style/Theme.Material.NoActionBar">
+        <!-- Meta's sign-in page, to claim the band (BandClaim). -->
+        <activity
+            android:name=".meta.MetaLoginActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+
         <activity
             android:name=".CompanionActivity"
             android:exported="true">

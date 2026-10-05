@@ -7,11 +7,30 @@
 
 ### Companion
 
+- **Generate the band's key with your Meta account**: on the setup page and the Band tab, the
+  companion signs in on Meta's own page, claims a factory-reset band for this phone and sends the
+  new key to the glasses, as kinesis and air-gestures do on a computer. No computer is needed for
+  any step of the setup now. A warning comes first: claiming unlinks the band from Meta's app and
+  glasses. Debug builds also have a test that signs in and reads the band's identity, stopping
+  before anything is claimed.
+  The claim gives up after a few connection attempts and says to factory reset the band (a band
+  that wasn't reset shows up, then turns each connection down).
+- **Export the key** (Band tab): the key as `air-gestures-band.json`, for a computer.
 - **Install on the glasses** asks GitHub for the releases again instead of trusting the list the
   Updates page loaded from its cache: with an old cache it offered an older release than the
   glasses had had, and the install failed as a downgrade.
 - The setup page no longer shows the glasses as prepared, or holding the band's key, while the
   glasses app isn't installed.
+
+### Band
+
+- The band link can run the ownership ceremony (from the kinesis port in band-core) over the
+  phone's Bluetooth, with Meta's two answers coming from the companion. The new key is kept
+  aside until the band accepts it, so a claim cut short never leaves a key the band doesn't know.
+- After a factory reset the band has a new address: the link uses the address of the band its key
+  belongs to, forgets bonds left from before the reset (they never come back), and keeps the
+  address the band answers from. Before, the glasses kept waiting on the old bond.
+- While a claim runs, the phone's own band link stays off the band (both used to compete for it).
 
 ## [0.2.0-beta.11]
 

@@ -124,6 +124,9 @@
     <string name="band_use_glasses">Usar nos óculos</string>
     <string name="band_key_missing">Para usar a banda neste celular, importe a chave dela: o arquivo air-gestures-band.json exportado pelo app original do celular ou pelo app do Linux.</string>
     <string name="band_import_key">Importar a chave</string>
+    <string name="band_export_key">Exportar a chave</string>
+    <string name="band_key_exported">Chave exportada. Quem tiver o arquivo controla a band: guarde-o em sigilo.</string>
+    <string name="band_key_export_failed">Não foi possível gravar a chave nesse arquivo.</string>
     <string name="band_bluetooth_missing">Permita o Bluetooth para este celular conectar à banda.</string>
     <string name="band_allow_bluetooth">Permitir o Bluetooth</string>
     <string name="touch_service_label">Rokid Lumen: gestos da banda</string>
@@ -481,4 +484,19 @@
     <string name="setup_key_not_sent">Não há chave neste celular, ou os óculos não estão conectados.</string>
     <string name="setup_arm_hint_usb">Nas opções de desenvolvedor do Hi Rokid, ligue a depuração USB e toque em Preparar de novo.</string>
     <string name="setup_arm_hint_wifi">Conecte os óculos a uma rede Wi-Fi no Hi Rokid, deixe-os ligados e toque em Preparar de novo.</string>
+    <string name="meta_login_loading">Abrindo o login da Meta…</string>
+    <string name="meta_login_unconfirmed">A Meta não confirmou este login. Tente de novo.</string>
+    <string name="meta_login_exchanging">Login feito. Pegando a sessão da conta…</string>
+    <string name="claim_button">Gerar a chave com a minha conta Meta</string>
+    <string name="claim_dry_run">Testar o login e a band (sem claim)</string>
+    <string name="claim_confirm_title">Reivindicar a band para o Lumen?</string>
+    <string name="claim_confirm_text">Você entra na própria página da Meta, e este celular reivindica a band com uma chave nova, como o air-gestures faz. A band então sai do app e dos óculos da Meta, e qualquer chave que você tinha para ela deixa de valer. As rotas da Meta não são oficiais e podem mudar.\n\nAntes, restaure a band de fábrica: segure o botão dela por uns 16 segundos. Ela fica em modo de pareamento; deixe-a perto do celular.</string>
+    <string name="claim_confirm_go">Entrar e reivindicar</string>
+    <string name="claim_step_waiting">Procurando a band em modo de pareamento…</string>
+    <string name="claim_step_found">Encontrei %1$s; conectando…</string>
+    <string name="claim_pairing_hint">Restaure a band de fábrica (segure o botão por uns 16 s) e deixe-a perto do celular.</string>
+    <string name="claim_done">A band foi reivindicada: a chave nova está neste celular e foi enviada aos óculos.</string>
+    <string name="claim_dry_run_done">Teste ok: login feito e a band respondeu (série %1$s). Nada foi reivindicado.</string>
+    <string name="claim_failed">O claim parou: %1$s</string>
+    <string name="claim_sign_in_failed">O login na Meta falhou: %1$s</string>
 </resources>
