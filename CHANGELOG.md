@@ -3,6 +3,17 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.9]
+
+### Glasses
+
+- **The last row's names**: the Apps grid's last row (and the last row of the Notifications and
+  Controls tabs) scrolls fully into view; its names were hidden under the bottom fade.
+- Web apps can open a notification at the page its **tag** names (`{tag}` in
+  `lumen_notifications`; Reddit's tag names the post). With it, Reddit for Lumen 0.2.2 opens a
+  Reddit notification's post, and Unofficial Telegram for Lumen 0.3.1 a Telegram
+  notification's chat.
+
 ## [0.2.0-beta.8]
 
 ### Companion

@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.PorterDuff
-import android.graphics.Rect
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
@@ -236,13 +235,10 @@ class AppsPage(private val activity: Activity, private val onOpen: (Entry) -> Un
         if (active) reveal(animate)
     }
 
-    /** The focused row into view, clear of the fading edges. */
+    /** The focused row into view, clear of the fading edges ([ScrollReveal]). */
     private fun reveal(animate: Boolean) {
         val row = cells.getOrNull(focus)?.frame?.parent as? View ?: return
-        scroll.post {
-            val rect = Rect(0, -px(TOP_PAD), row.width, row.height + px(BOTTOM_PAD))
-            scroll.requestChildRectangleOnScreen(row, rect, !animate)
-        }
+        scroll.post { ScrollReveal.reveal(scroll, row, px(TOP_PAD), px(BOTTOM_PAD), animate) }
     }
 
     override fun onCommand(command: String): HomeResult {

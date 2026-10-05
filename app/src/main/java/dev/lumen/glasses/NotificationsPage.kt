@@ -443,7 +443,7 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
             }
         }
         rows.getOrNull(focus)?.frame?.let { target ->
-            scroll.post { scroll.requestChildRectangleOnScreen(target, android.graphics.Rect(0, -scroll.paddingTop, target.width, target.height + px(64f)), !animate) }
+            scroll.post { ScrollReveal.reveal(scroll, target, scroll.paddingTop, px(64f), animate) }
         }
     }
 

@@ -15,9 +15,10 @@ import org.json.JSONObject
  *
  * [Intent.packages] are the phone apps whose notifications it takes; [Intent.open] the page to
  * open, a path of the app with placeholders filled from the notification, URL-encoded:
- * `{shortcut}` (the conversation's shortcut id: WhatsApp's is the chat's JID), `{title}`,
- * `{package}`. When a placeholder it uses is empty, or there's no `open`, the app opens on its
- * start page. Offline packages only for now (their manifest is on the glasses).
+ * `{shortcut}` (the conversation's shortcut id: WhatsApp's is the chat's JID, Telegram's
+ * `ndid_<dialog id>`), `{tag}` (the notification's tag on the phone: Reddit's names the post),
+ * `{title}`, `{package}`. When a placeholder it uses is empty, or there's no `open`, the app
+ * opens on its start page. Offline packages only for now (their manifest is on the glasses).
  */
 object WebAppNotifications {
     data class Intent(val packages: Set<String>, val open: String)
@@ -51,7 +52,12 @@ object WebAppNotifications {
     @JvmStatic
     fun path(template: String, notification: PhoneNotification): String {
         if (!template.startsWith("/") || template.startsWith("//")) return "/"
-        val values = mapOf("shortcut" to notification.shortcut, "title" to notification.title, "package" to notification.packageName)
+        val values = mapOf(
+            "shortcut" to notification.shortcut,
+            "tag" to tag(notification.key),
+            "title" to notification.title,
+            "package" to notification.packageName,
+        )
         var missing = false
         val filled = Regex("""\{(\w+)\}""").replace(template) { match ->
             val value = values[match.groupValues[1]].orEmpty()
@@ -59,5 +65,17 @@ object WebAppNotifications {
             Uri.encode(value)
         }
         return if (missing) "/" else filled
+    }
+
+    /**
+     * The tag in a phone notification's key (`user|package|id|tag|uid`, Android's
+     * StatusBarNotification key; a tag may itself hold `|`), or "" when it has none ("null").
+     */
+    @JvmStatic
+    fun tag(key: String): String {
+        val parts = key.split("|")
+        if (parts.size < 5) return ""
+        val tag = parts.subList(3, parts.size - 1).joinToString("|")
+        return if (tag == "null") "" else tag
     }
 }
