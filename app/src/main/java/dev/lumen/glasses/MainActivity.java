@@ -736,19 +736,7 @@ public final class MainActivity extends Activity
     }
 
     private boolean isAccessibilityEnabled() {
-        String flat = new ComponentName(this, BandAccessibilityService.class).flattenToString();
-        String enabled = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-        if (TextUtils.isEmpty(enabled)) {
-            return false;
-        }
-        TextUtils.SimpleStringSplitter splitter = new TextUtils.SimpleStringSplitter(':');
-        splitter.setString(enabled);
-        while (splitter.hasNext()) {
-            if (flat.equalsIgnoreCase(splitter.next())) {
-                return true;
-            }
-        }
-        return false;
+        return AccessibilityHandoff.isEnabled(this);
     }
 
     private boolean isDebuggable() {

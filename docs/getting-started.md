@@ -14,24 +14,41 @@ minutes, most of it spent on the band's key and the self-arm.
   glasses and app, and the link is unofficial: a band firmware update could break it.
 - **An Android phone with Android 12 (API 31) or later**, with the Hi Rokid app installed,
   signed in and connected to the glasses. The companion's Rokid SDK (CXR-L) needs API 31.
-- **A computer with adb**, for the first install and to hand the band's key to the glasses.
-  Turn on USB debugging for the glasses in the Hi Rokid app's developer settings.
+- **No computer for the install**: the companion installs the glasses app over Rokid's link
+  (step 1). A computer with adb is still needed, for now, to hand the band's key to the glasses
+  (step 3). Turn on USB debugging for the glasses in the Hi Rokid app's developer settings: the
+  self-arm needs it too.
 - **A Wi-Fi network the glasses can join**, for the self-arm. Android's Wireless debugging
   only works on Wi-Fi.
 
-## 1. Install both apps
+## 1. Install the companion; it installs the glasses app
 
-Download the APKs from the [GitHub Releases](https://github.com/beyondlevi/rokid-lumen/releases)
-page and check them against `SHA256SUMS.txt`:
+Download `rokid-lumen-companion-<version>.apk` from the
+[GitHub Releases](https://github.com/beyondlevi/rokid-lumen/releases) page (check it against
+`SHA256SUMS.txt`) and install it on the phone, as any APK.
+
+Open it: the Home tab shows **Set up your glasses**. The setup page takes four steps, all from the
+phone:
+
+1. **Authorize in Hi Rokid** (step 2 below explains what it asks for).
+2. **Turn on the phone's Wi-Fi**: the glasses app travels to the glasses over Wi-Fi.
+3. **Install on the glasses**: the companion downloads the latest release's glasses APK from
+   GitHub, checks its digest and that it's signed with the companion's key, and hands it to
+   Rokid's link (CXR-L `appUploadAndInstall`), as Rokid Nexus does. It takes under a minute.
+4. **Turn Lumen on, on the glasses**: the companion opens Lumen's setup on the glasses, which
+   opens Settings > Accessibility there. With the touchpad, open **Rokid Lumen** and turn it on.
+   Only a person can turn on an accessibility service; it is the one step done on the glasses.
+   The page turns green when the glasses app answers the phone.
+
+Updates come the same way afterwards (Settings > Updates).
+
+With a computer instead:
 
 ```sh
 sha256sum -c SHA256SUMS.txt
 adb -s <glasses> install rokid-lumen-glasses-<version>.apk
 adb -s <phone> install rokid-lumen-companion-<version>.apk
 ```
-
-To update later, `adb install -r` the new APK over the old one: it keeps the band, the web
-apps and the settings.
 
 Never force-stop the glasses app (`am force-stop`, `am start -S`, or *Force stop* in the app's
 settings): the firmware then drops its accessibility service and the band with it.

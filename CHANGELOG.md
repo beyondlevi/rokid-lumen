@@ -3,6 +3,23 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.10]
+
+### Companion
+
+- **Set up your glasses, no computer**: a setup page (and a card on Home until it's done) takes
+  the four steps from the phone: Hi Rokid's authorization, the phone's Wi-Fi, **Install on the
+  glasses** (the latest release's glasses APK, checked, through Rokid's link, as Rokid Nexus
+  does) and turning Lumen on in the glasses' Accessibility settings, which the companion opens
+  there. Done when the glasses app answers.
+- Rokid's link keeps one callback for its app calls: install, query and open now wait their
+  turn instead of taking each other's answers.
+
+### Glasses
+
+- **Setup entry**: what the phone opens on the glasses during setup. With the accessibility
+  service off it opens Settings > Accessibility (Rokid Lumen at the top); with it on, the home.
+
 ## [0.2.0-beta.9]
 
 ### Glasses

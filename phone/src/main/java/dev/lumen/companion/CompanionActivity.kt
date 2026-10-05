@@ -84,12 +84,15 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         PhoneBand.listeners += bandListener
         GridCache.listeners += gridListener
         KeyboardLink.listeners += gridListener
+        GlassesSetup.listeners += gridListener
         PhoneSnooze.listeners += snoozeListener
         dev.lumen.companion.update.UpdateManager.listeners += updateListener
         LogShare.listeners += logsListener
         dev.lumen.companion.update.UpdateManager.checkIfDue(this)
         if (CompanionPrefs.token(this) != null) CompanionService.start(this)
         refresh()
+        // Setup isn't confirmed until the glasses app answers: ask it (and Rokid's link) again.
+        if (!GlassesSetup.state(this).done) GlassesSetup.check()
     }
 
     override fun onPause() {
@@ -98,6 +101,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         PhoneBand.listeners -= bandListener
         GridCache.listeners -= gridListener
         KeyboardLink.listeners -= gridListener
+        GlassesSetup.listeners -= gridListener
         PhoneSnooze.listeners -= snoozeListener
         dev.lumen.companion.update.UpdateManager.listeners -= updateListener
         LogShare.listeners -= logsListener
@@ -158,6 +162,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
             update = dev.lumen.companion.update.UpdateManager.state(this),
             logs = LogShare.state,
             keyboardField = KeyboardLink.field,
+            setup = GlassesSetup.state(this),
         )
         // The switch turns off by itself when the snooze runs out.
         window.decorView.removeCallbacks(snoozeEnded)
@@ -383,6 +388,12 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     override fun bandAction(name: String) {
         CompanionService.requestSettings(SettingsOps.action(name))
     }
+
+    override fun installGlasses() = dev.lumen.companion.update.UpdateManager.installGlassesFirstTime(this)
+
+    override fun openSetupOnGlasses() = GlassesSetup.openOnGlasses()
+
+    override fun checkSetup() = GlassesSetup.check()
 
     override fun keyboardOpen() = KeyboardLink.open()
 

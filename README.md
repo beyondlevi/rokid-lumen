@@ -106,15 +106,11 @@ Download both APKs from the [GitHub Releases](https://github.com/beyondlevi/roki
 page. Each release has `rokid-lumen-glasses-<version>.apk`,
 `rokid-lumen-companion-<version>.apk` and `SHA256SUMS.txt`.
 
-```sh
-sha256sum -c SHA256SUMS.txt
-adb install rokid-lumen-glasses-<version>.apk      # with the glasses connected
-adb install rokid-lumen-companion-<version>.apk    # with the phone connected
-```
-
-Then follow [docs/getting-started.md](docs/getting-started.md): authorize the companion in Hi
-Rokid, import the band's key, enable the accessibility service, pair the band, and run the
-self-arm.
+Install the companion on the phone. Its **Set up your glasses** page installs the glasses app
+over Rokid's link, with no computer: authorize in Hi Rokid, turn on the phone's Wi-Fi, tap
+**Install on the glasses**, then turn Lumen on in the glasses' Accessibility settings. Then
+follow [docs/getting-started.md](docs/getting-started.md): the band's key, pairing the band and
+the self-arm. (adb still works: `adb install` both APKs.)
 
 ## Recommended use
 

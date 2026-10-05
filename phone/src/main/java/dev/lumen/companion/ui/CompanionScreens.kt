@@ -106,6 +106,8 @@ data class CompanionUiState(
     val logs: dev.lumen.companion.LogShare.State = dev.lumen.companion.LogShare.State.Idle,
     /** The text field focused in the glasses' web app, for the companion's keyboard. */
     val keyboardField: dev.lumen.protocol.KeyboardField = dev.lumen.protocol.KeyboardField(false),
+    /** First setup with no computer ([dev.lumen.companion.GlassesSetup]). */
+    val setup: dev.lumen.companion.GlassesSetup.State = dev.lumen.companion.GlassesSetup.State(),
 )
 
 /** What the screens can ask for. */
@@ -129,6 +131,10 @@ interface CompanionActions {
     /** Ask the glasses for the grid again. */
     fun refreshGrid()
     /** The companion's keyboard for the glasses' web apps ([dev.lumen.companion.KeyboardLink]). */
+    /** First setup: install the glasses app through Rokid's link, open its setup entry there, ask again. */
+    fun installGlasses()
+    fun openSetupOnGlasses()
+    fun checkSetup()
     fun keyboardOpen()
     fun keyboardClose()
     fun keyboardText(text: String)
@@ -187,6 +193,7 @@ interface CompanionActions {
 const val PAGE_UPDATES = "updates"
 const val PAGE_NOTES = "notes"
 const val PAGE_KEYBOARD = "keyboard"
+const val PAGE_SETUP = "setup"
 
 /** Set while a list row is dragged: the page doesn't scroll under the finger meanwhile. */
 internal val LocalScrollLock = androidx.compose.runtime.staticCompositionLocalOf { mutableStateOf(false) }
@@ -245,6 +252,7 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: 
             androidx.compose.runtime.CompositionLocalProvider(LocalScrollLock provides scrollLock) {
             val current = page
             when {
+                current == PAGE_SETUP -> SetupPage(state, actions, onBack = { page = null })
                 current == PAGE_KEYBOARD -> KeyboardPage(state.keyboardField, state.link.healthy, actions, onBack = { page = null })
                 current == PAGE_UPDATES -> UpdatesPage(state.update, actions, onNotes = { page = PAGE_NOTES }, onBack = { page = null })
                 current != null && current.startsWith(PAGE_NOTES) -> NotesPage(
@@ -253,11 +261,11 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: 
                     onBack = { page = if (tab == Tab.SETTINGS) PAGE_UPDATES else null },
                 )
                 else -> when (tab) {
-                Tab.HOME -> HomeScreen(state, actions, onKeyboard = { page = PAGE_KEYBOARD }) { page = PAGE_NOTES }
+                Tab.HOME -> HomeScreen(state, actions, onKeyboard = { page = PAGE_KEYBOARD }, onSetup = { page = PAGE_SETUP }) { page = PAGE_NOTES }
                 Tab.APPS -> AppsScreen(state.gridItems, state.gridAvailable, state.gridKnown, state.gridIcons, state.gridError, state.packageTransfer, actions)
                 Tab.BAND -> BandScreen(state, actions)
                 Tab.NOTIFICATIONS -> NotificationsScreen(state, actions)
-                Tab.SETTINGS -> SettingsScreen(state, actions) { page = PAGE_UPDATES }
+                Tab.SETTINGS -> SettingsScreen(state, actions, onSetup = { page = PAGE_SETUP }) { page = PAGE_UPDATES }
                 }
             }
             }
@@ -269,8 +277,9 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: 
 }
 
 @Composable
-private fun HomeScreen(state: CompanionUiState, actions: CompanionActions, onKeyboard: () -> Unit, onUpdate: () -> Unit) {
+private fun HomeScreen(state: CompanionUiState, actions: CompanionActions, onKeyboard: () -> Unit, onSetup: () -> Unit, onUpdate: () -> Unit) {
     Header(stringResource(R.string.home_title), stringResource(R.string.home_subtitle))
+    if (!state.setup.done) SetupCard(state.setup, onSetup)
     state.update.offered?.let { UpdateCard(it, onUpdate) }
     Card {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Lumen.spacingMedium)) {
@@ -372,7 +381,7 @@ private fun NotificationsScreen(state: CompanionUiState, actions: CompanionActio
 }
 
 @Composable
-private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions, onUpdates: () -> Unit) {
+private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions, onSetup: () -> Unit, onUpdates: () -> Unit) {
     Header(stringResource(R.string.settings_title), null)
     SectionTitle(stringResource(R.string.settings_link))
     Group {
@@ -388,6 +397,12 @@ private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions, o
             },
         )
         ListRow(title = stringResource(if (state.authorized) R.string.settings_authorize_again else R.string.action_authorize), onClick = actions::authorize)
+        ListRow(
+            title = stringResource(R.string.setup_title),
+            subtitle = stringResource(if (state.setup.done) R.string.setup_settings_done else R.string.setup_settings_hint),
+            icon = LumenIcons.glasses,
+            onClick = onSetup,
+        )
     }
     DictationSection(state, actions)
     WirelessDebugSection(state, actions)

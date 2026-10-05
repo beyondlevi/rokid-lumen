@@ -41,7 +41,9 @@ The notification filtering and the view-only inbox follow the Relay plugin's des
 dictation engines in phone/src/main/java/dev/lumen/companion/speech/ follow
 phone-hub/.../speech/ (the engines and their model ids, endpoints and message formats, the
 transcription languages, the voice activity thresholds, the patience levels and the encrypted
-key store), rewritten for this app's continuous dictation.
+key store), rewritten for this app's continuous dictation. The glasses' hand-off to the accessibility switch
+during setup (app/src/main/java/dev/lumen/glasses/AccessibilityHandoff.kt) is derived from
+glasses-hub's SelfArmAccessibilityHandoff.kt.
 
 rokid-r08-wake (https://github.com/hacha/rokid-r08-wake), Copyright (c) 2026 hacha, MIT
 License (LICENSE-rokid-r08-wake): the loopback self-arm technique that R08 Access Bridge's
