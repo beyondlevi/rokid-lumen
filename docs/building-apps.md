@@ -63,9 +63,9 @@ its Back always goes to history, then close.
 
 ### Text fields and dictation
 
-`Enter` on a text field opens Lumen's dictation **composer** instead of reaching the page.
-Focus alone never opens it. The phone transcribes the glasses' microphone, and the text goes
-into the field through the value setter and an `input` event, then a `change` event when the
+`Enter` on a text field opens Lumen's **composer** instead of reaching the page: the person
+dictates (the phone transcribes the glasses' microphone) or writes with the band. Focus alone
+never opens it. Either way the text goes into the field through the value setter and an `input` event, then a `change` event when the
 composer closes. React and other frameworks that track an input's value see the change.
 
 The composer takes `<textarea>`, `contenteditable`, and `<input>` of type `text`, `search`,

@@ -11,7 +11,10 @@ kinesis (https://github.com/callbacked/kinesis), Copyright (c) 2026 callbacked, 
 (LICENSE-kinesis): the Meta Neural Band protocol, ported to Rust in rust/band-core/, and the
 companion's Meta sign-in and band claim, ported to Kotlin in
 phone/src/main/java/dev/lumen/companion/meta/ (MetaAuth, MetaPairClient, MetaLoginActivity;
-the client ids, routes, request fields and callback check) with their tests.
+the client ids, routes, request fields and callback check) with their tests; and the band's
+handwriting (BandModelCapture.swift and ExperimentalHandwritingDecoder.swift), ported to Rust
+in rust/band-core/src/model_capture.rs and handwriting.rs and modified to find the band's
+settings by name.
 
 R08 Access Bridge (https://github.com/Anezium/R08-Access-Bridge), Copyright 2026 Anezium,
 Apache License, Version 2.0 (LICENSES/Apache-2.0.txt). The glasses' input, navigation,
