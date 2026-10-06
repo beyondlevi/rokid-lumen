@@ -146,6 +146,8 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
             bluetoothGranted = PhoneBand.problem(this) != PhoneBand.Problem.NO_BLUETOOTH,
             phoneSettings = PhoneSettings.schema(this),
             touchEnabled = PhoneTouchService.instance != null,
+            handwritingKeyboardOn = getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+                ?.enabledInputMethodList?.any { it.packageName == packageName } == true,
             writeSettingsGranted = Settings.System.canWrite(this),
             bandError = BandStore.lastError,
             gridItems = GridCache.items,
@@ -345,6 +347,12 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     }
 
     override fun openTouchSettings() = startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+
+    override fun openKeyboardSettings() = startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+
+    override fun chooseKeyboard() {
+        getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.showInputMethodPicker()
+    }
 
     override fun allowWriteSettings() =
         startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, android.net.Uri.parse("package:$packageName")))

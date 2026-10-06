@@ -457,3 +457,14 @@ and down change the track, the index tap plays or pauses, the middle double tap 
 screen actions, arrow keys and opening apps need the companion's accessibility service (it
 performs gestures only and reads nothing on the screen); brightness needs *Modify system
 settings*. The phone needs the band's key, imported from a file in the Band tab.
+
+#### The handwriting keyboard
+
+**Lumen handwriting** is a keyboard for the phone's own apps. Turn it on in the system's keyboard
+settings (Band tab, *Handwriting keyboard*) and pick it when you type: on a text field it switches
+the band's handwriting model on, as the glasses' composer does, and each letter goes in at the
+cursor. The middle tap ends the writing and hides the keyboard; a pause stops it (30 s before the
+first letter, 15 s after), and **Write** starts again. It needs the band on the phone: with the
+band on the glasses it says so and offers **Use the band on this phone**, never taking it by
+itself. Password fields never get the band. The keyboard also has Space, Delete, Enter and
+**Keyboard**, back to the previous keyboard.

@@ -149,6 +149,17 @@ private fun PhoneGestures(state: CompanionUiState, actions: CompanionActions, ch
             onClick = actions::openTouchSettings,
         )
         ListRow(
+            title = stringResource(R.string.band_handwriting_keyboard),
+            subtitle = stringResource(R.string.band_handwriting_keyboard_hint),
+            trailing = {
+                StatusPill(
+                    stringResource(if (state.handwritingKeyboardOn) R.string.band_handwriting_on else R.string.band_handwriting_off),
+                    if (state.handwritingKeyboardOn) Lumen.positive else Lumen.warning,
+                )
+            },
+            onClick = if (state.handwritingKeyboardOn) actions::chooseKeyboard else actions::openKeyboardSettings,
+        )
+        ListRow(
             title = stringResource(R.string.phone_brightness),
             subtitle = stringResource(R.string.phone_brightness_hint),
             trailing = {
