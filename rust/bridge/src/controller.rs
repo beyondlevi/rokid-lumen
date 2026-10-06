@@ -194,6 +194,15 @@ fn is_press(message: &GestureMessage) -> bool {
     actions.iter().any(|a| *a == "press" || *a == "buttonPress") && !actions.contains(&"buttonHold")
 }
 
+/// The band's own double tap report (it may come without a second press report).
+fn is_double_tap(message: &GestureMessage) -> bool {
+    message.action == "doubletap" || message.derived_action == "doubleTap"
+}
+
+/// After the air mouse turns off, its gesture is ignored this long: the band's own report of the
+/// same double tap comes after the pinches that turned it off, and must not turn it on again.
+const SWITCHED_OFF_QUIET: f64 = 0.6;
+
 fn is_release(message: &GestureMessage) -> bool {
     [message.action.as_str(), message.derived_action.as_str()]
         .iter()
@@ -242,6 +251,8 @@ pub struct Controller {
     late_since: Option<f64>,
     on_time_since: Option<f64>,
     congested: bool,
+    /// When the air mouse last turned itself off (see [SWITCHED_OFF_QUIET]).
+    pointer_off_at: f64,
     status: Status,
 }
 
@@ -284,6 +295,7 @@ impl Controller {
             late_since: None,
             on_time_since: None,
             congested: false,
+            pointer_off_at: f64::NEG_INFINITY,
             status,
         }
     }
@@ -364,6 +376,7 @@ impl Controller {
     /// Turned off by its own gesture.
     fn switch_off(&mut self, now: f64) -> Vec<Command> {
         self.end_pointer(now);
+        self.pointer_off_at = now;
         self.status.last_gesture = Some("air mouse off".into());
         self.status.last_action = Some(POINTER_OFF.into());
         vec![Command::Run(POINTER_OFF.into())]
@@ -495,8 +508,25 @@ impl Controller {
     fn pointer_gesture(&mut self, message: &GestureMessage, finger: usize, now: f64) -> Vec<Command> {
         let press = is_press(message);
         let release = is_release(message);
+        if message.synthetic {
+            return Vec::new();
+        }
+        // A double tap bound to the switch: the band's own report of it turns the air mouse off
+        // too (the second pinch may arrive only as that report, with no press).
+        if is_double_tap(message)
+            && let Some(bound) = self.config.gestures.pointer_tap()
+            && matches!(bound, Tap::IndexDoubleTap | Tap::MiddleDoubleTap)
+            && finger_slot(bound.finger()) == Some(finger)
+        {
+            if let Some(mode) = &mut self.pointer {
+                // The first pinch's click must not happen after all.
+                mode.wait = None;
+                mode.second_until = None;
+            }
+            return self.switch_off(now);
+        }
         // The band's tap, double tap and hold reports describe the same pinches: ignored.
-        if message.synthetic || !(press || release) {
+        if !(press || release) {
             return Vec::new();
         }
         if self.link_is_late(now) {
@@ -759,6 +789,10 @@ impl Controller {
         let Some(gesture) = self.router.gesture(message, now) else {
             return Vec::new();
         };
+        // The gesture that just turned the air mouse off, reported again: not on again.
+        if now - self.pointer_off_at < SWITCHED_OFF_QUIET && self.config.gestures.command(gesture) == POINTER_TOGGLE {
+            return Vec::new();
+        }
         if let Some(mode) = &mut self.pointer {
             // A thumb gesture: the pointer holds still through its twitch, and it keeps its
             // action, unless it's the air mouse's own gesture, which turns it off.
@@ -1169,6 +1203,21 @@ mod pointer_tests {
         let mut rig = Rig::new("middle_double=pc.pointer");
         rig.gesture("index", "press", 1.2);
         assert_eq!(rig.buttons(1.2), vec![1.0]);
+    }
+
+    #[test]
+    fn the_bands_double_tap_report_turns_it_off_and_doesnt_turn_it_on_again() {
+        let mut rig = Rig::new("middle_double=pc.pointer");
+        rig.gesture("middle", "press", 1.2);
+        rig.gesture("middle", "release", 1.3);
+        // The second pinch arrives only as the band's double tap report.
+        assert_eq!(run(&rig.gesture("middle", "doubletap", 1.45)), vec![POINTER_OFF]);
+        assert!(!rig.controller.pointer_on());
+        assert!(rig.controller.fire_pointer_wait(2.0).is_empty());
+        // The same report again (or its derived twin) right after: nothing.
+        assert!(run(&rig.gesture("middle", "doubletap", 1.5)).is_empty());
+        // Later, the gesture asks to turn it on again, as before.
+        assert_eq!(run(&rig.gesture("middle", "doubletap", 3.0)), vec!["pc.pointer"]);
     }
 
     #[test]

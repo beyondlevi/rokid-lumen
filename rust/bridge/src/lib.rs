@@ -163,8 +163,15 @@ impl Connection {
     fn pointer_waits(&mut self, now: f64) -> Result<Vec<u8>, String> {
         let mut outgoing = Vec::new();
         if self.controller.pointer_due().is_some_and(|due| now >= due) {
+            let gestures = self.controller.status().gestures;
             for command in self.controller.fire_pointer_wait(now) {
                 outgoing.extend(self.apply(command, now)?);
+            }
+            let status = self.controller.status();
+            if status.gestures != gestures
+                && let Some(gesture) = &status.last_gesture
+            {
+                self.log.push(format!("gesture {gesture}"));
             }
         }
         self.session.set_motion_samples(self.controller.pointer_on());
@@ -444,6 +451,14 @@ impl Connection {
                 self.log.push("connected".into());
             }
             Event::Handedness(hand) => self.log.push(format!("hand {hand:?}").to_lowercase()),
+            // While the air mouse runs, each pinch report (no sensor data), to see what the band sends.
+            Event::Gesture(message) if self.controller.pointer_on() && message.finger != "thumb" => self.log.push(format!(
+                "air mouse pinch {} {}/{}{}",
+                message.finger,
+                message.action,
+                message.derived_action,
+                if message.synthetic { " synthetic" } else { "" }
+            )),
             Event::HandwritingState(status) => {
                 self.log.push(format!(
                     "handwriting {}: {}{}",
