@@ -79,6 +79,9 @@ demo mode and simulated notifications.
   (media, volume, brightness, flashlight, screen gestures) with **gesture profiles** (Media,
   Navigation, your own) switched by a gesture, and its **handwriting keyboard**
   writes in any app's text field with the band. Either side hands it back.
+- **Air Mouse.** An experimental cursor moved by the forearm, on the glasses, on the phone or
+  on a computer, with the index pinch as a tap or a click. Every gesture on the glasses is
+  mappable.
 - **The band on a computer.** Through the phone, as its Bluetooth keyboard and mouse: scrolling,
   desktops, keys, media and writing with the band on a laptop, with profiles of its own and
   nothing to install there, and an experimental **Air Mouse** that moves the pointer with the

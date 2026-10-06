@@ -182,7 +182,7 @@
     <string name="phone_brightness_hint">Os passos de brilho precisam de \"Modificar configurações do sistema\"</string>
     <string name="phone_allowed">Permitido</string>
     <string name="phone_not_allowed">Não permitido</string>
-    <string name="band_section_gestures">Atalhos nos óculos</string>
+    <string name="band_section_gestures">Gestos nos óculos</string>
     <string name="band_section_band">Banda</string>
     <string name="band_setting_index_double">Toque duplo do indicador</string>
     <string name="band_setting_middle_double">Toque duplo do médio</string>

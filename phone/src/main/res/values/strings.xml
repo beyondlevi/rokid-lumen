@@ -149,7 +149,7 @@
     <string name="band_phase_searching">Looking for the band</string>
     <string name="band_phase_connecting">Connecting</string>
     <string name="band_phase_connected">Connected</string>
-    <string name="band_section_gestures">Shortcuts on the glasses</string>
+    <string name="band_section_gestures">Gestures on the glasses</string>
     <string name="band_section_phone">Gestures on this phone</string>
     <string name="band_option_to_phone">Use the band on the phone</string>
     <string name="phone_gesture_swipe_up">Swipe up</string>
