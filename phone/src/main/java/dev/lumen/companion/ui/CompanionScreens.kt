@@ -85,6 +85,8 @@ data class CompanionUiState(
     /** What the band's gestures do on the phone ([dev.lumen.companion.PhoneSettings]). */
     val phoneSettings: List<Setting> = emptyList(),
     val touchEnabled: Boolean = false,
+    /** Lumen's handwriting keyboard is turned on in the system's keyboard settings. */
+    val handwritingKeyboardOn: Boolean = false,
     val writeSettingsGranted: Boolean = false,
     val bandError: SettingsEvent.Result? = null,
     val gridItems: List<GridItem> = emptyList(),
@@ -146,6 +148,9 @@ interface CompanionActions {
     fun cancelClaim()
     fun openHiRokid()
     fun sendBandKey()
+    /** The system's keyboard settings (to turn on the handwriting keyboard), and its picker. */
+    fun openKeyboardSettings()
+    fun chooseKeyboard()
     fun exportBandKey()
     fun keyboardOpen()
     fun keyboardClose()

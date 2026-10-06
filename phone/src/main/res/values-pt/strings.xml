@@ -500,4 +500,25 @@
     <string name="claim_no_connection">a band apareceu, mas não aceitou a conexão. Restaure-a de fábrica (segure o botão por uns 16 s), deixe-a perto do celular e tente de novo.</string>
     <string name="claim_failed">O claim parou: %1$s</string>
     <string name="claim_sign_in_failed">O login na Meta falhou: %1$s</string>
+    <string name="ime_name">Escrita da Lumen</string>
+    <string name="ime_hint">Empurrar: espaço · Varrer para trás: apagar · Toque do médio: concluir</string>
+    <string name="ime_status_password">A escrita não entra em senhas. Troque de teclado para digitar.</string>
+    <string name="ime_status_no_key">Primeiro importe ou gere a chave da band no Rokid Lumen.</string>
+    <string name="ime_status_elsewhere">A band está com os óculos.</string>
+    <string name="ime_status_connecting">Conectando à band…</string>
+    <string name="ime_status_preparing">Preparando a band para escrever…</string>
+    <string name="ime_status_ready">Escreva com o dedo em qualquer superfície</string>
+    <string name="ime_status_stopped">A escrita parou.</string>
+    <string name="ime_status_failed">A band parou de escrever: %1$s</string>
+    <string name="ime_use_here">Usar a band neste celular</string>
+    <string name="ime_write_again">Escrever</string>
+    <string name="ime_switch">Teclado</string>
+    <string name="ime_space">Espaço</string>
+    <string name="ime_delete">Apagar</string>
+    <string name="ime_enter">Enter</string>
+    <string name="band_handwriting_keyboard">Teclado de escrita</string>
+    <string name="band_handwriting_keyboard_hint">Escreva nos campos de texto do celular com a band, enquanto ela estiver neste celular. Ligue-o nas configurações de teclado e escolha-o ao digitar.</string>
+    <string name="band_handwriting_on">Ligado</string>
+    <string name="band_handwriting_off">Desligado</string>
+    <string name="band_handwriting_choose">Escolher o teclado</string>
 </resources>

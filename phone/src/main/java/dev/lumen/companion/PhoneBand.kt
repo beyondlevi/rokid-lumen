@@ -96,8 +96,60 @@ object PhoneBand {
 
     /** The gesture settings changed in the Band tab: the band gets the new mapping. */
     fun applyMapping(context: Context) {
+        link?.setMapping(if (handwriting != null) writingMapping(context) else PhoneSettings.mapping(context))
+    }
+
+    /** Who receives the band's handwriting: the handwriting keyboard while it writes. */
+    interface HandwritingSink {
+        /** A handwriting event (see `Bridge.handwritingEvents`); its text is never to be logged. */
+        fun onHandwriting(event: JSONObject)
+
+        /** The middle tap: the writing is over. */
+        fun onExit()
+    }
+
+    /** The action the middle tap runs while the band writes. */
+    const val HANDWRITING_EXIT = "handwriting.exit"
+
+    private var handwriting: HandwritingSink? = null
+
+    /** Whether the band is connected here, so it can write. */
+    val canWrite get() = link != null && phase == Phase.CONNECTED
+
+    /**
+     * Switch the band's handwriting on for [sink]; false when the band isn't connected here. While
+     * it writes the bridge lets only the middle tap through, and here it ends the writing
+     * ([HandwritingSink.onExit]), whatever the Band tab maps it to.
+     */
+    fun startHandwriting(context: Context, sink: HandwritingSink): Boolean {
+        val link = link ?: return false
+        if (phase != Phase.CONNECTED) return false
+        handwriting = sink
+        link.setMapping(writingMapping(context))
+        if (!link.setHandwriting(true)) {
+            handwriting = null
+            link.setMapping(PhoneSettings.mapping(context))
+            return false
+        }
+        return true
+    }
+
+    /** Start the written text over from [text]. */
+    fun resetHandwritingText(text: String) {
+        link?.resetHandwritingText(text)
+    }
+
+    /** End the writing: the band goes back to normal and to its usual gestures. */
+    fun stopHandwriting(context: Context, sink: HandwritingSink) {
+        if (handwriting !== sink) return
+        handwriting = null
+        link?.setHandwriting(false)
         link?.setMapping(PhoneSettings.mapping(context))
     }
+
+    /** The usual mapping, with the middle tap ending the writing at once (no double tap). */
+    private fun writingMapping(context: Context) =
+        PhoneSettings.mapping(context) + ";middle_tap=$HANDWRITING_EXIT;middle_double="
 
     /** Why the link can't run here, or null. */
     fun problem(context: Context): Problem? = when {
@@ -137,7 +189,8 @@ object PhoneBand {
                 main.post {
                     actions.forEach { action ->
                         Log.d(TAG, "action $action")
-                        if (action == PhoneSettings.SWITCH_TO_GLASSES) useOnGlasses(app)
+                        if (action == HANDWRITING_EXIT) handwriting?.onExit()
+                        else if (action == PhoneSettings.SWITCH_TO_GLASSES) useOnGlasses(app)
                         else runner.run(action)?.let { Log.d(TAG, "$action: $it") }
                     }
                 }
@@ -150,6 +203,10 @@ object PhoneBand {
                     changed()
                 }
             }
+
+            override fun onHandwriting(event: JSONObject) {
+                main.post { handwriting?.onHandwriting(event) }
+            }
         }
         link = BandLink(app, listener, PhoneSettings.config(app)).also { it.start() }
         Log.d(TAG, "started")
@@ -157,6 +214,7 @@ object PhoneBand {
     }
 
     fun stop() {
+        handwriting = null
         link?.stop()
         link = null
         actions?.close()

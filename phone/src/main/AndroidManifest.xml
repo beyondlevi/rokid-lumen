@@ -80,6 +80,20 @@
                 android:resource="@xml/touch_service" />
         </service>
 
+        <!-- The handwriting keyboard: the band writes into the phone's text fields. -->
+        <service
+            android:name=".ime.HandwritingKeyboard"
+            android:exported="true"
+            android:label="@string/ime_name"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/handwriting_keyboard" />
+        </service>
+
         <!-- The phone's notifications for the glasses (view only). Granted in Settings,
              "Notification access"; nothing read here is written to disk. -->
         <service

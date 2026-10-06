@@ -509,4 +509,25 @@
     <string name="claim_no_connection">the band was found but never accepted a connection. Factory reset it (hold its button about 16 s), keep it near the phone and try again.</string>
     <string name="claim_failed">The claim stopped: %1$s</string>
     <string name="claim_sign_in_failed">Meta sign-in failed: %1$s</string>
+    <string name="ime_name">Lumen handwriting</string>
+    <string name="ime_hint">Push forward: space · Sweep back: delete · Middle tap: done</string>
+    <string name="ime_status_password">Handwriting doesn\'t write passwords. Switch keyboards to type one.</string>
+    <string name="ime_status_no_key">Import or generate the band\'s key in Rokid Lumen first.</string>
+    <string name="ime_status_elsewhere">The band is with the glasses.</string>
+    <string name="ime_status_connecting">Connecting to the band…</string>
+    <string name="ime_status_preparing">Getting the band ready to write…</string>
+    <string name="ime_status_ready">Write with a finger on any surface</string>
+    <string name="ime_status_stopped">Writing stopped.</string>
+    <string name="ime_status_failed">The band stopped writing: %1$s</string>
+    <string name="ime_use_here">Use the band on this phone</string>
+    <string name="ime_write_again">Write</string>
+    <string name="ime_switch">Keyboard</string>
+    <string name="ime_space">Space</string>
+    <string name="ime_delete">Delete</string>
+    <string name="ime_enter">Enter</string>
+    <string name="band_handwriting_keyboard">Handwriting keyboard</string>
+    <string name="band_handwriting_keyboard_hint">Write in the phone\'s text fields with the band, while it\'s on this phone. Turn it on in the keyboard settings, then pick it when you type.</string>
+    <string name="band_handwriting_on">On</string>
+    <string name="band_handwriting_off">Off</string>
+    <string name="band_handwriting_choose">Choose the keyboard</string>
 </resources>
