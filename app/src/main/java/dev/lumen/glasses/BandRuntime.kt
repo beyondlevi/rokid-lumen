@@ -236,6 +236,10 @@ object BandRuntime {
         return true
     }
 
+    /** Text the simulated band writes, letter by letter (see [SimulatedBand.write]). */
+    @JvmStatic
+    fun simulateWriting(text: String): Boolean = (device as? SimulatedBand)?.write(text) ?: false
+
     @JvmStatic
     fun addListener(listener: StateListener) {
         listeners += listener

@@ -78,8 +78,8 @@ stop, pause, and a mapping string `gesture=action;...` built by `BandMapping`. T
 exist:
 
 - `BandLink`: the real band, through the Rust bridge.
-- `SimulatedBand`: no band, in debug builds. Turn on **Band > Simulated band**, then send
-  gestures with adb:
+- `SimulatedBand`: no band, in debug builds. Turn on **Band > Simulated band** (or
+  `--es simulated true`, and `false` to go back to the band), then send gestures with adb:
 
   ```sh
   adb shell am broadcast -a dev.lumen.glasses.SIMULATE --es gesture swipe_right
@@ -101,6 +101,12 @@ exist:
   answer "Sent" on the glasses alone), `--es notify_key <key>` and `--ez notify_alert true` (its
   banner shows). `--es grid_order <ids> --es grid_hidden <ids>` (comma-separated, as in
   `lumen_grid.xml`) arranges the apps grid.
+
+  The simulated band also writes: once the composer is writing, `--es handwriting_text "<text>"`
+  comes into the field a letter at a time, as from the band's model. On the phone, with the
+  handwriting keyboard writing, the debug build takes the same from
+  `adb shell run-as dev.lumen.companion am startservice --user 0 -n
+  dev.lumen.companion/.CompanionService -a dev.lumen.companion.WRITE_TEXT --es text "<text>"`.
 
 An official API, if Meta publishes one, would be a third implementation of the same interface.
 

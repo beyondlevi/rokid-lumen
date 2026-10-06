@@ -4,6 +4,8 @@ import dev.lumen.band.BandLink
 import dev.lumen.band.GestureDevice
 import dev.lumen.band.Phase
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import org.json.JSONObject
 
 /**
@@ -13,6 +15,9 @@ import org.json.JSONObject
  * mapping string the bridge gets, so the navigation and the mapped actions run
  * exactly as they would from the band. It doesn't model the bridge's timing
  * (a single tap waiting out its double), only the mapping.
+ *
+ * It also writes: with its handwriting on, `--es handwriting_text "<text>"` arrives one letter at
+ * a time, as the band's model sends it (for screenshots and demos).
  */
 class SimulatedBand(private val listener: GestureDevice.Listener, private val context: Context) : GestureDevice {
     private var running = false
@@ -20,6 +25,9 @@ class SimulatedBand(private val listener: GestureDevice.Listener, private val co
     private var mapping = emptyMap<String, String>()
     private var gestures = 0L
     private var lastGesture: String? = null
+    private val main = Handler(Looper.getMainLooper())
+    private var writing = false
+    private var written = ""
 
     override fun start() {
         if (running) return
@@ -33,8 +41,45 @@ class SimulatedBand(private val listener: GestureDevice.Listener, private val co
     }
 
     override fun stop() {
+        setHandwriting(false)
         running = false
         listener.onPhase(Phase.STOPPED, null)
+    }
+
+    override fun setHandwriting(enabled: Boolean): Boolean {
+        if (enabled && !running) return false
+        if (enabled == writing) return true
+        writing = enabled
+        main.removeCallbacksAndMessages(null)
+        if (enabled) {
+            main.postDelayed({ handwritingState("ready") }, READY_MS)
+        } else {
+            handwritingState("finished")
+        }
+        return true
+    }
+
+    override fun resetHandwritingText(text: String) {
+        written = text
+    }
+
+    /** As if the band's model read [text], a letter every [LETTER_MS]; false when it isn't writing. */
+    fun write(text: String): Boolean {
+        if (!writing) return false
+        text.indices.forEach { index ->
+            main.postDelayed({
+                if (!writing) return@postDelayed
+                written += text[index]
+                listener.onHandwriting(JSONObject().put("type", "text").put("text", written))
+            }, LETTER_MS * (index + 1))
+        }
+        return true
+    }
+
+    private fun handwritingState(phase: String) {
+        listener.onHandwriting(
+            JSONObject().put("type", "state").put("phase", phase).put("verified", phase == "finished"),
+        )
     }
 
     override fun setPaused(paused: Boolean) {
@@ -87,6 +132,8 @@ class SimulatedBand(private val listener: GestureDevice.Listener, private val co
         const val MIDDLE_HOLD = "middle_hold"
         const val DIAL_UP = "dial_up"
         const val DIAL_DOWN = "dial_down"
+        private const val READY_MS = 800L
+        private const val LETTER_MS = 650L
 
         /** What the simulator can do: the mappable gestures, a dial step each way, the middle hold. */
         val KEYS = listOf(

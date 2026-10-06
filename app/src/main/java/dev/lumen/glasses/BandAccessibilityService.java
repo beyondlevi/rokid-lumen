@@ -157,6 +157,22 @@ public final class BandAccessibilityService extends AccessibilityService {
                 mainHandler.post(() -> BandRuntime.setPaused(context, "true".equals(paused)));
                 return;
             }
+            String simulated = intent.getStringExtra("simulated");
+            if (simulated != null) {
+                // Debug builds: Band > Simulated band on or off, as the settings screen does.
+                mainHandler.post(() -> {
+                    GestureMappings.setSimulated(context, "true".equals(simulated));
+                    Log.d(TAG, "Simulated band " + simulated + ": " + BandRuntime.restart(context));
+                });
+                return;
+            }
+            String handwritingText = intent.getStringExtra("handwriting_text");
+            if (handwritingText != null) {
+                // Debug builds: what the simulated band writes while its handwriting is on.
+                mainHandler.post(() -> Log.d(TAG, "Simulated writing: "
+                        + BandRuntime.simulateWriting(handwritingText)));
+                return;
+            }
             String handwriting = intent.getStringExtra("handwriting");
             if (handwriting != null) {
                 // Debug builds: the band's handwriting model on ("start") or off ("stop").

@@ -154,6 +154,22 @@ object PhoneBand {
         link?.setMapping(PhoneSettings.mapping(context))
     }
 
+    /**
+     * Debug builds: [text] reaches the keyboard while it writes, a letter at a time, as if the band
+     * wrote it (for screenshots and demos). False when nothing is writing.
+     */
+    fun simulateWriting(text: String): Boolean {
+        if (handwriting == null) return false
+        text.indices.forEach { index ->
+            main.postDelayed({
+                handwriting?.onHandwriting(JSONObject().put("type", "text").put("text", text.take(index + 1)))
+            }, SIMULATED_LETTER_MS * (index + 1))
+        }
+        return true
+    }
+
+    private const val SIMULATED_LETTER_MS = 650L
+
     /** The usual mapping, with the middle tap ending the writing at once (no double tap). */
     private fun writingMapping(context: Context) =
         PhoneSettings.mapping(context) + ";middle_tap=$HANDWRITING_EXIT;middle_double="
