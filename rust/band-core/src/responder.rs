@@ -12,6 +12,19 @@ use crate::proto::{ProtoFields, field_bytes, field_int};
 use crate::sim::{SimBand, SimHandshake};
 
 pub const SIM_SERIAL: &str = "SIMBAND0001";
+/// The settings of a current band, in id order from 1 (as one reported them on 2026-10-05).
+pub const SIM_SETTINGS: [&str; 40] = [
+    "inf_filter", "inf_downsample", "band-tightness-threshold", "trigger-band-tightness",
+    "trigger-multi-tightness", "settings-reset", "battery_update", "battery_is_multicast", "bcm",
+    "lepc-golden-range", "le-power-control", "le-tx-max-power-level", "le-tx-init-power-level",
+    "positron-telemetry", "quat_stream_mode", "quat_stream_frequency", "wrist_encoding",
+    "normalized-inference", "use-custom-metadata", "load-flash-model", "enable-partial-gestures",
+    "load-model-bank-models", "gyro-bias", "accel-bias", "coredump_collect", "index_ia_enabled",
+    "stream_in_standby", "data-collection", "data-collection-model", "haptics",
+    "imu_calibration_applied", "auto-off-btd", "auto-standby-timeout-secs", "standby-gesture",
+    "wake-gesture", "middle-wake-enabled", "hand", "led_on_gestures", "trigger-haptics",
+    "keep-alive",
+];
 const RPC: u32 = 0x02000315;
 const DEVICE_RECEIPT: &str =
     r#"{"receipt_type":"DevicePendingOwnershipReceipt","additional_data":"{}"}"#;
@@ -65,6 +78,14 @@ pub struct Responder {
     sequence: u64,
     finish_seen: bool,
     stopped: bool,
+    /// The model's streams (control fields 4, 22, 23).
+    model_streams: u64,
+    /// Setting values by id - 1 ([SIM_SETTINGS]); `data-collection` 0, `data-collection-model` 2.
+    pub settings: Vec<u64>,
+    /// Every setting write, as (id, value).
+    pub writes: Vec<(u64, u64)>,
+    /// Settings whose lookup gets no answer.
+    pub silent_lookups: Vec<u64>,
 }
 
 fn frame_size(buffer: &[u8]) -> Option<usize> {
@@ -102,7 +123,107 @@ impl Responder {
             sequence: 0,
             finish_seen: false,
             stopped: false,
+            model_streams: 0,
+            settings: SIM_SETTINGS
+                .iter()
+                .map(|name| if *name == "data-collection-model" { 2 } else { 0 })
+                .collect(),
+            writes: Vec::new(),
+            silent_lookups: Vec::new(),
         }
+    }
+
+    /// A setting's value by name.
+    pub fn setting(&self, name: &str) -> u64 {
+        let index = SIM_SETTINGS.iter().position(|n| *n == name).expect("known setting");
+        self.settings[index]
+    }
+
+    /// Whether the model streams are on.
+    pub fn model_streams(&self) -> bool {
+        self.model_streams == 1
+    }
+
+    /// One handwriting sample whose most likely class is `class` (sent only while the model
+    /// runs: streams on and `data-collection-model` = 5).
+    pub fn handwriting(&mut self, class: usize) -> Result<Vec<u8>> {
+        if self.model_streams != 1 || self.setting("data-collection-model") != 5 || self.silent {
+            return Ok(Vec::new());
+        }
+        self.sequence += 1;
+        let sequence = self.sequence;
+        let rest = (1.0 - 0.9) / 99.0;
+        let values: Vec<u8> = (0..100)
+            .flat_map(|index| {
+                let p: f64 = if index == class { 0.9 } else { rest };
+                (p.ln() as f32).to_le_bytes()
+            })
+            .collect();
+        let band = self.ready()?;
+        band.stamp += 15_625;
+        let payload = [
+            field_int(1, sequence),
+            field_int(2, band.stamp),
+            field_bytes(3, &values),
+            field_int(10, 3),
+        ]
+        .concat();
+        band.encrypt(&encode_frame(0x8010, &[0x0200020c], &payload)?)
+    }
+
+    /// The settings service: count (`{1:{1:2}}`), lookup (`{2:{1:2,2:id}}`), read and write
+    /// (`{3:{1:id,2:write?,7|10:{1:value}}}`), answered as a current band does.
+    fn settings_answer(&mut self, band: &mut SimBand, frame: &DataXFrame) -> Result<Vec<u8>> {
+        let fields = ProtoFields::parse(&frame.payload)?;
+        let id = fields.integer(1)?;
+        let Ok(request) = fields.bytes(14).and_then(ProtoFields::parse) else {
+            return Ok(Vec::new());
+        };
+        let answer = if request.contains(1) {
+            field_bytes(1, &field_int(1, SIM_SETTINGS.len() as u64))
+        } else if request.contains(2) {
+            let setting = ProtoFields::parse(request.bytes(2)?)?.integer(2)?;
+            if self.silent_lookups.contains(&setting) {
+                return Ok(Vec::new());
+            }
+            let Some(name) = SIM_SETTINGS.get(setting as usize - 1) else {
+                return reply(band, 1, RPC, &[field_int(1, id), field_int(2, 0)].concat());
+            };
+            field_bytes(
+                2,
+                &[
+                    field_bytes(1, b"title"),
+                    field_bytes(2, b"description"),
+                    field_bytes(3, name.as_bytes()),
+                    field_int(4, setting),
+                ]
+                .concat(),
+            )
+        } else {
+            let body = ProtoFields::parse(request.bytes(3)?)?;
+            let setting = body.integer(1)?;
+            let writing = body.integer(2)? == 1;
+            let index = setting as usize - 1;
+            let boolean = SIM_SETTINGS[index] == "data-collection";
+            if writing {
+                let field = if boolean { 7 } else { 10 };
+                let value = ProtoFields::parse(body.bytes(field)?)?.integer(1)?;
+                self.settings[index] = value;
+                self.writes.push((setting, value));
+            }
+            let value = field_bytes(if boolean { 8 } else { 11 }, &field_int(1, self.settings[index]));
+            field_bytes(
+                3,
+                &[field_int(1, setting), field_int(2, u64::from(writing)), field_int(3, 0), value]
+                    .concat(),
+            )
+        };
+        reply(
+            band,
+            1,
+            RPC,
+            &[field_int(1, id), field_int(2, 1), field_bytes(14, &answer)].concat(),
+        )
     }
 
     /// The band identity key's 64-byte point (what the ownership server reports).
@@ -324,6 +445,7 @@ impl Responder {
                     &[field_int(1, 1), field_bytes(2, &[1; 16])].concat(),
                 )
             }
+            (0x8001, Some(0x02000314) | None) => self.settings_answer(band, frame),
             (0x8003, _) => reply(
                 band,
                 3,
@@ -415,14 +537,20 @@ impl Responder {
         if control.contains(6) {
             self.motion = control.integer(6)?;
         }
+        if control.contains(4) {
+            self.model_streams = control.integer(4)?;
+        }
         if id == 4 && self.streams == 0 {
             self.stopped = true;
         }
         let flags = [
             field_int(2, self.raw),
             field_int(3, self.streams),
+            field_int(4, self.model_streams),
             field_int(6, self.motion),
             field_int(8, self.motion),
+            field_int(22, self.model_streams),
+            field_int(23, self.model_streams),
         ]
         .concat();
         reply(

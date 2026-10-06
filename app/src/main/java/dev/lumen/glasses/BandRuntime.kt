@@ -88,6 +88,10 @@ object BandRuntime {
             override fun onLog(line: String) {
                 main.post { note(line) }
             }
+
+            override fun onHandwriting(event: JSONObject) {
+                main.post { onHandwritingEvent(app, event) }
+            }
         }
         motion = wantsMotion(app)
         device = (if (simulated) SimulatedBand(listener, app) else BandLink(app, listener, config(app))).also {
@@ -126,6 +130,47 @@ object BandRuntime {
         device = null
         return start(context, current)
     }
+
+    /** Who hears the band's handwriting (the composer while it writes). */
+    fun interface HandwritingListener {
+        fun onHandwriting(event: JSONObject)
+    }
+
+    private val handwritingListeners = LinkedHashSet<HandwritingListener>()
+
+    @JvmStatic
+    fun addHandwritingListener(listener: HandwritingListener) {
+        handwritingListeners += listener
+    }
+
+    @JvmStatic
+    fun removeHandwritingListener(listener: HandwritingListener) {
+        handwritingListeners -= listener
+    }
+
+    /** The band's handwriting model on or off; false when the band can't start it now. */
+    @JvmStatic
+    fun setHandwriting(enabled: Boolean): Boolean = device?.setHandwriting(enabled) ?: false
+
+    /** Start the written text over from [text], what the field holds. */
+    @JvmStatic
+    fun resetHandwritingText(text: String) {
+        device?.resetHandwritingText(text)
+    }
+
+    private fun onHandwritingEvent(context: Context, event: JSONObject) {
+        if (event.optString("type") == "state") {
+            Log.d(HANDWRITING_TAG, "state ${event.optString("phase")}: ${event.optString("message")} " +
+                "problem=${event.optString("problem")} verified=${event.optBoolean("verified")} " +
+                "ids=${event.optInt("collection_id")}/${event.optInt("model_id")}")
+        } else if (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+            // What someone wrote: only a debug build logs it, for testing the classes on the band.
+            Log.d(HANDWRITING_TAG, "text \"${event.optString("text")}\" raw \"${event.optString("raw")}\" class ${event.optInt("class")}")
+        }
+        handwritingListeners.toList().forEach { it.onHandwriting(event) }
+    }
+
+    private const val HANDWRITING_TAG = "BandHandwriting"
 
     /** Push the current mapping to the band (after a change in the app). */
     @JvmStatic

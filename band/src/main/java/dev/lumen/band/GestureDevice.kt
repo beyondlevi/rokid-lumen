@@ -22,6 +22,9 @@ interface GestureDevice {
         fun onStatus(status: JSONObject)
         fun onActions(actions: List<String>)
         fun onLog(line: String)
+
+        /** A handwriting event (see [Bridge.handwritingEvents]); the text is never to be logged. */
+        fun onHandwriting(event: JSONObject) = Unit
     }
 
     fun start()
@@ -39,4 +42,13 @@ interface GestureDevice {
 
     /** `gesture=action;…` (see [BandLink.Config.mapping]). */
     fun setMapping(mapping: String)
+
+    /**
+     * The band's handwriting model on or off; false when it can't start now (no band connected).
+     * Progress and text come to [Listener.onHandwriting]; off always puts the band back.
+     */
+    fun setHandwriting(enabled: Boolean): Boolean = false
+
+    /** Start the written text over from [text] (what the field holds). */
+    fun resetHandwritingText(text: String) = Unit
 }

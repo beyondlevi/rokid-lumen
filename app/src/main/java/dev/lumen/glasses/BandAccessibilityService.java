@@ -151,6 +151,13 @@ public final class BandAccessibilityService extends AccessibilityService {
                 });
                 return;
             }
+            String handwriting = intent.getStringExtra("handwriting");
+            if (handwriting != null) {
+                // Debug builds: the band's handwriting model on ("start") or off ("stop").
+                mainHandler.post(() -> Log.d(TAG, "Simulated handwriting " + handwriting + ": "
+                        + BandRuntime.setHandwriting("start".equals(handwriting))));
+                return;
+            }
             String command = intent.getStringExtra(EXTRA_COMMAND);
             if (command != null) {
                 Log.d(TAG, "Simulated band command=" + command);

@@ -165,6 +165,56 @@ class BandLink(
         if (handle != 0L) Bridge.setMapping(handle, mapping)
     }
 
+    override fun setHandwriting(enabled: Boolean): Boolean {
+        val bytes = try {
+            synchronized(lock) {
+                if (handle == 0L) return false
+                // Before anything is written: a capture cut short is put back at the next connection.
+                if (enabled) Identity.handwritingMarker(context).writeText("1")
+                val (collection, model) = Identity.handwritingIds(context) ?: (0 to 0)
+                Bridge.setHandwriting(handle, enabled, collection, model, now())
+            }
+        } catch (e: Exception) {
+            log("handwriting: ${e.message}")
+            return false
+        }
+        writer?.invoke(bytes)
+        return true
+    }
+
+    override fun resetHandwritingText(text: String) = synchronized(lock) {
+        if (handle != 0L) Bridge.resetHandwritingText(handle, text)
+    }
+
+    /** A capture never finished (the marker survived): put the band's settings back first. */
+    private fun recoverHandwriting() {
+        if (!Identity.handwritingMarker(context).exists()) return
+        val bytes = try {
+            synchronized(lock) {
+                if (handle == 0L) return
+                val (collection, model) = Identity.handwritingIds(context) ?: (0 to 0)
+                Bridge.recoverHandwriting(handle, collection, model, now())
+            }
+        } catch (e: Exception) {
+            log("handwriting recovery: ${e.message}")
+            return
+        }
+        log("handwriting: a capture never finished; putting the band back")
+        writer?.invoke(bytes)
+    }
+
+    private fun onHandwritingEvent(event: JSONObject) {
+        if (event.optString("type") == "state") {
+            val collection = event.optInt("collection_id", 0)
+            val model = event.optInt("model_id", 0)
+            if (collection > 0 && model > 0) Identity.saveHandwritingIds(context, collection, model)
+            if (event.optString("phase") == "finished" && event.optBoolean("verified")) {
+                Identity.handwritingMarker(context).delete()
+            }
+        }
+        listener.onHandwriting(event)
+    }
+
     private fun connect() {
         if (!wanted) return
         val scanner = adapter?.takeIf { it.isEnabled }?.bluetoothLeScanner
@@ -422,7 +472,10 @@ class BandLink(
             pending = false
             if (Identity.pendingFile(context).renameTo(Identity.keyFile(context))) log("the band accepted the claimed key")
         }
+        if ("connected" in lines.lines()) recoverHandwriting()
         if (actions.isNotEmpty()) listener.onActions(actions.lines())
+        val handwriting = synchronized(lock) { if (handle == 0L) "" else Bridge.handwritingEvents(handle) }
+        if (handwriting.isNotEmpty()) handwriting.lines().forEach { onHandwritingEvent(JSONObject(it)) }
         if (claim != null && !claimed) {
             val events = synchronized(lock) { if (handle == 0L) "" else Bridge.claimEvents(handle) }
             if (events.isNotEmpty()) events.lines().forEach { onClaimEvent(claim, JSONObject(it)) }
