@@ -120,6 +120,31 @@ data class CompanionUiState(
     val claim: dev.lumen.companion.BandClaim.State = dev.lumen.companion.BandClaim.State.Idle,
     /** A debug build: the claim's test that touches nothing is offered. */
     val debuggable: Boolean = false,
+    /** The band on the phone works for a computer ([dev.lumen.companion.computer.ComputerLink]). */
+    val bandOnComputer: Boolean = false,
+    val computer: ComputerUiState = ComputerUiState(),
+    /** The computer's gesture profiles ([dev.lumen.companion.computer.ComputerProfiles]). */
+    val computerProfiles: dev.lumen.companion.computer.ComputerProfiles.State? = null,
+)
+
+/** The phone as a computer's keyboard and mouse: the link, the computers, the settings. */
+data class ComputerUiState(
+    val status: dev.lumen.companion.computer.ComputerLink.Status = dev.lumen.companion.computer.ComputerLink.Status.OFF,
+    /** The computer connected (or being connected to). */
+    val name: String? = null,
+    val address: String? = null,
+    /** The computers it has been a keyboard for, the last one first. */
+    val computers: List<dev.lumen.companion.computer.ComputerLink.Computer> = emptyList(),
+    /** Visible for pairing now. */
+    val pairing: Boolean = false,
+    /** The phone's name on Bluetooth (what the computer lists). */
+    val phoneName: String = "",
+    val layout: dev.lumen.companion.computer.ComputerKeys.Layout = dev.lumen.companion.computer.ComputerKeys.Layout.US,
+    val invertScroll: Boolean = false,
+    /** How far a scroll gesture goes, in wheel steps. */
+    val scrollSteps: Int = dev.lumen.companion.computer.ComputerKeys.SCROLL_DEFAULT,
+    /** The band writes on the computer now. */
+    val writing: Boolean = false,
 )
 
 /** What the screens can ask for. */
@@ -178,6 +203,25 @@ interface CompanionActions {
     fun shareAdbCommand()
     fun useBandOnPhone()
     fun useBandOnGlasses()
+    /** The band for a computer: the phone becomes its Bluetooth keyboard and mouse. */
+    fun useBandOnComputer()
+    fun connectComputer(address: String)
+    fun forgetComputer(address: String)
+    /** Visible for a computer to pair with (Android asks first). */
+    fun pairComputer()
+    fun cancelComputerPairing()
+    fun openBluetoothSettings()
+    /** The computer's gesture profiles: the active one, new, copied, removed, renamed, changed. */
+    fun selectComputerProfile(id: String)
+    fun addComputerProfile()
+    fun duplicateComputerProfile(id: String)
+    fun removeComputerProfile(id: String)
+    fun renameComputerProfile(id: String, name: String)
+    fun setComputerAction(id: String, gesture: String, action: String)
+    fun setComputerDial(id: String, dial: String)
+    fun setComputerLayout(layout: dev.lumen.companion.computer.ComputerKeys.Layout)
+    fun setComputerInvertScroll(on: Boolean)
+    fun setComputerScrollSteps(steps: Int)
     fun importBandKey()
     fun allowBluetooth()
     fun setPhoneSetting(key: String, value: String)
@@ -231,6 +275,8 @@ const val PAGE_SETUP = "setup"
 const val PAGE_BAND_KEY = "band_key"
 /** `profile:<id>`: a phone gesture profile's page. */
 const val PAGE_PROFILE = "profile"
+const val PAGE_COMPUTERS = "computers"
+const val PAGE_COMPUTER_PROFILE = "computer_profile"
 
 /** Set while a list row is dragged: the page doesn't scroll under the finger meanwhile. */
 internal val LocalScrollLock = androidx.compose.runtime.staticCompositionLocalOf { mutableStateOf(false) }
@@ -293,6 +339,9 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: 
                 current == PAGE_BAND_KEY -> BandKeyPage(state, actions, onBack = { page = null })
                 current != null && current.startsWith("$PAGE_PROFILE:") ->
                     ProfilePage(state, actions, current.removePrefix("$PAGE_PROFILE:"), onBack = { page = null })
+                current == PAGE_COMPUTERS -> ComputersPage(state, actions, onBack = { page = null })
+                current != null && current.startsWith("$PAGE_COMPUTER_PROFILE:") ->
+                    ComputerProfilePage(state, actions, current.removePrefix("$PAGE_COMPUTER_PROFILE:"), onBack = { page = null })
                 current == PAGE_KEYBOARD -> KeyboardPage(state.keyboardField, state.link.healthy, actions, onBack = { page = null })
                 current == PAGE_UPDATES -> UpdatesPage(state.update, actions, onNotes = { page = PAGE_NOTES }, onBack = { page = null })
                 current != null && current.startsWith(PAGE_NOTES) -> NotesPage(
@@ -303,7 +352,13 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: 
                 else -> when (tab) {
                 Tab.HOME -> HomeScreen(state, actions, onKeyboard = { page = PAGE_KEYBOARD }, onSetup = { page = PAGE_SETUP }) { page = PAGE_NOTES }
                 Tab.APPS -> AppsScreen(state.gridItems, state.gridAvailable, state.gridKnown, state.gridIcons, state.gridError, state.packageTransfer, actions)
-                Tab.BAND -> BandScreen(state, actions, onProfile = { page = "$PAGE_PROFILE:$it" }, onKey = { page = PAGE_BAND_KEY })
+                Tab.BAND -> BandScreen(
+                    state, actions,
+                    onProfile = { page = "$PAGE_PROFILE:$it" },
+                    onKey = { page = PAGE_BAND_KEY },
+                    onComputers = { page = PAGE_COMPUTERS },
+                    onComputerProfile = { page = "$PAGE_COMPUTER_PROFILE:$it" },
+                )
                 Tab.NOTIFICATIONS -> NotificationsScreen(state, actions)
                 Tab.SETTINGS -> SettingsScreen(state, actions, onSetup = { page = PAGE_SETUP }) { page = PAGE_UPDATES }
                 }
@@ -336,7 +391,16 @@ private fun HomeScreen(state: CompanionUiState, actions: CompanionActions, onKey
     // The band's state from the device it's with: the glasses report it stopped while it's here.
     BandStatusCard(
         if (state.bandOnPhone) state.phoneBandStatus else state.bandStatus,
-        stringResource(R.string.band_with, stringResource(if (state.bandOnPhone) R.string.band_device_phone else R.string.band_device_glasses).lowercase()),
+        stringResource(
+            R.string.band_with,
+            stringResource(
+                when {
+                    state.bandOnComputer -> R.string.band_device_computer
+                    state.bandOnPhone -> R.string.band_device_phone
+                    else -> R.string.band_device_glasses
+                },
+            ).lowercase(),
+        ),
         lockedPause = state.bandOnPhone && !state.phoneListening,
     )
     SectionTitle(stringResource(R.string.home_now))

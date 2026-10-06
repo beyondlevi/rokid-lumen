@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Becoming visible to a computer to pair with it as its keyboard and mouse (ComputerLink). -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- The glasses' internet: a local-only hotspot on the phone (PhoneNetwork). -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />

@@ -3,6 +3,7 @@ package dev.lumen.companion
 import android.content.Context
 import android.content.Intent
 import dev.lumen.band.BandLink
+import dev.lumen.companion.computer.ComputerProfiles
 import dev.lumen.protocol.Setting
 import dev.lumen.protocol.SettingOption
 
@@ -119,9 +120,15 @@ object PhoneSettings {
         return valid
     }
 
-    /** The bridge's `gesture=action;…` string: the active profile's ([PhoneProfiles]). */
+    /**
+     * The bridge's `gesture=action;…` string: the active profile's ([PhoneProfiles]), or the
+     * active computer profile's while the band works for a computer.
+     */
     fun mapping(context: Context): String {
         val profiles = PhoneProfiles.state(context)
+        if (CompanionPrefs.bandOnComputer(context)) {
+            return ComputerProfiles.mapping(ComputerProfiles.state(context).current, profiles.switchGesture, hand(context))
+        }
         return PhoneProfiles.mapping(profiles.current, profiles.switchGesture, hand(context))
     }
 

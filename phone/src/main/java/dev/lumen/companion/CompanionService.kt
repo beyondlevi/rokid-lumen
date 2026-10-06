@@ -18,6 +18,7 @@ import android.util.Log
 import com.rokid.cxr.Caps
 import com.rokid.cxr.link.CXRLink
 import com.rokid.cxr.link.callbacks.IAudioStreamCbk
+import dev.lumen.companion.computer.ComputerLink
 import dev.lumen.companion.audio.PhoneAudio
 import com.rokid.cxr.link.callbacks.ICXRLinkCbk
 import com.rokid.cxr.link.callbacks.ICustomViewCbk
@@ -179,6 +180,7 @@ class CompanionService : Service() {
         runCatching { unregisterReceiver(batteryReceiver) }
         main.removeCallbacksAndMessages(null)
         PhoneBand.stop()
+        ComputerLink.stop()
         cancelListening("service stopped")
         network.down()
         link?.disconnect()

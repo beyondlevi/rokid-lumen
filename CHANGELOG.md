@@ -3,6 +3,29 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.16]
+
+### Companion
+
+- **The band on a computer**: **Other device**, the switch's third choice, keeps the band on the
+  phone and makes the phone a computer's Bluetooth keyboard and mouse, with nothing to install
+  there. Pair from the computer's Bluetooth settings (a computer already paired with the phone
+  is listed); the phone reconnects to the last one by itself.
+- **Computer profiles**: *Notebook* (scrolling, desktops, Enter, Esc, writing) and *Presentation*
+  (the arrows), plus your own, with keys, macOS desktops and Mission Control, the app switcher,
+  scrolling, media, volume and brightness; the phone's switch gesture moves between them.
+- **Writing on the computer**: a gesture turns the band's handwriting on and types each letter
+  at the computer's cursor; the middle tap ends it. A notification on the phone shows the last
+  letters.
+- **The computer's settings**: its keyboard layout (ABC/US or Brazilian ABNT2), the scrolling
+  speed, reversed scrolling. The Band tab's settings follow the band to the device it moves to.
+
+### Glasses and companion
+
+- Debug builds: the simulated band writes (`--es handwriting_text`), and `--es simulated`
+  switches it from adb; the companion's `WRITE_TEXT` types into the handwriting keyboard or the
+  computer while they write.
+
 ## [0.2.0-beta.15]
 
 ### Companion

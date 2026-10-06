@@ -60,6 +60,9 @@ object LumenIcons {
     val wifi = icon("wifi", "M2 9a15 15 0 0 1 20 0", "M5.5 12.5a10 10 0 0 1 13 0", "M9 16a5 5 0 0 1 6 0", "M12 19.5h.01")
     val shield = icon("shield", "M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z", "M9 12l2 2 4-4")
     val band = icon("band", "M10 7h4a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3h-4a3 3 0 0 1-3-3v-4a3 3 0 0 1 3-3z", "M9 7V3h6v4", "M9 17v4h6v-4")
+    val laptop = icon("laptop", "M5.5 5h13A1.5 1.5 0 0 1 20 6.5V16H4V6.5A1.5 1.5 0 0 1 5.5 5z", "M2 19h20")
+    val write = icon("write", "M3 17c3-6 5-6 6-3s3 3 5-2 4-5 7 0", "M3 21h18")
+    val slides = icon("slides", "M4.5 4h15A1.5 1.5 0 0 1 21 5.5V16H3V5.5A1.5 1.5 0 0 1 4.5 4z", "M12 16v4", "M8 20h8")
 
     private fun icon(name: String, vararg paths: String, width: Float = 1.8f): ImageVector {
         val builder = ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
