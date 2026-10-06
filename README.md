@@ -76,7 +76,8 @@ demo mode and simulated notifications.
 - **Internet through the phone.** When no saved Wi-Fi is in range, the companion opens a
   local-only hotspot and a proxy, and the glasses join it on their own.
 - **The band on the phone.** The companion can take the band over and control the phone
-  (media, volume, brightness, flashlight, screen gestures). Either side hands it back.
+  (media, volume, brightness, flashlight, screen gestures), and its **handwriting keyboard**
+  writes in any app's text field with the band. Either side hands it back.
 
 Details: [docs/features.md](docs/features.md).
 

@@ -3,6 +3,16 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.14]
+
+### Companion
+
+- **Handwriting keyboard**: *Lumen handwriting*, a keyboard for the phone's own apps. With the band
+  on the phone, a text field switches the band's handwriting on and each letter goes in at the
+  cursor; the middle tap ends it and hides the keyboard, a pause stops it. Password fields never
+  get the band; with the band on the glasses it offers to bring it over. Band tab: *Handwriting
+  keyboard* shows whether it's on and opens the keyboard settings or the picker.
+
 ## [0.2.0-beta.13]
 
 ### Glasses
