@@ -85,7 +85,7 @@ fn write(connection: &mut Connection, band: &mut Responder, classes: &[usize], a
 
 #[test]
 fn handwriting_finds_the_settings_by_name_writes_text_and_restores_the_band() {
-    let (mut connection, mut band) = connected("middle_tap=nav.back;middle_double=");
+    let (mut connection, mut band) = connected("middle_tap=nav.back;middle_double=screen.toggle;swipe_right=nav.right;index_tap=nav.activate");
     let started = start(&mut connection, &mut band, None);
     assert_eq!(phases(&started), vec!["preparing", "ready"]);
     let ready = started.iter().find(|e| e["phase"] == "ready").unwrap();
@@ -103,11 +103,19 @@ fn handwriting_finds_the_settings_by_name_writes_text_and_restores_the_band() {
     let texts: Vec<Value> = events(&mut connection).into_iter().filter(|e| e["type"] == "text").collect();
     assert_eq!(texts.last().unwrap()["text"], "hiO");
 
-    // The middle tap still arrives while the model runs.
+    // While writing, a stroke read as a swipe or as the pausing middle hold does nothing...
+    for (action, finger, derived) in [(9, 1, 0), (0, MIDDLE, 3), (3, 2, 0)] {
+        let bytes = band.gesture(action, finger, derived).unwrap();
+        let reply = connection.feed(&bytes, 3.3).unwrap();
+        pump(&mut connection, &mut band, reply, 3.3);
+    }
+    connection.tick(3.3).unwrap();
+    assert!(connection.take_actions().is_empty());
+    assert!(connection.status_json().contains(r#""paused":false"#));
+    // ...and the middle tap goes through at once, without waiting for a double tap.
     let tap = band.gesture(3, MIDDLE, 0).unwrap();
-    let reply = connection.feed(&tap, 3.5).unwrap();
-    pump(&mut connection, &mut band, reply, 3.5);
-    connection.tick(3.95).unwrap();
+    let reply = connection.feed(&tap, 3.8).unwrap();
+    pump(&mut connection, &mut band, reply, 3.8);
     assert_eq!(connection.take_actions(), vec!["nav.back".to_owned()]);
 
     let bytes = connection.set_handwriting(false, None, 4.0).unwrap();

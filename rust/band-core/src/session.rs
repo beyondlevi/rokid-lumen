@@ -900,6 +900,14 @@ impl BandSession {
         self.model.recover(time, hints)
     }
 
+    /// Whether the band's handwriting is on or being switched on (not while restoring).
+    pub fn handwriting_writing(&self) -> bool {
+        matches!(
+            self.model.status().phase,
+            crate::model_capture::CapturePhase::Preparing | crate::model_capture::CapturePhase::Ready
+        )
+    }
+
     /// Whether a handwriting capture is running (switching on, ready or restoring).
     pub fn handwriting_active(&self) -> bool {
         self.model.active()

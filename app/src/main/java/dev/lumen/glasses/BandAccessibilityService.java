@@ -151,6 +151,12 @@ public final class BandAccessibilityService extends AccessibilityService {
                 });
                 return;
             }
+            String paused = intent.getStringExtra("paused");
+            if (paused != null) {
+                // Debug builds: pause or resume the band's controls.
+                mainHandler.post(() -> BandRuntime.setPaused(context, "true".equals(paused)));
+                return;
+            }
             String handwriting = intent.getStringExtra("handwriting");
             if (handwriting != null) {
                 // Debug builds: the band's handwriting model on ("start") or off ("stop").
