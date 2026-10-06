@@ -535,9 +535,12 @@ For the glasses the band is on the phone, as with **This phone**.
   ends it. If the gesture is a tap, that finger waits a moment to tell the switch from a click (a
   quick pinch turns it off, a held one clicks or drags); on a double tap its single click waits
   0.3 s. A swipe costs nothing. The middle hold can't pause the band while it runs.
-  A Bluetooth mouse can't know where the pointer is, so unlike kinesis it doesn't pull the arm and
-  the pointer back together: when they drift apart, turn it off and on, or push the pointer against
-  a screen edge. The computer accelerates the mouse too: with macOS' own acceleration on, keep the
+  Turning it off and on is the clutch (kinesis' Option key): turn it off, set the arm somewhere
+  comfortable, turn it on, and the pointer carries on from where it was. A Bluetooth mouse can't
+  know where the pointer is, so unlike kinesis it doesn't pull the arm and the pointer back
+  together on its own, and it can't put the pointer in the middle when it starts: a second,
+  absolute pointer in the same Bluetooth device would, but it made macOS' handling of the mouse's
+  movement late and shaky (tried on a MacBook, 2026-10-06). The computer accelerates the mouse too: with macOS' own acceleration on, keep the
   flick boost low.
 
 Android lets one app at a time be a keyboard, only while it runs in front or as a foreground

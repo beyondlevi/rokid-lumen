@@ -52,6 +52,8 @@ pub struct Connection {
     claim_pending: Option<Vec<u8>>,
     /// The handwriting capture's events, as JSON lines for the app.
     handwriting: Vec<String>,
+    /// When the air mouse's motion delay was last logged.
+    delay_logged: f64,
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -137,6 +139,7 @@ impl Connection {
             claim: Vec::new(),
             claim_pending: None,
             handwriting: Vec::new(),
+            delay_logged: 0.0,
         }
     }
 
@@ -175,6 +178,13 @@ impl Connection {
             }
         }
         self.session.set_motion_samples(self.controller.pointer_on());
+        // Every 10 s while the air mouse runs: how late the band's motion arrives (a congested
+        // radio shows here first: kinesis saw samples arrive seconds late).
+        if self.controller.pointer_on() && now - self.delay_logged >= 10.0 {
+            self.delay_logged = now;
+            let (late, samples) = self.controller.take_delay_report();
+            self.log.push(format!("air mouse motion: {samples} samples, up to {:.0} ms late", late * 1000.0));
+        }
         Ok(outgoing)
     }
 

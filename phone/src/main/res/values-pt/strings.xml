@@ -675,7 +675,7 @@
     <string name="computer_tag_experimental">experimental</string>
     <string name="computer_status_pointer">Air Mouse ligado</string>
     <string name="computer_pointer_title">Air Mouse</string>
-    <string name="computer_pointer_text">O mesmo gesto liga e desliga. O antebraço move o cursor, como um mouse: aponte e gire. A pinça do indicador é o botão esquerdo e a do médio, o direito; segure e mova para arrastar. Os deslizes seguem com as suas ações, e o pinça e girar fica parado enquanto isso. Num toque, os cliques daquele dedo pedem uma pinça mais longa; um deslize ou um toque duplo funciona melhor.</string>
+    <string name="computer_pointer_text">O mesmo gesto liga e desliga. O antebraço move o cursor, como um mouse: aponte e gire. Para pôr o braço numa posição mais confortável, desligue, mova o braço e ligue de novo: o cursor fica onde estava. A pinça do indicador é o botão esquerdo e a do médio, o direito; segure e mova para arrastar. Os deslizes seguem com as suas ações, e o pinça e girar fica parado enquanto isso. Num toque, os cliques daquele dedo pedem uma pinça mais longa; um deslize ou um toque duplo funciona melhor.</string>
     <string name="computer_pointer_section">Air Mouse</string>
     <string name="computer_pointer_speed">Velocidade do cursor</string>
     <string name="computer_pointer_speed_hint">Quanto o cursor anda por grau de giro do antebraço</string>

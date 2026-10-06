@@ -684,7 +684,7 @@
     <string name="computer_tag_experimental">experimental</string>
     <string name="computer_status_pointer">Air Mouse on</string>
     <string name="computer_pointer_title">Air Mouse</string>
-    <string name="computer_pointer_text">The same gesture turns it on and off. Your forearm moves the pointer, like a mouse: point and turn. The index pinch is the left button and the middle pinch the right one; hold and move to drag. Swipes keep their actions, and pinch and turn rests meanwhile. On a tap, that finger\'s clicks need a longer pinch; a swipe or a double tap works best.</string>
+    <string name="computer_pointer_text">The same gesture turns it on and off. Your forearm moves the pointer, like a mouse: point and turn. To set your arm somewhere more comfortable, turn it off, move the arm and turn it on again: the pointer stays where it was. The index pinch is the left button and the middle pinch the right one; hold and move to drag. Swipes keep their actions, and pinch and turn rests meanwhile. On a tap, that finger\'s clicks need a longer pinch; a swipe or a double tap works best.</string>
     <string name="computer_pointer_section">Air Mouse</string>
     <string name="computer_pointer_speed">Pointer speed</string>
     <string name="computer_pointer_speed_hint">How far the pointer moves per degree of forearm turn</string>

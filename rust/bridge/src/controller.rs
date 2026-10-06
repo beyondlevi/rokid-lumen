@@ -253,6 +253,8 @@ pub struct Controller {
     congested: bool,
     /// When the air mouse last turned itself off (see [SWITCHED_OFF_QUIET]).
     pointer_off_at: f64,
+    delay_max: f64,
+    delay_samples: u32,
     status: Status,
 }
 
@@ -296,6 +298,8 @@ impl Controller {
             on_time_since: None,
             congested: false,
             pointer_off_at: f64::NEG_INFINITY,
+            delay_max: 0.0,
+            delay_samples: 0,
             status,
         }
     }
@@ -442,10 +446,20 @@ impl Controller {
     }
 
     /// How late motion arrives, by the band's clock; a congested link lets go of the button.
+    /// The largest motion delay since the last call, and how many samples it covers (for the log).
+    pub fn take_delay_report(&mut self) -> (f64, u32) {
+        let report = (self.delay_max, self.delay_samples);
+        self.delay_max = 0.0;
+        self.delay_samples = 0;
+        report
+    }
+
     fn measure_delay(&mut self, band_us: u64, host: f64) -> f64 {
         let delay = self.arrival.measure(band_us as f64 / 1e6, host);
         self.link_delay = delay;
         self.link_delay_at = host;
+        self.delay_max = self.delay_max.max(delay);
+        self.delay_samples += 1;
         if delay > LATE_INPUT {
             self.on_time_since = None;
             let since = *self.late_since.get_or_insert(host);
