@@ -803,9 +803,18 @@ impl Controller {
         let Some(gesture) = self.router.gesture(message, now) else {
             return Vec::new();
         };
-        // The gesture that just turned the air mouse off, reported again: not on again.
-        if now - self.pointer_off_at < SWITCHED_OFF_QUIET && self.config.gestures.command(gesture) == POINTER_TOGGLE {
-            return Vec::new();
+        // Just after the air mouse turned off, the band's own reports of the pinches that did it
+        // still come (that finger's tap, its double tap): neither turns it on again nor runs the
+        // single tap's action (an Esc on the middle tap fired every time it was turned off).
+        if now - self.pointer_off_at < SWITCHED_OFF_QUIET {
+            let finger = self.config.gestures.pointer_tap().map(Tap::finger);
+            let switch_finger = matches!(gesture, Recognized::Tap(tap) if Some(tap.finger()) == finger);
+            if switch_finger || self.config.gestures.command(gesture) == POINTER_TOGGLE {
+                if self.held_tap.is_some_and(|held| Some(held.tap.finger()) == finger) {
+                    self.held_tap = None;
+                }
+                return Vec::new();
+            }
         }
         if let Some(mode) = &mut self.pointer {
             // A thumb gesture: the pointer holds still through its twitch, and it keeps its
@@ -1093,13 +1102,17 @@ mod pointer_tests {
         }
 
         fn gesture(&mut self, finger: &str, action: &str, now: f64) -> Vec<Command> {
+            self.report(finger, action, "unknown", now)
+        }
+
+        fn report(&mut self, finger: &str, action: &str, derived: &str, now: f64) -> Vec<Command> {
             self.sequence += 1;
             let message = GestureMessage {
                 sequence: self.sequence,
                 timestamp_us: self.sequence,
                 finger: finger.into(),
                 action: action.into(),
-                derived_action: "unknown".into(),
+                derived_action: derived.into(),
                 synthetic: false,
                 received_at: now,
             };
@@ -1232,6 +1245,26 @@ mod pointer_tests {
         assert!(run(&rig.gesture("middle", "doubletap", 1.5)).is_empty());
         // Later, the gesture asks to turn it on again, as before.
         assert_eq!(run(&rig.gesture("middle", "doubletap", 3.0)), vec!["pc.pointer"]);
+    }
+
+    #[test]
+    fn turning_it_off_with_a_double_tap_doesnt_run_the_single_taps_action() {
+        // As the band reports a double tap: each pinch press, release and its single tap report,
+        // then the double tap report.
+        let mut rig = Rig::new("middle_tap=pc.key.escape;middle_double=pc.pointer");
+        rig.gesture("middle", "press", 1.2);
+        rig.gesture("middle", "release", 1.3);
+        rig.report("middle", "unknown", "singleTap", 1.31);
+        assert_eq!(run(&rig.gesture("middle", "press", 1.4)), vec![POINTER_OFF]);
+        let mut after = Vec::new();
+        after.extend(rig.gesture("middle", "release", 1.5));
+        after.extend(rig.report("middle", "unknown", "singleTap", 1.51));
+        after.extend(rig.report("middle", "unknown", "doubleTap", 1.52));
+        after.extend(rig.controller.fire_held_tap(2.0));
+        assert!(run(&after).is_empty(), "{after:?}");
+        // Later, the middle tap is the Esc again.
+        rig.report("middle", "unknown", "singleTap", 3.0);
+        assert_eq!(run(&rig.controller.fire_held_tap(3.5)), vec!["pc.key.escape"]);
     }
 
     #[test]
