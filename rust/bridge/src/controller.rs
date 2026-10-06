@@ -102,6 +102,8 @@ pub struct Controller {
     toggle_taps: Vec<f64>,
     /// When a triple tap last toggled (its third tap may also report a double).
     toggled_at: f64,
+    /// The band's handwriting runs: only the middle tap counts (see [Controller::set_writing]).
+    writing: bool,
     status: Status,
 }
 
@@ -135,7 +137,19 @@ impl Controller {
             held_tap: None,
             toggle_taps: Vec::new(),
             toggled_at: f64::NEG_INFINITY,
+            writing: false,
             status,
+        }
+    }
+
+    /// While the band's handwriting runs, a writing stroke can look like any gesture (the middle
+    /// hold that pauses included): only the middle tap counts, at once and even while paused, so
+    /// it can always end the writing. The dial is off.
+    pub fn set_writing(&mut self, writing: bool) {
+        if writing != self.writing {
+            self.writing = writing;
+            self.held_tap = None;
+            self.toggle_taps.clear();
         }
     }
 
@@ -256,6 +270,7 @@ impl Controller {
                 self.dial_state(*engaged, now);
                 Vec::new()
             }
+            Event::DialTurn(_) if self.writing => Vec::new(),
             Event::DialTurn(rotation) => self.dial_turn(*rotation, now),
             _ => Vec::new(),
         }
@@ -269,6 +284,19 @@ impl Controller {
         let Some(gesture) = self.router.gesture(message, now) else {
             return Vec::new();
         };
+        if self.writing {
+            if gesture != Recognized::Tap(Tap::MiddleTap) {
+                return Vec::new();
+            }
+            self.status.gestures += 1;
+            self.status.last_gesture = Some(label(gesture).into());
+            let command = self.config.gestures.command(gesture).to_owned();
+            if command.is_empty() || !self.gate.allows(message.received_at, now, self.live, true) {
+                return Vec::new();
+            }
+            self.status.last_action = Some(command.clone());
+            return vec![Command::Run(command)];
+        }
         // Releasing a wrist turn must not also trigger an index-finger assignment.
         if let Recognized::Tap(tap) = gesture
             && tap.finger() == "index"

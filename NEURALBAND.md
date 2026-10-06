@@ -53,6 +53,15 @@ and resolve them through the mapping string. Everything above it stays as it is.
 Simulator keys: `swipe_up`, `swipe_down`, `swipe_left`, `swipe_right`, `index_tap`,
 `index_double`, `middle_tap`, `middle_double`, `dial_up`, `dial_down`, `middle_hold`.
 
+## Handwriting
+
+The band carries a handwriting model. Lumen switches it on for the composer's **Write** (see
+docs/features.md) through the band's settings service (channel 0x8001, arm 14: count, describe,
+read and write a setting) and three stream fields (4, 22, 23 on 0x8005); its output arrives as
+inference samples (kind 0x0200020c, pipeline 3: 100 log-probabilities per sample). Tested on a
+current band (2026-10-05): the settings sit at 28 and 29, the characters follow the research set
+kinesis assumes, the middle tap still arrives, and nothing vibrates while the model runs.
+
 ## Needs checking with the hardware
 
 - The band's L2CAP channel from the glasses, while they're also linked to the phone.

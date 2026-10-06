@@ -303,18 +303,44 @@ label) to the glasses, which pass it on as `nb.keyboard.field`; the phone sends 
 Enter the glasses read the field again, so a box the app clears (a sent message) clears on the
 phone too.
 
-## Dictation
+## Dictation and handwriting
 
 <!-- media: composer -->
 ![The dictation composer over a web app's text field](media/composer.png)
 
 Enter on a text field of a web app opens the **composer** instead of reaching the page. Focus
-alone never opens it. The Rokid firmware silences a third-party microphone on the glasses, so
+alone never opens it. It first asks **Dictate or write?**, with the last one used preselected:
+a swipe switches, the index tap starts, the middle tap cancels. Password fields never open it.
+
+### Handwriting
+
+**Write** uses the handwriting model built into the band: write with a finger on any surface
+(a table, a leg), one letter at a time, and each letter goes into the field as the band reads
+it, after what the field already held. A push forward types a space, a sweep back deletes the
+last character, an up arrow capitalizes the next letter. The middle tap finishes; so does a
+pause (30 s before the first letter, 15 s after one).
+
+While it writes, the band reads every stroke as writing, so only its middle tap gets through:
+the swipes, the other taps, the pause (holding the middle finger) and pinch and turn are off.
+The band doesn't vibrate in this mode; the composer shows each letter instead.
+
+How: the model runs while two of the band's settings are changed (`data-collection` on,
+`data-collection-model` 5), found by name (28 and 29 on current firmware). Lumen reads each
+change back, writes the band's own values back when the writing ends, and keeps a marker
+until the band is confirmed normal: if the app or the link stops in the middle, the next
+connection puts the band back first. Handing the band to the phone restores it before letting
+go. The decoder is kinesis' experimental one: it reads the model's output greedily (the most
+likely character of each sample, without repeats), so similar shapes get mixed up (l and 1,
+o and 0 or 6).
+
+### Dictation
+
+The Rokid firmware silences a third-party microphone on the glasses, so The Rokid firmware silences a third-party microphone on the glasses, so
 the companion streams the glasses' microphone over Rokid's CXR-L link (16 kHz mono) and
 transcribes it on the phone. The text goes into the field through `input` events, then
 `change` when the composer closes.
 
-In the composer: the index tap pauses or resumes, a left swipe deletes the last word, and the
+While dictating: the index tap pauses or resumes, a left swipe deletes the last word, and the
 middle tap finishes. Finishing waits for the last words still being transcribed; a second
 middle tap closes at once.
 

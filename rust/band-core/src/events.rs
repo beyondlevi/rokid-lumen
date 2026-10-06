@@ -4,6 +4,7 @@
 use crate::ceremony::CeremonyHttpRequest;
 use crate::error::{Result, perr};
 use crate::identity::EnrollmentIdentity;
+use crate::model_capture::CaptureStatus;
 use crate::proto::ProtoFields;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -163,6 +164,15 @@ pub enum Event {
     CeremonyHttp(CeremonyHttpRequest),
     /// The band confirmed this host as owner. Persist the identity; trust setup continues.
     CeremonyCompleted(EnrollmentIdentity),
+    /// The handwriting capture moved (switching on, ready, restoring, finished).
+    HandwritingState(CaptureStatus),
+    /// The handwriting text changed: `text` with the edits applied, `raw` every class written
+    /// since the last reset, `class` the one just written. What someone writes: never log it.
+    HandwritingText {
+        text: String,
+        raw: String,
+        class: usize,
+    },
 }
 
 impl std::fmt::Debug for Event {
@@ -189,6 +199,10 @@ impl std::fmt::Debug for Event {
             Self::CeremonyHttp(request) => f.debug_tuple("CeremonyHttp").field(request).finish(),
             Self::CeremonyCompleted(identity) => {
                 f.debug_tuple("CeremonyCompleted").field(identity).finish()
+            }
+            Self::HandwritingState(status) => f.debug_tuple("HandwritingState").field(status).finish(),
+            Self::HandwritingText { text, class, .. } => {
+                write!(f, "HandwritingText(len={}, class={class})", text.chars().count())
             }
         }
     }

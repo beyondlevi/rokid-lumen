@@ -3,6 +3,23 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.13]
+
+### Glasses
+
+- **Write with the band**: the composer of a web app's text field now asks **Dictate or write?**
+  (the last choice preselected). **Write** switches on the band's own handwriting model: write
+  with a finger on any surface and each letter goes into the field; a push forward is a space,
+  a sweep back deletes, the middle tap finishes (a pause does too). While it writes only the
+  middle tap gets through, so a stroke can't move the screen or pause the band. The band is
+  always put back to normal afterwards, at the next connection if the app stopped in the
+  middle, and before it's handed to the phone.
+
+### Band
+
+- The bridge can switch the band's handwriting model on and off (from kinesis 0.5.0), with its
+  settings found by name, every change read back and a recovery for a band left in the model.
+
 ## [0.2.0-beta.12]
 
 ### Companion

@@ -307,6 +307,61 @@ pub extern "system" fn Java_dev_lumen_band_Bridge_setMapping<'local>(
     }
 }
 
+/// Hint ids from the app: both above zero, or none.
+fn hints(collection: jint, model: jint) -> Option<(u64, u64)> {
+    (collection > 0 && model > 0).then(|| (collection as u64, model as u64))
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_setHandwriting<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    enabled: jboolean,
+    collection: jint,
+    model: jint,
+    now: jdouble,
+) -> jbyteArray {
+    let result = unsafe { connection(handle) }.set_handwriting(enabled != 0, hints(collection, model), now);
+    bytes_out(&mut env, result)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_recoverHandwriting<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    collection: jint,
+    model: jint,
+    now: jdouble,
+) -> jbyteArray {
+    let result = unsafe { connection(handle) }.recover_handwriting(hints(collection, model), now);
+    bytes_out(&mut env, result)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_resetHandwritingText<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    text: JString<'local>,
+) {
+    match env.get_string(&text) {
+        Ok(text) => unsafe { connection(handle) }.reset_handwriting_text(&String::from(text)),
+        Err(error) => throw(&mut env, &error.to_string()),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_handwritingEvents<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+) -> jstring {
+    let lines = unsafe { connection(handle) }.take_handwriting_events().join("\n");
+    string_out(&mut env, lines)
+}
+
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_lumen_band_Bridge_close<'local>(
     _env: JNIEnv<'local>,

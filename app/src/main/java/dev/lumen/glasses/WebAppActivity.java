@@ -431,6 +431,12 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
                     composer.onBandCommand(BandCommand.ACTIVATE);
                 } else if (code == KeyEvent.KEYCODE_DPAD_LEFT) {
                     composer.onBandCommand(BandCommand.LEFT);
+                } else if (code == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    composer.onBandCommand(BandCommand.RIGHT);
+                } else if (code == KeyEvent.KEYCODE_DPAD_UP) {
+                    composer.onBandCommand(BandCommand.UP);
+                } else if (code == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    composer.onBandCommand(BandCommand.DOWN);
                 }
             }
             return true;

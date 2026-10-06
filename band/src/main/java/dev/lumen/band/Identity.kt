@@ -31,6 +31,32 @@ object Identity {
     @JvmStatic
     fun present(context: Context) = keyFile(context).exists() || pendingFile(context).exists()
 
+    /**
+     * Present while the band's handwriting settings may be changed: written before a capture
+     * starts, deleted once the band is confirmed back to normal. Found at a connection, it
+     * means a capture never finished: the band is put back first.
+     */
+    @JvmStatic
+    fun handwritingMarker(context: Context) = File(context.filesDir, "handwriting.active")
+
+    /** The handwriting settings' ids (collection, model) this band named last time, or null. */
+    @JvmStatic
+    fun handwritingIds(context: Context): Pair<Int, Int>? = runCatching {
+        val band = JSONObject(bandFile(context).readText())
+        val collection = band.optInt("handwriting_collection_id", 0)
+        val model = band.optInt("handwriting_model_id", 0)
+        if (collection > 0 && model > 0) collection to model else null
+    }.getOrNull()
+
+    /** Keep the ids a capture found, for the next one (band.json keeps its other keys). */
+    @JvmStatic
+    fun saveHandwritingIds(context: Context, collection: Int, model: Int) {
+        if (handwritingIds(context) == collection to model) return
+        val band = runCatching { JSONObject(bandFile(context).readText()) }.getOrNull() ?: return
+        band.put("handwriting_collection_id", collection).put("handwriting_model_id", model)
+        runCatching { bandFile(context).writeText(band.toString(2)) }
+    }
+
     /** The band's address from band.json, if there is one: a factory reset gives the band a new one. */
     @JvmStatic
     fun bandAddress(context: Context): String? = runCatching {

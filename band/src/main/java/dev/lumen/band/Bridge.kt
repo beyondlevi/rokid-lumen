@@ -45,5 +45,21 @@ object Bridge {
     @JvmStatic external fun claimPairCompleted(handle: Long, signature: ByteArray, receipt: String, deviceKey: ByteArray?): ByteArray
     /** The owner key the band is about to commit, null before [claimPairCompleted]. */
     @JvmStatic external fun claimPendingKey(handle: Long): ByteArray?
+    /**
+     * The band's handwriting model on or off ([collection], [model]: the settings' ids found last
+     * time, 0 for none); returns bytes to write. Throws when the band isn't connected.
+     */
+    @JvmStatic external fun setHandwriting(handle: Long, enabled: Boolean, collection: Int, model: Int, now: Double): ByteArray
+    /** Put the band's handwriting settings back to normal after a capture that never finished. */
+    @JvmStatic external fun recoverHandwriting(handle: Long, collection: Int, model: Int, now: Double): ByteArray
+    /** Start the written text over from [text], what the field holds. */
+    @JvmStatic external fun resetHandwritingText(handle: Long, text: String)
+    /**
+     * The handwriting capture's events since the last call, '\n'-joined JSON objects: `state`
+     * (phase idle|preparing|ready|restoring|finished, message, problem, verified, mutated,
+     * collection_id, model_id) and `text` (text, raw, class). The text is what someone wrote:
+     * never log it.
+     */
+    @JvmStatic external fun handwritingEvents(handle: Long): String
     @JvmStatic external fun close(handle: Long)
 }

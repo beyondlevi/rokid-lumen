@@ -185,6 +185,16 @@
     <string name="composer_allow_mic">Permita o microfone para ditar</string>
     <string name="composer_no_mic">Sem permissão de microfone</string>
     <string name="composer_speak">Fale agora</string>
+    <string name="composer_choose">Ditar ou escrever?</string>
+    <string name="composer_choose_hint">Deslizar: trocar · Indicador: começar · Médio: cancelar</string>
+    <string name="composer_mode_dictate">Ditar</string>
+    <string name="composer_mode_write">Escrever</string>
+    <string name="composer_write_no_band">Conecte a band para escrever com ela</string>
+    <string name="composer_write_preparing">Preparando a band para escrever…</string>
+    <string name="composer_write_ready">Escreva com o dedo em qualquer superfície</string>
+    <string name="composer_write_hint">Empurrar: espaço · Varrer para trás: apagar · Médio: concluir</string>
+    <string name="composer_write_now">Escreva agora</string>
+    <string name="composer_write_failed">A band parou de escrever: %1$s</string>
     <string name="webapp_https_only">Web apps abrem só por HTTPS ou pacote instalado</string>
     <string name="webapp_local_server">Não consegui abrir o servidor local do app</string>
     <string name="webapp_added">Adicionado: %1$s</string>

@@ -50,6 +50,8 @@ pub struct Connection {
     claim: Vec<String>,
     /// The owner key the band is about to commit (after `claim_pair_completed`).
     claim_pending: Option<Vec<u8>>,
+    /// The handwriting capture's events, as JSON lines for the app.
+    handwriting: Vec<String>,
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -134,6 +136,7 @@ impl Connection {
             log: Vec::new(),
             claim: Vec::new(),
             claim_pending: None,
+            handwriting: Vec::new(),
         }
     }
 
@@ -146,6 +149,7 @@ impl Connection {
     pub fn feed(&mut self, bytes: &[u8], now: f64) -> Result<Vec<u8>, String> {
         self.last_read = now;
         let result = self.session.feed(bytes, now).map_err(|e| e.to_string())?;
+        self.controller.set_writing(self.session.handwriting_writing());
         let mut outgoing = result.outgoing;
         for event in &result.events {
             outgoing.extend(self.on_event(event, now)?);
@@ -156,6 +160,7 @@ impl Connection {
     /// Call every ~50 ms (held single taps fire on time); returns bytes to write.
     pub fn tick(&mut self, now: f64) -> Result<Vec<u8>, String> {
         let mut outgoing = Vec::new();
+        self.controller.set_writing(self.session.handwriting_writing());
         for event in self.session.tick(now) {
             outgoing.extend(self.on_event(&event, now)?);
         }
@@ -171,6 +176,16 @@ impl Connection {
                     .query_battery_status(now)
                     .map_err(|e| e.to_string())?,
             );
+        }
+        if self.session.handwriting_active() {
+            let (bytes, events) = self
+                .session
+                .flush_handwriting(now)
+                .map_err(|e| e.to_string())?;
+            outgoing.extend(bytes);
+            for event in &events {
+                outgoing.extend(self.on_event(event, now)?);
+            }
         }
         let wanted = (self.gestures, self.motion);
         if self.session.streams_enabled() && wanted != self.streams_sent {
@@ -200,6 +215,53 @@ impl Connection {
             );
         }
         Ok(outgoing)
+    }
+
+    /// Switch the band's handwriting model on or off; `hints` are the settings' ids the last
+    /// capture found (`{"collection_id","model_id"}` of its state events). Requests go out with
+    /// the next ticks; the capture's progress and text come out of `take_handwriting_events`.
+    pub fn set_handwriting(
+        &mut self,
+        enabled: bool,
+        hints: Option<(u64, u64)>,
+        now: f64,
+    ) -> Result<Vec<u8>, String> {
+        self.session
+            .set_handwriting(enabled, hints, now)
+            .map_err(|e| e.to_string())?;
+        self.controller.set_writing(self.session.handwriting_writing());
+        self.flush_handwriting(now)
+    }
+
+    /// Put the band's handwriting settings back to normal (a capture that never finished).
+    pub fn recover_handwriting(&mut self, hints: Option<(u64, u64)>, now: f64) -> Result<Vec<u8>, String> {
+        self.session
+            .recover_handwriting(hints, now)
+            .map_err(|e| e.to_string())?;
+        self.flush_handwriting(now)
+    }
+
+    /// Start the written text over from `text`, what the field holds.
+    pub fn reset_handwriting_text(&mut self, text: &str) {
+        self.session.reset_handwriting_text(text);
+    }
+
+    fn flush_handwriting(&mut self, now: f64) -> Result<Vec<u8>, String> {
+        let (mut outgoing, events) = self
+            .session
+            .flush_handwriting(now)
+            .map_err(|e| e.to_string())?;
+        for event in &events {
+            outgoing.extend(self.on_event(event, now)?);
+        }
+        Ok(outgoing)
+    }
+
+    /// The handwriting capture's events since the last call, one JSON object each:
+    /// `{"type":"state","phase","message","problem","verified","mutated","collection_id","model_id"}`
+    /// and `{"type":"text","text","raw","class"}`.
+    pub fn take_handwriting_events(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.handwriting)
     }
 
     /// The ceremony's events since the last call, one JSON object each (claim mode).
@@ -340,6 +402,35 @@ impl Connection {
                 self.log.push("connected".into());
             }
             Event::Handedness(hand) => self.log.push(format!("hand {hand:?}").to_lowercase()),
+            Event::HandwritingState(status) => {
+                self.log.push(format!(
+                    "handwriting {}: {}{}",
+                    status.phase.name(),
+                    status.message,
+                    status.problem.as_deref().map(|p| format!(" ({p})")).unwrap_or_default()
+                ));
+                let (collection, model) = status.ids.unzip();
+                self.handwriting.push(
+                    serde_json::json!({
+                        "type": "state",
+                        "phase": status.phase.name(),
+                        "message": status.message,
+                        "problem": status.problem,
+                        "verified": status.verified,
+                        "mutated": status.mutated,
+                        "collection_id": collection,
+                        "model_id": model,
+                    })
+                    .to_string(),
+                );
+            }
+            Event::HandwritingText { text, raw, class } => {
+                // The text itself never goes to the log.
+                self.handwriting.push(
+                    serde_json::json!({"type": "text", "text": text, "raw": raw, "class": class})
+                        .to_string(),
+                );
+            }
             _ => {}
         }
         let gestures = self.controller.status().gestures;

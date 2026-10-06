@@ -22,7 +22,9 @@ use crate::datax::{DataXFrame, DataXReceiver, be16, be32, encode_frame};
 use crate::dial::PinchDial;
 use crate::error::{BandError, Result, perr};
 use crate::events::{BatteryStatus, EmgConfig, Event, GestureMessage, Hand};
+use crate::handwriting::{HandwritingDecoder, InferenceSample};
 use crate::identity::{EnrollmentIdentity, trust_digest};
+use crate::model_capture::{MODEL_STREAM_FIELDS, ModelCapture, ModelRequest};
 use crate::proto::{ProtoFields, field_bytes, field_int};
 
 const STREAM_FIELDS: [u32; 3] = [3, 6, 8];
@@ -50,6 +52,8 @@ const GESTURE: u32 = 0x0200020d;
 const GYRO: u32 = 0x0200020f;
 const ORIENTATION: u32 = 0x02000212;
 const LINK_SETUP: u32 = 0x02001000;
+/// The band's model output (handwriting is its pipeline 3).
+const INFERENCE: u32 = 0x0200020c;
 
 const FINGERS: [&str; 5] = ["unknown", "thumb", "index", "middle", "notApplicable"];
 const ACTIONS: [&str; 21] = [
@@ -218,6 +222,11 @@ pub struct BandSession {
     configuration_id: u64,
     hand_request: Option<HandRequest>,
     hand: Option<Hand>,
+    /// The band's handwriting model, switched on and off on request.
+    model: ModelCapture,
+    /// The settings channel's service was opened (its first request carries `SERVICE_OPEN`).
+    settings_opened: bool,
+    handwriting: HandwritingDecoder,
 }
 
 impl BandSession {
@@ -286,6 +295,9 @@ impl BandSession {
             configuration_id: 0,
             hand_request: None,
             hand: None,
+            model: ModelCapture::default(),
+            settings_opened: false,
+            handwriting: HandwritingDecoder::default(),
         }
     }
 
@@ -676,10 +688,11 @@ impl BandSession {
 
     fn raw_stream_update(&mut self, id: u64, enabled: bool) -> Result<Vec<u8>> {
         self.raw_requested = true;
-        let control: Vec<u8> = std::iter::once(field_int(2, u64::from(enabled)))
+        let mut control: Vec<u8> = std::iter::once(field_int(2, u64::from(enabled)))
             .chain(STREAM_FIELDS.iter().map(|&field| field_int(field, 1)))
             .flatten()
             .collect();
+        control.extend(self.model_stream_control());
         let frame = encode_frame(
             STREAM_CHANNEL,
             &[],
@@ -836,6 +849,7 @@ impl BandSession {
         for field in MOTION_FIELDS {
             control.extend(field_int(field, u64::from(motion)));
         }
+        control.extend(self.model_stream_control());
         let frame = encode_frame(
             STREAM_CHANNEL,
             &[],
@@ -854,6 +868,143 @@ impl BandSession {
             return Ok(Vec::new());
         }
         self.stream_request(5, None)
+    }
+
+    /// Switch the band's handwriting model on (`hints`: the settings' ids found last time) or
+    /// back off. The requests go out with [BandSession::flush_handwriting]; progress comes back
+    /// as [Event::HandwritingState], the text as [Event::HandwritingText].
+    pub fn set_handwriting(
+        &mut self,
+        enabled: bool,
+        hints: Option<(u64, u64)>,
+        time: f64,
+    ) -> Result<()> {
+        if !enabled {
+            self.model.restore(time);
+            return Ok(());
+        }
+        if !self.streams_enabled || self.stopping || self.setup_stage != SetupStage::Input {
+            return Err(BandError::Busy("Connect the band before writing.".into()));
+        }
+        self.model.start(time, hints)?;
+        self.handwriting.reset("");
+        Ok(())
+    }
+
+    /// Put the band's handwriting settings back to normal after a capture that never finished
+    /// (an app or connection that ended in the middle).
+    pub fn recover_handwriting(&mut self, hints: Option<(u64, u64)>, time: f64) -> Result<()> {
+        if !self.streams_enabled || self.stopping || self.setup_stage != SetupStage::Input {
+            return Err(BandError::Busy("Connect the band before restoring it.".into()));
+        }
+        self.model.recover(time, hints)
+    }
+
+    /// Whether the band's handwriting is on or being switched on (not while restoring).
+    pub fn handwriting_writing(&self) -> bool {
+        matches!(
+            self.model.status().phase,
+            crate::model_capture::CapturePhase::Preparing | crate::model_capture::CapturePhase::Ready
+        )
+    }
+
+    /// Whether a handwriting capture is running (switching on, ready or restoring).
+    pub fn handwriting_active(&self) -> bool {
+        self.model.active()
+    }
+
+    /// Start the written text over from `text` (what the field holds now).
+    pub fn reset_handwriting_text(&mut self, text: &str) {
+        self.handwriting.reset(text);
+    }
+
+    /// The capture's next request, if one is due, and its status changes. Call it often while
+    /// [BandSession::handwriting_active] (every tick).
+    pub fn flush_handwriting(&mut self, time: f64) -> Result<(Vec<u8>, Vec<Event>)> {
+        let mut outgoing = Vec::new();
+        if !self.stopping
+            && self.raw_request.is_none()
+            && let Some(request) = self.model.next(time)
+        {
+            outgoing = self.encode_model(request)?;
+        }
+        Ok((outgoing, self.model_events()))
+    }
+
+    fn encode_model(&mut self, request: ModelRequest) -> Result<Vec<u8>> {
+        let opened = if request.channel == STREAM_CHANNEL {
+            true
+        } else {
+            std::mem::replace(&mut self.settings_opened, true)
+        };
+        let streams = match request.streams() {
+            Some(_) => self.full_stream_control(),
+            None => Vec::new(),
+        };
+        let words: &[u32] = if opened { &[] } else { &SERVICE_OPEN };
+        let frame = encode_frame(request.channel, words, &request.payload(&streams))?;
+        self.encrypt(&frame)
+    }
+
+    /// Every stream field, on or off as wanted, for a request that sets them all.
+    fn full_stream_control(&self) -> Vec<u8> {
+        let mut control = Vec::new();
+        if self.raw_requested {
+            control.extend(field_int(2, u64::from(self.raw_emg)));
+        }
+        control.extend(field_int(GESTURE_FIELD, u64::from(self.gestures)));
+        for field in MOTION_FIELDS {
+            control.extend(field_int(field, u64::from(self.motion)));
+        }
+        control.extend(self.model_stream_control());
+        control
+    }
+
+    /// The model's stream fields as last requested; nothing if they were never touched.
+    fn model_stream_control(&self) -> Vec<u8> {
+        match self.model.stream_wanted() {
+            Some(on) => MODEL_STREAM_FIELDS
+                .iter()
+                .flat_map(|&field| field_int(field, u64::from(on)))
+                .collect(),
+            None => Vec::new(),
+        }
+    }
+
+    fn model_events(&mut self) -> Vec<Event> {
+        self.model
+            .drain()
+            .into_iter()
+            .map(Event::HandwritingState)
+            .collect()
+    }
+
+    /// An inference sample: handwriting while the capture runs, otherwise nothing. A malformed
+    /// one is skipped (ending the connection would leave the band in the model).
+    fn receive_inference(&mut self, payload: &[u8], time: f64) -> Vec<Event> {
+        let mut events = Vec::new();
+        if self.stopping || !self.model.active() {
+            return events;
+        }
+        match InferenceSample::parse(payload) {
+            Ok(sample) => {
+                if self.model.sample(&sample, time)
+                    && let Some(class) = self.handwriting.consume(&sample)
+                {
+                    events.push(Event::HandwritingText {
+                        text: self.handwriting.text().to_owned(),
+                        raw: self.handwriting.raw().to_owned(),
+                        class,
+                    });
+                }
+            }
+            Err(error) => self
+                .diagnostics
+                .push(format!("skipped a malformed model sample: {error}")),
+        }
+        events.extend(self.model_events());
+        events.push(Event::DataSeen);
+        events
     }
 
     /// Disable the streams (including raw sEMG if it was requested).
@@ -1094,10 +1245,21 @@ impl BandSession {
             selected.insert(0, 2);
         }
         let control: Vec<u8> = match enabled {
-            Some(on) => selected
-                .iter()
-                .flat_map(|&field| field_int(field, u64::from(on)))
-                .collect(),
+            Some(on) => {
+                let mut control: Vec<u8> = selected
+                    .iter()
+                    .flat_map(|&field| field_int(field, u64::from(on)))
+                    .collect();
+                // Stopping turns the model's streams off too, if they were ever touched.
+                match (on, self.model.stream_wanted()) {
+                    (false, Some(_)) => control.extend(
+                        MODEL_STREAM_FIELDS.iter().flat_map(|&field| field_int(field, 0)),
+                    ),
+                    (true, _) => control.extend(self.model_stream_control()),
+                    _ => {}
+                }
+                control
+            }
             None => Vec::new(),
         };
         let words: &[u32] = if id == 2 { &SERVICE_OPEN } else { &[] };
@@ -1181,6 +1343,19 @@ impl BandSession {
             }
             return Ok(Vec::new());
         }
+        if kind & 0xff00_0000 == 0x0300_0000
+            && self.setup_stage == SetupStage::Input
+            && !self.stopping
+            && self.model.rejected(route(frame.channel), time)
+        {
+            // An error word on the channel a handwriting request waits on (the band refusing
+            // that service): the capture fails and restores at once instead of timing out.
+            let mut events = self.model_events();
+            let (bytes, more) = self.flush_handwriting(time)?;
+            outgoing.extend(bytes);
+            events.extend(more);
+            return Ok(events);
+        }
         if kind == SERVICE_REJECTED && !self.stopping {
             if route(frame.channel) == 3 && self.setup_stage == SetupStage::DeviceInfo {
                 return Err(perr("The band rejected gesture setup. Try reconnecting."));
@@ -1209,7 +1384,7 @@ impl BandSession {
             return Ok(Vec::new());
         }
         // Ignore unrelated services without trying to interpret their protobuf schema.
-        if ![RPC_RESPONSE, RAW_EMG, GESTURE, GYRO, ORIENTATION].contains(&kind) {
+        if ![RPC_RESPONSE, RAW_EMG, GESTURE, GYRO, ORIENTATION, INFERENCE].contains(&kind) {
             return Ok(Vec::new());
         }
         if kind == RPC_RESPONSE
@@ -1235,6 +1410,17 @@ impl BandSession {
         }
         if self.setup_stage != SetupStage::Input {
             return Ok(Vec::new());
+        }
+        if kind == RPC_RESPONSE
+            && !self.stopping
+            && self.model.receive(route(frame.channel), &frame.payload, time)
+        {
+            // The capture's answer: send its next request right away.
+            let mut events = self.model_events();
+            let (bytes, more) = self.flush_handwriting(time)?;
+            outgoing.extend(bytes);
+            events.extend(more);
+            return Ok(events);
         }
         if kind == RPC_RESPONSE && route(frame.channel) & 0x7fff == CONFIGURATION_CHANNEL & 0x7fff {
             if self.stopping {
@@ -1294,6 +1480,9 @@ impl BandSession {
         }
         if self.stopping {
             return Ok(Vec::new());
+        }
+        if kind == INFERENCE {
+            return Ok(self.receive_inference(&frame.payload, time));
         }
         if kind == RAW_EMG {
             // Keep the original payload for recordings, including unknown encodings.
