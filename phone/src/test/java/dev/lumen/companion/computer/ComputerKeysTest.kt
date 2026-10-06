@@ -5,6 +5,7 @@ import dev.lumen.companion.computer.ComputerKeys.Output
 import dev.lumen.companion.computer.ComputerKeys.Stroke
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ComputerKeysTest {
@@ -71,5 +72,16 @@ class ComputerKeysTest {
         assertEquals(Output.Wheel(-12), ComputerKeys.action("pc.scroll.up", scrollSteps = 12))
         assertEquals(Output.Wheel(-ComputerKeys.SCROLL_MAX), ComputerKeys.action("pc.scroll.up", scrollSteps = 500))
         assertEquals(Output.Wheel(-1), ComputerKeys.action("pc.wheel.up"))
+    }
+
+    @Test
+    fun `a mouse move splits into reports of at most 127 counts and keeps its total`() {
+        assertEquals(emptyList<Pair<Int, Int>>(), ComputerKeys.mouseMoves(0, 0))
+        assertEquals(listOf(5 to -3), ComputerKeys.mouseMoves(5, -3))
+        val moves = ComputerKeys.mouseMoves(300, -130)
+        assertEquals(300, moves.sumOf { it.first })
+        assertEquals(-130, moves.sumOf { it.second })
+        assertTrue(moves.all { Math.abs(it.first) <= 127 && Math.abs(it.second) <= 127 })
+        assertNull(ComputerKeys.action(ComputerKeys.POINTER))
     }
 }

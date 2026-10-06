@@ -708,7 +708,7 @@ internal fun Choices(title: String, options: List<Pair<String, String>>, selecte
 }
 
 @Composable
-internal fun Option(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun Option(label: String, selected: Boolean, tag: String? = null, onClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.RadioButton, onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
@@ -720,6 +720,7 @@ internal fun Option(label: String, selected: Boolean, onClick: () -> Unit) {
             colors = RadioButtonDefaults.colors(selectedColor = Lumen.accent, unselectedColor = Lumen.textPlaceholder),
         )
         Text(label, style = MaterialTheme.typography.bodyMedium)
+        if (tag != null) Tag(tag)
     }
 }
 

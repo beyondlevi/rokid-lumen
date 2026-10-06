@@ -271,6 +271,19 @@ impl SimBand {
         self.send(session, 0x0200020f, &payload, now)
     }
 
+    /// An orientation sample: a quaternion in wire order w, x, y, z.
+    pub fn orientation(
+        &mut self,
+        session: &mut BandSession,
+        stamp: u64,
+        quaternion: [f32; 4],
+        now: f64,
+    ) -> Result<Vec<Event>> {
+        let values: Vec<u8> = quaternion.iter().flat_map(|v| v.to_le_bytes()).collect();
+        let payload = [field_int(1, stamp), field_int(2, stamp), field_bytes(3, &values)].concat();
+        self.send(session, 0x02000212, &payload, now)
+    }
+
     /// Keeps motion flowing: one gyro sample every 10 ms on both clocks.
     pub fn spin(
         &mut self,

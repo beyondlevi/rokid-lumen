@@ -195,6 +195,8 @@ pub struct BandSession {
     stop_acknowledged: bool,
     authenticated_packets: usize,
     motion_messages: usize,
+    /// The motion samples themselves go out as events (the air mouse needs them).
+    motion_samples: bool,
     streams_enabled: bool,
     /// Motion streams wanted (on unless [BandSession::set_motion_enabled] turned them off).
     motion: bool,
@@ -271,6 +273,7 @@ impl BandSession {
             stop_acknowledged: false,
             authenticated_packets: 0,
             motion_messages: 0,
+            motion_samples: false,
             streams_enabled: false,
             motion: true,
             motion_active: true,
@@ -831,6 +834,12 @@ impl BandSession {
     /// power saving while nothing needs pinch and turn. The band answers like a subscription
     /// (request 3); gestures staying on is required, motion is only reported
     /// ([BandSession::motion_active]).
+    /// Whether each gyro and orientation sample also goes out as an event ([Event::Gyro],
+    /// [Event::Orientation]), for the air mouse. Off by default: nothing else needs them.
+    pub fn set_motion_samples(&mut self, on: bool) {
+        self.motion_samples = on;
+    }
+
     pub fn set_motion_enabled(&mut self, enabled: bool) -> Result<Vec<u8>> {
         self.set_streams(true, enabled)
     }
@@ -1531,6 +1540,12 @@ impl BandSession {
                 let values: [f64; 3] = std::array::from_fn(|i| {
                     f64::from(i16::from_le_bytes([bytes[i * 2], bytes[i * 2 + 1]]))
                 });
+                if self.motion_samples {
+                    events.push(Event::Gyro {
+                        timestamp_us: timestamp,
+                        raw: std::array::from_fn(|i| i16::from_le_bytes([bytes[i * 2], bytes[i * 2 + 1]])),
+                    });
+                }
                 let delta = self.dial.gyro(timestamp, values, time);
                 events.extend(self.engagement_events());
                 if let Some(delta) = delta {
@@ -1553,6 +1568,9 @@ impl BandSession {
                 let norm: f32 = values.iter().map(|v| v * v).sum();
                 if !values.iter().all(|v| v.is_finite()) || !(0.9..=1.1).contains(&norm) {
                     return Err(perr("Invalid band orientation sample"));
+                }
+                if self.motion_samples {
+                    events.push(Event::Orientation { timestamp_us: timestamp, quaternion: values });
                 }
             }
         }

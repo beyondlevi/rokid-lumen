@@ -204,3 +204,30 @@ fn a_claim_connection_runs_the_ceremony_through_its_events_and_ends_connected() 
     // The committed key opens a normal connection to the same band.
     assert!(Connection::new(&pending, 0, false, "volume", "").is_ok());
 }
+
+#[test]
+fn the_air_mouse_turns_pinches_into_buttons_and_its_swipe_turns_it_off() {
+    let (mut connection, mut band) = connected_with(false, "swipe_left=pc.pointer");
+    // Its gesture asks the app to turn it on.
+    gesture(&mut connection, &mut band, 8, THUMB, 0, 3.0);
+    assert_eq!(connection.take_actions(), vec!["pc.pointer".to_owned()]);
+    connection.set_pointer(true, "steadiness=0.5;boost=1.0", 3.1);
+    assert!(connection.take_log().contains(&"air mouse on".to_owned()));
+    // An index pinch is the left button, not an action.
+    gesture(&mut connection, &mut band, 1, INDEX, 0, 3.2);
+    assert!(connection.take_actions().is_empty());
+    let records = connection.take_pointer(3.2);
+    assert!(records.chunks(4).any(|r| r[0] == 2.0 && r[2] == 1.0), "{records:?}");
+    // The same swipe turns it off.
+    gesture(&mut connection, &mut band, 8, THUMB, 0, 3.5);
+    assert_eq!(connection.take_actions(), vec!["pointer.off".to_owned()]);
+    assert!(connection.take_pointer(3.6).is_empty());
+}
+
+#[test]
+fn pausing_ends_the_air_mouse_and_says_so() {
+    let (mut connection, _band) = connected_with(false, "swipe_left=pc.pointer");
+    connection.set_pointer(true, "", 3.0);
+    connection.set_paused(true, 3.1);
+    assert_eq!(connection.take_actions(), vec!["pointer.off".to_owned()]);
+}

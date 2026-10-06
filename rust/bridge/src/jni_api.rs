@@ -3,7 +3,7 @@
 
 use jni::JNIEnv;
 use jni::objects::{JByteArray, JClass, JString};
-use jni::sys::{jboolean, jbyteArray, jdouble, jint, jlong, jstring};
+use jni::sys::{jboolean, jbyteArray, jdouble, jdoubleArray, jint, jlong, jstring};
 
 use crate::Connection;
 
@@ -360,6 +360,42 @@ pub extern "system" fn Java_dev_lumen_band_Bridge_handwritingEvents<'local>(
 ) -> jstring {
     let lines = unsafe { connection(handle) }.take_handwriting_events().join("\n");
     string_out(&mut env, lines)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_setPointer<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    enabled: jboolean,
+    tuning: JString<'local>,
+    now: jdouble,
+) {
+    match env.get_string(&tuning) {
+        Ok(tuning) => unsafe { connection(handle) }.set_pointer(enabled != 0, &String::from(tuning), now),
+        Err(error) => throw(&mut env, &error.to_string()),
+    }
+}
+
+/// The air mouse's records, four doubles each (kind, time, a, b; see `controller::RECORD_MOVE`).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_pointer<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    now: jdouble,
+) -> jdoubleArray {
+    let records = unsafe { connection(handle) }.take_pointer(now);
+    let array = env
+        .new_double_array(records.len() as i32)
+        .and_then(|array| env.set_double_array_region(&array, 0, &records).map(|()| array));
+    match array {
+        Ok(array) => array.into_raw(),
+        Err(error) => {
+            throw(&mut env, &error.to_string());
+            std::ptr::null_mut()
+        }
+    }
 }
 
 #[unsafe(no_mangle)]

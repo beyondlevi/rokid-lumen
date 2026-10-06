@@ -84,6 +84,9 @@ impl Default for BandConfig {
 /// The action that swaps the dial between volume and brightness. The bridge
 /// handles it itself instead of passing it to the app.
 pub const DIAL_TOGGLE: &str = "dial.toggle";
+/// The air mouse's action: the gesture mapped to it turns it on, and off again (see
+/// `Controller::set_pointer`).
+pub const POINTER_TOGGLE: &str = "pc.pointer";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GestureConfig {
@@ -135,6 +138,20 @@ impl GestureConfig {
             };
             *slot = action.trim().to_owned();
         }
+    }
+
+    /// The first tap mapped to the air mouse, when a tap is: its finger's pinches then wait a
+    /// moment while the air mouse runs, to tell turning it off from a click.
+    pub fn pointer_tap(&self) -> Option<Tap> {
+        [Tap::IndexTap, Tap::IndexDoubleTap, Tap::MiddleTap, Tap::MiddleDoubleTap]
+            .into_iter()
+            .find(|&tap| self.command(Recognized::Tap(tap)) == POINTER_TOGGLE)
+    }
+
+    /// Whether any gesture runs `command`.
+    pub fn has(&self, command: &str) -> bool {
+        let swipes = [Swipe::Left, Swipe::Right, Swipe::Up, Swipe::Down].map(Recognized::Swipe);
+        swipes.into_iter().chain(Tap::ALL.map(Recognized::Tap)).any(|gesture| self.command(gesture) == command)
     }
 
     /// The configured action, or `""` when it's unassigned (including whitespace-only).

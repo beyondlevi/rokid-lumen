@@ -145,6 +145,11 @@ data class ComputerUiState(
     val scrollSteps: Int = dev.lumen.companion.computer.ComputerKeys.SCROLL_DEFAULT,
     /** The band writes on the computer now. */
     val writing: Boolean = false,
+    /** The air mouse runs ([dev.lumen.companion.computer.ComputerPointer]), and its settings. */
+    val pointer: Boolean = false,
+    val pointerSpeed: Int = dev.lumen.companion.computer.ComputerProfiles.POINTER_SPEED_DEFAULT,
+    val pointerSteadiness: Float = dev.lumen.companion.computer.ComputerProfiles.POINTER_STEADINESS_DEFAULT,
+    val pointerBoost: Float = dev.lumen.companion.computer.ComputerProfiles.POINTER_BOOST_DEFAULT,
 )
 
 /** What the screens can ask for. */
@@ -222,6 +227,9 @@ interface CompanionActions {
     fun setComputerLayout(layout: dev.lumen.companion.computer.ComputerKeys.Layout)
     fun setComputerInvertScroll(on: Boolean)
     fun setComputerScrollSteps(steps: Int)
+    fun setComputerPointerSpeed(speed: Int)
+    fun setComputerPointerSteadiness(steadiness: Float)
+    fun setComputerPointerBoost(boost: Float)
     fun importBandKey()
     fun allowBluetooth()
     fun setPhoneSetting(key: String, value: String)

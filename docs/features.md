@@ -49,7 +49,7 @@ The glasses' touchpad keys work everywhere too.
 
 ### Band power saving
 
-The band streams motion (gyro and orientation, which only pinch and turn needs) only while the
+The band streams motion (gyro and orientation, for pinch and turn and the air mouse) only while the
 glasses' screen is on and the controls aren't paused. With **band power saving** on, it also stops its gestures: it
 recognises nothing and doesn't vibrate, and only the glasses' button turns the screen (and the
 band) back on. With it off, the middle double tap still wakes the screen.
@@ -523,6 +523,22 @@ For the glasses the band is on the phone, as with **This phone**.
   the computer's acceleration turns into distance), and **Reverse scrolling** for a computer
   without natural scrolling (macOS has it on by default). With a computer the band always listens,
   locked phone or not.
+- **Air Mouse** (experimental, from kinesis' air cursor): map **Air Mouse** to a gesture; the same
+  gesture turns it off. Your forearm moves the pointer like a mouse, relative and not a laser:
+  turning left or right moves it across, raising or lowering it up and down, and twisting the
+  wrist does nothing. The band's orientation gives the aim and its gyro how fast the arm turns:
+  a held arm leaves the pointer still (**Steadiness**), slow moves are precise and quick ones go
+  farther (**Flick boost**), and **Pointer speed** sets the counts per degree. The index pinch is
+  the left button and the middle pinch the right one, from pinch to release, so holding and moving
+  drags; the drift that follows a pinch is absorbed. Swipes keep the profile's actions (scrolling
+  works during a drag), pinch and turn rests, and writing, a disconnection or pausing the controls
+  ends it. If the gesture is a tap, that finger waits a moment to tell the switch from a click (a
+  quick pinch turns it off, a held one clicks or drags); on a double tap its single click waits
+  0.3 s. A swipe costs nothing. The middle hold can't pause the band while it runs.
+  A Bluetooth mouse can't know where the pointer is, so unlike kinesis it doesn't pull the arm and
+  the pointer back together: when they drift apart, turn it off and on, or push the pointer against
+  a screen edge. The computer accelerates the mouse too: with macOS' own acceleration on, keep the
+  flick boost low.
 
 Android lets one app at a time be a keyboard, only while it runs in front or as a foreground
 service (the companion's is), and turns the phone's own Bluetooth keyboards and mice off

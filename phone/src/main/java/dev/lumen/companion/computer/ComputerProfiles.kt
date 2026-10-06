@@ -21,6 +21,7 @@ object ComputerProfiles {
     /** The actions a gesture can have, in the picker's groups ([PhoneSettings.NONE] and the profile switches aside). */
     val GROUPS = linkedMapOf(
         "writing" to listOf(ComputerKeys.WRITE),
+        "mouse" to listOf(ComputerKeys.POINTER),
         "keys" to listOf("pc.key.up", "pc.key.down", "pc.key.left", "pc.key.right", "pc.key.enter", "pc.key.escape", "pc.key.tab", "pc.key.space", "pc.key.backspace"),
         "desktops" to listOf("pc.desktop.next", "pc.desktop.previous", "pc.mission_control", "pc.app_switch"),
         "scroll" to listOf("pc.scroll.up", "pc.scroll.down"),
@@ -197,6 +198,39 @@ object ComputerProfiles {
     private const val KEY_LAYOUT = "layout"
     private const val KEY_INVERT = "invert_scroll"
     private const val KEY_SCROLL = "scroll_steps"
+    private const val KEY_POINTER_SPEED = "pointer_speed"
+    private const val KEY_POINTER_STEADINESS = "pointer_steadiness"
+    private const val KEY_POINTER_BOOST = "pointer_boost"
+
+    // The air mouse ([ComputerPointer]). The computer accelerates a mouse on its own, so the
+    // band's flick boost starts at 1 (kinesis, which places the pointer itself, uses 1.6).
+
+    /** Mouse counts per degree of forearm turn. */
+    const val POINTER_SPEED_DEFAULT = 40
+    val POINTER_SPEEDS = 10..100
+    const val POINTER_STEADINESS_DEFAULT = 0.5f
+    const val POINTER_BOOST_DEFAULT = 1.0f
+    val POINTER_BOOSTS = 1.0f..2.5f
+
+    fun pointerSpeed(context: Context) =
+        prefs(context).getInt(KEY_POINTER_SPEED, POINTER_SPEED_DEFAULT).coerceIn(POINTER_SPEEDS)
+
+    fun setPointerSpeed(context: Context, speed: Int) =
+        prefs(context).edit().putInt(KEY_POINTER_SPEED, speed.coerceIn(POINTER_SPEEDS)).apply()
+
+    /** 0 is the most responsive and 1 the steadiest (how still the arm must be to hold the pointer). */
+    fun pointerSteadiness(context: Context) =
+        prefs(context).getFloat(KEY_POINTER_STEADINESS, POINTER_STEADINESS_DEFAULT).coerceIn(0f, 1f)
+
+    fun setPointerSteadiness(context: Context, steadiness: Float) =
+        prefs(context).edit().putFloat(KEY_POINTER_STEADINESS, steadiness.coerceIn(0f, 1f)).apply()
+
+    /** The most a quick flick multiplies the movement by. */
+    fun pointerBoost(context: Context) =
+        prefs(context).getFloat(KEY_POINTER_BOOST, POINTER_BOOST_DEFAULT).coerceIn(POINTER_BOOSTS)
+
+    fun setPointerBoost(context: Context, boost: Float) =
+        prefs(context).edit().putFloat(KEY_POINTER_BOOST, boost.coerceIn(POINTER_BOOSTS)).apply()
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences("computer_profiles", Context.MODE_PRIVATE)
 }

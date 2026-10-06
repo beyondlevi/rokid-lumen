@@ -94,6 +94,21 @@ internal fun ComputerSettingsTab(
             }
         }
     }
+    if (PhoneSettings.GESTURES.any { it != phoneProfiles.switchGesture && current.action(it) == ComputerKeys.POINTER }) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Lumen.radiusCard)).background(Lumen.surface).padding(Lumen.spacingMedium),
+            horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed),
+        ) {
+            Icon(LumenIcons.laptop, contentDescription = null, tint = Lumen.purple, modifier = Modifier.size(22.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmall), verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.computer_pointer_title), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                    Tag(stringResource(R.string.computer_tag_experimental))
+                }
+                Text(stringResource(R.string.computer_pointer_text), style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
+            }
+        }
+    }
     PillButton(stringResource(R.string.profile_edit), primary = false, modifier = Modifier.fillMaxWidth()) { onComputerProfile(current.id) }
 
     SectionTitle(stringResource(R.string.computer_section))
@@ -105,7 +120,15 @@ internal fun ComputerSettingsTab(
             value = layoutText(state.computer.layout),
             onClick = { choosingLayout = true },
         )
-        ScrollSpeedRow(state.computer.scrollSteps) { actions.setComputerScrollSteps(it) }
+        SliderRow(
+            title = stringResource(R.string.computer_scroll_speed),
+            hint = stringResource(R.string.computer_scroll_speed_hint),
+            value = state.computer.scrollSteps.toFloat(),
+            range = ComputerKeys.SCROLL_MIN.toFloat()..ComputerKeys.SCROLL_MAX.toFloat(),
+            steps = ComputerKeys.SCROLL_MAX - ComputerKeys.SCROLL_MIN - 1,
+            start = stringResource(R.string.computer_scroll_slow),
+            end = stringResource(R.string.computer_scroll_fast),
+        ) { actions.setComputerScrollSteps(Math.round(it)) }
         SwitchRow(
             stringResource(R.string.computer_invert_scroll),
             stringResource(R.string.computer_invert_scroll_hint),
@@ -132,6 +155,37 @@ internal fun ComputerSettingsTab(
         modifier = Modifier.padding(horizontal = Lumen.spacingSmall),
     )
 
+    SectionTitle(stringResource(R.string.computer_pointer_section))
+    Group {
+        SliderRow(
+            title = stringResource(R.string.computer_pointer_speed),
+            hint = stringResource(R.string.computer_pointer_speed_hint),
+            value = state.computer.pointerSpeed.toFloat(),
+            range = ComputerProfiles.POINTER_SPEEDS.first.toFloat()..ComputerProfiles.POINTER_SPEEDS.last.toFloat(),
+            steps = (ComputerProfiles.POINTER_SPEEDS.last - ComputerProfiles.POINTER_SPEEDS.first) / 5 - 1,
+            start = stringResource(R.string.computer_scroll_slow),
+            end = stringResource(R.string.computer_scroll_fast),
+        ) { actions.setComputerPointerSpeed(Math.round(it)) }
+        SliderRow(
+            title = stringResource(R.string.computer_pointer_steadiness),
+            hint = stringResource(R.string.computer_pointer_steadiness_hint),
+            value = state.computer.pointerSteadiness,
+            range = 0f..1f,
+            steps = 9,
+            start = stringResource(R.string.computer_pointer_responsive),
+            end = stringResource(R.string.computer_pointer_steady),
+        ) { actions.setComputerPointerSteadiness(it) }
+        SliderRow(
+            title = stringResource(R.string.computer_pointer_boost),
+            hint = stringResource(R.string.computer_pointer_boost_hint),
+            value = state.computer.pointerBoost,
+            range = ComputerProfiles.POINTER_BOOSTS,
+            steps = 14,
+            start = stringResource(R.string.computer_pointer_boost_none),
+            end = stringResource(R.string.computer_pointer_boost_more),
+        ) { actions.setComputerPointerBoost(it) }
+    }
+
     SectionTitle(stringResource(R.string.band_key_section))
     Group { ListRow(title = stringResource(R.string.band_key_row), subtitle = stringResource(R.string.band_key_row_hint), icon = LumenIcons.shield, onClick = onKey) }
 
@@ -145,10 +199,19 @@ internal fun ComputerSettingsTab(
     }
 }
 
-/** How far a swipe scrolls on the computer: a slider, saved when it's let go. */
+/** A setting on a slider (the scrolling, the air mouse), saved when it's let go. */
 @Composable
-private fun ScrollSpeedRow(steps: Int, onChange: (Int) -> Unit) {
-    var value by remember(steps) { mutableFloatStateOf(steps.toFloat()) }
+private fun SliderRow(
+    title: String,
+    hint: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    steps: Int,
+    start: String,
+    end: String,
+    onChange: (Float) -> Unit,
+) {
+    var current by remember(value) { mutableFloatStateOf(value) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -156,14 +219,14 @@ private fun ScrollSpeedRow(steps: Int, onChange: (Int) -> Unit) {
             .padding(horizontal = Lumen.spacingMedium, vertical = Lumen.spacingSmMed),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(stringResource(R.string.computer_scroll_speed), style = MaterialTheme.typography.titleMedium)
-        Text(stringResource(R.string.computer_scroll_speed_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(hint, style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
         Slider(
-            value = value,
-            onValueChange = { value = it },
-            onValueChangeFinished = { onChange(Math.round(value)) },
-            valueRange = ComputerKeys.SCROLL_MIN.toFloat()..ComputerKeys.SCROLL_MAX.toFloat(),
-            steps = ComputerKeys.SCROLL_MAX - ComputerKeys.SCROLL_MIN - 1,
+            value = current,
+            onValueChange = { current = it },
+            onValueChangeFinished = { onChange(current) },
+            valueRange = range,
+            steps = steps,
             colors = SliderDefaults.colors(
                 thumbColor = Lumen.accent,
                 activeTrackColor = Lumen.accent,
@@ -173,8 +236,8 @@ private fun ScrollSpeedRow(steps: Int, onChange: (Int) -> Unit) {
             ),
         )
         Row(modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.computer_scroll_slow), style = MaterialTheme.typography.bodySmall, color = Lumen.textPlaceholder, modifier = Modifier.weight(1f))
-            Text(stringResource(R.string.computer_scroll_fast), style = MaterialTheme.typography.bodySmall, color = Lumen.textPlaceholder)
+            Text(start, style = MaterialTheme.typography.bodySmall, color = Lumen.textPlaceholder, modifier = Modifier.weight(1f))
+            Text(end, style = MaterialTheme.typography.bodySmall, color = Lumen.textPlaceholder)
         }
     }
 }
@@ -223,6 +286,7 @@ private fun ComputerProfileRows(state: CompanionUiState, actions: CompanionActio
                 trailing = when {
                     switching -> ({ Tag(stringResource(R.string.profile_all)) })
                     profile.action(key) == ComputerKeys.WRITE -> ({ Tag(stringResource(R.string.computer_tag_writing)) })
+                    profile.action(key) == ComputerKeys.POINTER -> ({ Tag(stringResource(R.string.computer_tag_experimental)) })
                     else -> null
                 },
                 onClick = if (switching) null else ({ gesture = key }),
@@ -448,7 +512,10 @@ private fun ComputerActionPicker(
                             modifier = Modifier.padding(top = Lumen.spacingSmMed, bottom = 2.dp),
                         )
                     }
-                    ids.forEach { id -> Option(computerActionText(id, profiles), id == current) { onChoose(id) } }
+                    ids.forEach { id ->
+                        val tag = if (id == ComputerKeys.POINTER) stringResource(R.string.computer_tag_experimental) else null
+                        Option(computerActionText(id, profiles), id == current, tag) { onChoose(id) }
+                    }
                 }
             }
         },
@@ -460,6 +527,7 @@ private fun ComputerActionPicker(
 
 private val GROUP_LABELS = mapOf(
     "writing" to R.string.computer_group_writing,
+    "mouse" to R.string.computer_group_mouse,
     "keys" to R.string.action_group_keys,
     "desktops" to R.string.computer_group_desktops,
     "scroll" to R.string.computer_group_scroll,
@@ -468,6 +536,7 @@ private val GROUP_LABELS = mapOf(
 
 private val ACTION_LABELS = mapOf(
     ComputerKeys.WRITE to R.string.pc_write,
+    ComputerKeys.POINTER to R.string.pc_pointer,
     "pc.key.up" to R.string.pc_key_up,
     "pc.key.down" to R.string.pc_key_down,
     "pc.key.left" to R.string.pc_key_left,
@@ -524,6 +593,7 @@ private fun layoutText(layout: ComputerKeys.Layout): String = stringResource(
 private fun statusText(computer: ComputerUiState): String = stringResource(
     when {
         computer.writing -> R.string.computer_status_writing
+        computer.pointer -> R.string.computer_status_pointer
         else -> when (computer.status) {
             ComputerLink.Status.OFF -> R.string.computer_status_off
             ComputerLink.Status.STARTING -> R.string.computer_status_starting

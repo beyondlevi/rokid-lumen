@@ -19,6 +19,7 @@ import dev.lumen.band.Identity
 import dev.lumen.band.Phase
 import dev.lumen.companion.computer.ComputerKeys
 import dev.lumen.companion.computer.ComputerLink
+import dev.lumen.companion.computer.ComputerPointer
 import dev.lumen.companion.computer.ComputerProfiles
 import dev.lumen.companion.computer.ComputerWriter
 import dev.lumen.protocol.BandStatus
@@ -113,6 +114,7 @@ object PhoneBand {
     private fun leaveComputer(context: Context) {
         if (!CompanionPrefs.bandOnComputer(context)) return
         ComputerWriter.stop()
+        ComputerPointer.stop()
         CompanionPrefs.setBandOnComputer(context, false)
         ComputerLink.stop()
         applyMapping(context)
@@ -212,6 +214,16 @@ object PhoneBand {
 
     private const val SIMULATED_LETTER_MS = 650L
 
+    /**
+     * The air mouse on the band here (see [ComputerPointer]); false when the band isn't
+     * connected here or can't run it.
+     */
+    fun setPointer(on: Boolean, tuning: String): Boolean {
+        val link = link ?: return false
+        if (on && phase != Phase.CONNECTED) return false
+        return link.setPointer(on, tuning)
+    }
+
     /** The usual mapping, with the middle tap ending the writing at once (no double tap). */
     private fun writingMapping(context: Context) =
         PhoneSettings.mapping(context) + ";middle_tap=$HANDWRITING_EXIT;middle_double="
@@ -239,8 +251,14 @@ object PhoneBand {
             override fun onPhase(phase: Phase, band: String?) {
                 main.post {
                     this@PhoneBand.phase = phase
+                    // The air mouse ends with the connection.
+                    if (phase != Phase.CONNECTED) ComputerPointer.stop()
                     changed()
                 }
+            }
+
+            override fun onPointer(records: DoubleArray) {
+                main.post { ComputerPointer.onBand(records) }
             }
 
             override fun onStatus(status: JSONObject) {
@@ -256,6 +274,7 @@ object PhoneBand {
                         Log.d(TAG, "action $action")
                         when {
                             action == HANDWRITING_EXIT -> handwriting?.onExit()
+                            action == ComputerPointer.OFF -> ComputerPointer.stop()
                             // Locked, and this profile doesn't count then (the band is told to
                             // stop sending too; this covers what was already on its way).
                             !listening -> Log.d(TAG, "$action ignored: the phone is locked")
@@ -298,6 +317,7 @@ object PhoneBand {
             action == PhoneProfiles.PREVIOUS -> switchComputerProfile(context, ComputerProfiles.step(computer, -1))
             action.startsWith(PhoneProfiles.GO_PREFIX) -> switchComputerProfile(context, action.removePrefix(PhoneProfiles.GO_PREFIX))
             action == ComputerKeys.WRITE -> ComputerWriter.start(context)
+            action == ComputerKeys.POINTER -> ComputerPointer.start(context)
             action == PhoneProfiles.DIAL_UP || action == PhoneProfiles.DIAL_DOWN ->
                 ComputerProfiles.dialAction(computer.current.dial, action == PhoneProfiles.DIAL_UP)?.let { send(context, it) } ?: true
             else -> send(context, action)
@@ -407,6 +427,7 @@ object PhoneBand {
 
     fun stop() {
         ComputerWriter.stop()
+        ComputerPointer.stop()
         handwriting = null
         lockContext?.let { unwatchLock(it) }
         link?.stop()

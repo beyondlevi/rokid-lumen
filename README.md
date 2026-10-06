@@ -81,7 +81,8 @@ demo mode and simulated notifications.
   writes in any app's text field with the band. Either side hands it back.
 - **The band on a computer.** Through the phone, as its Bluetooth keyboard and mouse: scrolling,
   desktops, keys, media and writing with the band on a laptop, with profiles of its own and
-  nothing to install there.
+  nothing to install there, and an experimental **Air Mouse** that moves the pointer with the
+  forearm.
 
 Details: [docs/features.md](docs/features.md).
 
