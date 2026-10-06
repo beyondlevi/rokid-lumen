@@ -91,6 +91,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         ComputerLink.listeners += bandListener
         ComputerWriter.listeners += bandListener
         ComputerPointer.listeners += bandListener
+        PhonePointer.listeners += bandListener
         GridCache.listeners += gridListener
         KeyboardLink.listeners += gridListener
         GlassesSetup.listeners += gridListener
@@ -116,6 +117,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         ComputerLink.listeners -= bandListener
         ComputerWriter.listeners -= bandListener
         ComputerPointer.listeners -= bandListener
+        PhonePointer.listeners -= bandListener
         GridCache.listeners -= gridListener
         KeyboardLink.listeners -= gridListener
         GlassesSetup.listeners -= gridListener
@@ -206,6 +208,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
                 pointerBoost = ComputerProfiles.pointerBoost(this),
             ),
             computerProfiles = ComputerProfiles.state(this),
+            phonePointer = PhoneSettings.pointerTuning(this),
         )
         // The switch turns off by itself when the snooze runs out.
         window.decorView.removeCallbacks(snoozeEnded)
@@ -433,6 +436,24 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     override fun setComputerPointerBoost(boost: Float) {
         ComputerProfiles.setPointerBoost(this, Math.round(boost * 10) / 10f)
         ComputerPointer.retune(this)
+        refresh()
+    }
+
+    override fun setPhonePointerSpeed(speed: Int) {
+        PhoneSettings.setPointerSpeed(this, speed)
+        PhonePointer.retune(this)
+        refresh()
+    }
+
+    override fun setPhonePointerSteadiness(steadiness: Float) {
+        PhoneSettings.setPointerSteadiness(this, Math.round(steadiness * 10) / 10f)
+        PhonePointer.retune(this)
+        refresh()
+    }
+
+    override fun setPhonePointerBoost(boost: Float) {
+        PhoneSettings.setPointerBoost(this, Math.round(boost * 10) / 10f)
+        PhonePointer.retune(this)
         refresh()
     }
 

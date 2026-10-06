@@ -130,7 +130,7 @@
     <string name="band_bluetooth_missing">Permita o Bluetooth para este celular conectar à banda.</string>
     <string name="band_allow_bluetooth">Permitir o Bluetooth</string>
     <string name="touch_service_label">Rokid Lumen: gestos da banda</string>
-    <string name="touch_service_description">Deixa a Meta Neural Band deslizar, voltar, ir ao início, apertar as setas e abrir apps neste celular. Só faz gestos e não lê nada da tela.</string>
+    <string name="touch_service_description">Deixa a Meta Neural Band deslizar, voltar, ir ao início, apertar as setas, abrir apps e mover o cursor do Air Mouse neste celular. Só faz gestos e desenha o cursor; não lê nada da tela.</string>
     <string name="band_charging">Carregando</string>
     <string name="band_paused">Pausada</string>
     <string name="band_waiting">Esperando os óculos…</string>
@@ -175,7 +175,7 @@
     <string name="phone_dial_seek">Posição da música</string>
     <string name="phone_dial_brightness">Brilho</string>
     <string name="phone_touch">Gestos na tela</string>
-    <string name="phone_touch_hint">Deslizar na tela, voltar, ir ao início, as setas e abrir apps precisam deste serviço de acessibilidade</string>
+    <string name="phone_touch_hint">Deslizar na tela, voltar, ir ao início, as setas, abrir apps e o Air Mouse precisam deste serviço de acessibilidade</string>
     <string name="phone_touch_on">Ligado</string>
     <string name="phone_touch_off">Desligado</string>
     <string name="phone_brightness">Alterar o brilho</string>
@@ -694,4 +694,23 @@
         <item quantity="one">Visível como %1$s por %2$d minuto</item>
         <item quantity="other">Visível como %1$s por %2$d minutos</item>
     </plurals>
+    <string name="phone_pointer_channel">Air Mouse</string>
+    <string name="phone_pointer_notice_title">Air Mouse neste celular</string>
+    <string name="phone_pointer_text">O mesmo gesto liga e desliga. O cursor aparece no centro da tela e o antebraço move ele: aponte e gire. A pinça do indicador toca onde o cursor está; segure e mova para arrastar e rolar. A pinça do médio volta. Os deslizes seguem com as suas ações, e o pinça e girar fica parado enquanto isso.</string>
+    <string name="phone_pointer_needs_touch">Usa os Gestos na tela, que já estão ligados</string>
+    <string name="phone_pointer_needs_touch_off">Precisa dos Gestos na tela: ligue logo abaixo</string>
+    <string name="phone_pointer_section">Air Mouse no celular</string>
+    <string name="pointer_boost_hint_screen">Quanto um movimento rápido vai mais longe</string>
+    <string name="glasses_pointer_text">O mesmo gesto liga e desliga. O cursor aparece no centro da lente e o antebraço move ele. A pinça do indicador toca onde o cursor está, nos apps e nas páginas; segure e mova para arrastar e rolar. A pinça do médio volta. Os deslizes seguem com as ações acima.</string>
+    <string name="glasses_pointer_section">Air Mouse nos óculos</string>
+    <string name="glasses_group_navigation">Navegação</string>
+    <string name="glasses_group_glasses">Óculos</string>
+    <string name="glasses_group_screen">Tela e som</string>
+    <string name="glasses_option_right">Mover para a direita</string>
+    <string name="glasses_option_left">Mover para a esquerda</string>
+    <string name="glasses_option_down">Mover para baixo</string>
+    <string name="glasses_option_up">Mover para cima</string>
+    <string name="glasses_option_select">Selecionar</string>
+    <string name="glasses_option_screen">Ligar e desligar a tela</string>
+    <string name="band_action_reset_gestures">Restaurar os gestos padrão</string>
 </resources>

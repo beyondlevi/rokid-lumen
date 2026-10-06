@@ -123,7 +123,7 @@
     <string name="band_battery" translatable="false">%1$d%%</string>
     <string name="band_charging">Charging</string>
     <string name="touch_service_label">Rokid Lumen: band gestures</string>
-    <string name="touch_service_description">Lets the Meta Neural Band swipe, go Back or Home, press the arrow keys and open apps on this phone. It performs gestures only and reads nothing on the screen.</string>
+    <string name="touch_service_description">Lets the Meta Neural Band swipe, go Back or Home, press the arrow keys, open apps and move the Air Mouse cursor on this phone. It performs gestures and draws the cursor only, and reads nothing on the screen.</string>
     <string name="band_device_title">Controlling</string>
     <string name="band_device_glasses">The glasses</string>
     <string name="band_device_phone">This phone</string>
@@ -181,7 +181,7 @@
     <string name="phone_dial_seek">Playback position</string>
     <string name="phone_dial_brightness">Brightness</string>
     <string name="phone_touch">Screen gestures</string>
-    <string name="phone_touch_hint">Swipes on the screen, Back, Home, arrow keys and opening apps need this accessibility service</string>
+    <string name="phone_touch_hint">Swipes on the screen, Back, Home, arrow keys, opening apps and the Air Mouse need this accessibility service</string>
     <string name="phone_touch_on">On</string>
     <string name="phone_touch_off">Off</string>
     <string name="phone_brightness">Change the brightness</string>
@@ -703,4 +703,23 @@
         <item quantity="one">Visible as %1$s for %2$d minute</item>
         <item quantity="other">Visible as %1$s for %2$d minutes</item>
     </plurals>
+    <string name="phone_pointer_channel">Air Mouse</string>
+    <string name="phone_pointer_notice_title">Air Mouse on this phone</string>
+    <string name="phone_pointer_text">The same gesture turns it on and off. The cursor starts at the middle of the screen and your forearm moves it: point and turn. The index pinch touches where the cursor is; hold and move to drag and scroll. The middle pinch goes Back. Swipes keep their actions, and pinch and turn rests meanwhile.</string>
+    <string name="phone_pointer_needs_touch">Uses Screen gestures, which is on</string>
+    <string name="phone_pointer_needs_touch_off">Needs Screen gestures: turn it on below</string>
+    <string name="phone_pointer_section">Air Mouse on this phone</string>
+    <string name="pointer_boost_hint_screen">How much farther a quick move goes</string>
+    <string name="glasses_pointer_text">The same gesture turns it on and off. The cursor starts at the middle of the display and your forearm moves it. The index pinch touches where the cursor is, in apps and pages; hold and move to drag and scroll. The middle pinch goes Back. Swipes keep the actions above.</string>
+    <string name="glasses_pointer_section">Air Mouse on the glasses</string>
+    <string name="glasses_group_navigation">Navigation</string>
+    <string name="glasses_group_glasses">Glasses</string>
+    <string name="glasses_group_screen">Screen and sound</string>
+    <string name="glasses_option_right">Move right</string>
+    <string name="glasses_option_left">Move left</string>
+    <string name="glasses_option_down">Move down</string>
+    <string name="glasses_option_up">Move up</string>
+    <string name="glasses_option_select">Select</string>
+    <string name="glasses_option_screen">Screen on and off</string>
+    <string name="band_action_reset_gestures">Restore the default gestures</string>
 </resources>

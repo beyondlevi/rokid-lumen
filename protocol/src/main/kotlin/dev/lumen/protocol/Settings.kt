@@ -54,18 +54,22 @@ object SettingsOps {
     fun action(name: String): JSONObject = Link.request().put("op", ACTION).put("name", name)
 }
 
-/** One choice of a [Setting.Kind.CHOICE] setting. */
-data class SettingOption(val id: String, val label: String) {
-    fun toJson(): JSONObject = JSONObject().put("id", id).put("label", label)
+/**
+ * One choice of a [Setting.Kind.CHOICE] setting. Choices with a [group] are listed under it
+ * (a long list of gesture actions); a phone too old to know groups lists them all the same.
+ */
+data class SettingOption(val id: String, val label: String, val group: String = "") {
+    fun toJson(): JSONObject = JSONObject().put("id", id).put("label", label).apply { if (group.isNotEmpty()) put("group", group) }
 
     companion object {
-        fun from(json: JSONObject) = SettingOption(json.optString("id"), json.optString("label"))
+        fun from(json: JSONObject) = SettingOption(json.optString("id"), json.optString("label"), json.optString("group"))
     }
 }
 
 /**
- * A setting: a [Kind.CHOICE] among [options] or an on/off [Kind.TOGGLE] ("true"/"false"). A
- * setting with [visibleWhen] shows only while that other setting has that value.
+ * A setting: a [Kind.CHOICE] among [options], an on/off [Kind.TOGGLE] ("true"/"false") or a
+ * number on a [Kind.RANGE] from [min] to [max] in [step]s (a slider). A setting with
+ * [visibleWhen] shows only while that other setting has that value.
  */
 data class Setting(
     val key: String,
@@ -75,9 +79,12 @@ data class Setting(
     val options: List<SettingOption> = emptyList(),
     val section: String = "",
     val visibleWhen: Pair<String, String>? = null,
+    val min: Double = 0.0,
+    val max: Double = 0.0,
+    val step: Double = 0.0,
 ) {
     enum class Kind(val id: String) {
-        CHOICE("choice"), TOGGLE("toggle");
+        CHOICE("choice"), TOGGLE("toggle"), RANGE("range");
 
         companion object {
             fun of(id: String) = entries.firstOrNull { it.id == id } ?: CHOICE
@@ -85,6 +92,9 @@ data class Setting(
     }
 
     val checked: Boolean get() = value == "true"
+
+    /** A [Kind.RANGE]'s value, kept within its range. */
+    val number: Double get() = (value.toDoubleOrNull() ?: min).coerceIn(min, maxOf(min, max))
 
     fun isVisible(all: List<Setting>): Boolean {
         val (key, value) = visibleWhen ?: return true
@@ -95,6 +105,7 @@ data class Setting(
         .put("section", section)
         .put("options", JSONArray().apply { options.forEach { put(it.toJson()) } })
         .apply { visibleWhen?.let { put("visibleWhen", JSONObject().put("key", it.first).put("value", it.second)) } }
+        .apply { if (kind == Kind.RANGE) put("min", min).put("max", max).put("step", step) }
 
     companion object {
         fun from(json: JSONObject): Setting {
@@ -108,6 +119,9 @@ data class Setting(
                 options = (0 until (options?.length() ?: 0)).map { SettingOption.from(options!!.getJSONObject(it)) },
                 section = json.optString("section"),
                 visibleWhen = visible?.let { it.optString("key") to it.optString("value") },
+                min = json.optDouble("min", 0.0),
+                max = json.optDouble("max", 0.0),
+                step = json.optDouble("step", 0.0),
             )
         }
     }

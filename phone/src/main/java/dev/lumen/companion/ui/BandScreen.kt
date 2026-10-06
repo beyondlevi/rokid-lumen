@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.lumen.band.ScreenPointer
 import dev.lumen.companion.PhoneProfiles
 import dev.lumen.companion.PhoneSettings
 import dev.lumen.companion.R
@@ -175,6 +176,13 @@ private fun PhoneSettingsTab(state: CompanionUiState, actions: CompanionActions,
 
     SectionTitle(stringResource(R.string.profile_gestures, current.name))
     ProfileRows(state, actions, current)
+    if (PhoneSettings.GESTURES.any { it != profiles.switchGesture && current.action(it) == ScreenPointer.TOGGLE }) {
+        PointerCard(
+            LumenIcons.phone,
+            stringResource(R.string.phone_pointer_text),
+            note = if (state.touchEnabled) stringResource(R.string.phone_pointer_needs_touch) else null,
+        )
+    }
     PillButton(stringResource(R.string.profile_edit), primary = false, modifier = Modifier.fillMaxWidth()) { onProfile(current.id) }
 
     SectionTitle(stringResource(R.string.band_on_this_phone))
@@ -221,6 +229,37 @@ private fun PhoneSettingsTab(state: CompanionUiState, actions: CompanionActions,
             value = optionText(state.phoneHand),
             onClick = { choosingHand = true },
         )
+    }
+
+    SectionTitle(stringResource(R.string.phone_pointer_section))
+    Group {
+        SliderRow(
+            title = stringResource(R.string.computer_pointer_speed),
+            hint = stringResource(R.string.computer_pointer_speed_hint),
+            value = state.phonePointer.speed.toFloat(),
+            range = ScreenPointer.SPEEDS.first.toFloat()..ScreenPointer.SPEEDS.last.toFloat(),
+            steps = (ScreenPointer.SPEEDS.last - ScreenPointer.SPEEDS.first) / 5 - 1,
+            start = stringResource(R.string.computer_scroll_slow),
+            end = stringResource(R.string.computer_scroll_fast),
+        ) { actions.setPhonePointerSpeed(Math.round(it)) }
+        SliderRow(
+            title = stringResource(R.string.computer_pointer_steadiness),
+            hint = stringResource(R.string.computer_pointer_steadiness_hint),
+            value = state.phonePointer.steadiness,
+            range = 0f..1f,
+            steps = 9,
+            start = stringResource(R.string.computer_pointer_responsive),
+            end = stringResource(R.string.computer_pointer_steady),
+        ) { actions.setPhonePointerSteadiness(it) }
+        SliderRow(
+            title = stringResource(R.string.computer_pointer_boost),
+            hint = stringResource(R.string.pointer_boost_hint_screen),
+            value = state.phonePointer.boost,
+            range = ScreenPointer.BOOSTS,
+            steps = 14,
+            start = stringResource(R.string.computer_pointer_boost_none),
+            end = stringResource(R.string.computer_pointer_boost_more),
+        ) { actions.setPhonePointerBoost(it) }
     }
 
     SectionTitle(stringResource(R.string.band_key_section))
@@ -286,10 +325,15 @@ private fun ProfileRows(state: CompanionUiState, actions: CompanionActions, prof
     Group {
         PhoneSettings.GESTURES.forEach { key ->
             val switching = key == profiles.switchGesture
+            val pointer = !switching && profile.action(key) == ScreenPointer.TOGGLE
             ListRow(
                 title = gestureLabel(key),
                 value = if (switching) stringResource(R.string.action_next_profile) else actionLabel(profile, key, profiles),
-                trailing = if (switching) ({ Tag(stringResource(R.string.profile_all)) }) else null,
+                trailing = when {
+                    switching -> ({ Tag(stringResource(R.string.profile_all)) })
+                    pointer -> ({ Tag(stringResource(R.string.computer_tag_experimental)) })
+                    else -> null
+                },
                 onClick = if (switching) null else ({ gesture = key }),
             )
         }
@@ -424,12 +468,15 @@ private fun GlassesSettingsTab(state: CompanionUiState, actions: CompanionAction
     val schema = state.bandSchema
     var choosing by remember { mutableStateOf<Setting?>(null) }
     var confirming by remember { mutableStateOf<SettingsAction?>(null) }
-    Card {
-        Text(stringResource(R.string.glasses_fixed_title), style = MaterialTheme.typography.titleMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmall), modifier = Modifier.fillMaxWidth()) {
-            FixedGesture(LumenIcons.grid, stringResource(R.string.glasses_fixed_swipe), Modifier.weight(1f))
-            FixedGesture(LumenIcons.check, stringResource(R.string.glasses_fixed_index), Modifier.weight(1f))
-            FixedGesture(LumenIcons.back, stringResource(R.string.glasses_fixed_middle), Modifier.weight(1f))
+    // Glasses from before the air mouse map the index double tap only: the rest is fixed there.
+    if (schema != null && schema.settings.none { it.key == GLASSES_SWIPE }) {
+        Card {
+            Text(stringResource(R.string.glasses_fixed_title), style = MaterialTheme.typography.titleMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmall), modifier = Modifier.fillMaxWidth()) {
+                FixedGesture(LumenIcons.grid, stringResource(R.string.glasses_fixed_swipe), Modifier.weight(1f))
+                FixedGesture(LumenIcons.check, stringResource(R.string.glasses_fixed_index), Modifier.weight(1f))
+                FixedGesture(LumenIcons.back, stringResource(R.string.glasses_fixed_middle), Modifier.weight(1f))
+            }
         }
     }
     if (schema == null) {
@@ -447,6 +494,7 @@ private fun GlassesSettingsTab(state: CompanionUiState, actions: CompanionAction
             modifier = Modifier.padding(horizontal = Lumen.spacingSmall),
         )
     }
+    val reset = schema.actions.firstOrNull { it.name == GLASSES_RESET_GESTURES }
     schema.settings.map { it.section }.distinct().forEach { section ->
         val visible = schema.settings.filter { it.section == section && it.isVisible(schema.settings) }
         if (visible.isEmpty()) return@forEach
@@ -456,26 +504,48 @@ private fun GlassesSettingsTab(state: CompanionUiState, actions: CompanionAction
                 val title = BandLabels.setting(setting.key)?.let { stringResource(it) } ?: setting.label
                 when (setting.kind) {
                     Setting.Kind.TOGGLE -> SwitchRow(title, null, setting.checked, { actions.setBandSetting(setting.key, it.toString()) })
-                    Setting.Kind.CHOICE -> ListRow(title = title, value = optionLabel(setting, setting.value), onClick = { choosing = setting })
+                    Setting.Kind.CHOICE -> ListRow(
+                        title = title,
+                        value = optionLabel(setting, setting.value),
+                        trailing = if (setting.value == ScreenPointer.TOGGLE) ({ Tag(stringResource(R.string.computer_tag_experimental)) }) else null,
+                        onClick = { choosing = setting },
+                    )
+                    Setting.Kind.RANGE -> RangeRow(setting, title) { actions.setBandSetting(setting.key, it) }
                 }
             }
         }
+        if (section == GLASSES_GESTURES) {
+            reset?.let { action ->
+                TextButton(onClick = { actions.bandAction(action.name) }) {
+                    Text(BandLabels.action(action.name)?.let { stringResource(it) } ?: action.label, color = Lumen.accent)
+                }
+            }
+            if (schema.settings.any { it.section == GLASSES_GESTURES && it.value == ScreenPointer.TOGGLE }) {
+                PointerCard(LumenIcons.glasses, stringResource(R.string.glasses_pointer_text))
+            }
+        }
     }
-    if (schema.actions.isNotEmpty()) {
+    val others = schema.actions.filter { it != reset }
+    if (others.isNotEmpty()) {
         Group {
-            schema.actions.forEach { action ->
+            others.forEach { action ->
                 val label = BandLabels.action(action.name)?.let { stringResource(it) } ?: action.label
                 DangerRow(label, action.destructive) { if (action.destructive) confirming = action else actions.bandAction(action.name) }
             }
         }
     }
     choosing?.let { setting ->
-        Choices(
-            title = BandLabels.setting(setting.key)?.let { stringResource(it) } ?: setting.label,
-            options = setting.options.map { it.id to optionLabel(setting, it.id) },
-            selected = setting.value,
-            onDismiss = { choosing = null },
-        ) { choosing = null; actions.setBandSetting(setting.key, it) }
+        val title = BandLabels.setting(setting.key)?.let { stringResource(it) } ?: setting.label
+        if (setting.options.any { it.group.isNotEmpty() }) {
+            GroupedChoices(title, setting, onDismiss = { choosing = null }) { choosing = null; actions.setBandSetting(setting.key, it) }
+        } else {
+            Choices(
+                title = title,
+                options = setting.options.map { it.id to optionLabel(setting, it.id) },
+                selected = setting.value,
+                onDismiss = { choosing = null },
+            ) { choosing = null; actions.setBandSetting(setting.key, it) }
+        }
     }
     confirming?.let { action ->
         AlertDialog(
@@ -491,6 +561,57 @@ private fun GlassesSettingsTab(state: CompanionUiState, actions: CompanionAction
             dismissButton = { TextButton(onClick = { confirming = null }) { Text(stringResource(R.string.cancel), color = Lumen.textPrimary) } },
         )
     }
+}
+
+private const val GLASSES_GESTURES = "gestures"
+private const val GLASSES_SWIPE = "swipe_right"
+private const val GLASSES_RESET_GESTURES = "reset_gestures"
+
+/** A glasses setting on a slider, sent when it's let go (a whole number when its steps are). */
+@Composable
+private fun RangeRow(setting: Setting, title: String, onChange: (String) -> Unit) {
+    val labels = BandLabels.range(setting.key)
+    val steps = if (setting.step > 0) Math.round((setting.max - setting.min) / setting.step).toInt() - 1 else 0
+    SliderRow(
+        title = title,
+        hint = labels?.let { stringResource(it.hint) }.orEmpty(),
+        value = setting.number.toFloat(),
+        range = setting.min.toFloat()..maxOf(setting.min, setting.max).toFloat(),
+        steps = maxOf(0, steps),
+        start = labels?.let { stringResource(it.start) }.orEmpty(),
+        end = labels?.let { stringResource(it.end) }.orEmpty(),
+    ) { value ->
+        onChange(if (setting.step >= 1) Math.round(value).toString() else (Math.round(value * 100) / 100.0).toString())
+    }
+}
+
+/** A long list of choices under their groups (the glasses' gesture actions). */
+@Composable
+private fun GroupedChoices(title: String, setting: Setting, onDismiss: () -> Unit, onChoose: (String) -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Lumen.elevation1,
+        title = { Text(title) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                setting.options.groupBy { it.group }.forEach { (group, options) ->
+                    if (group.isNotEmpty()) {
+                        Text(
+                            (BandLabels.group(group)?.let { stringResource(it) } ?: group).uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Lumen.textPlaceholder,
+                            modifier = Modifier.padding(top = Lumen.spacingSmMed, bottom = 2.dp),
+                        )
+                    }
+                    options.forEach { option ->
+                        val tag = if (option.id == ScreenPointer.TOGGLE) stringResource(R.string.computer_tag_experimental) else null
+                        Option(optionLabel(setting, option.id), option.id == setting.value, tag) { onChoose(option.id) }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = Lumen.textPrimary) } },
+    )
 }
 
 @Composable
@@ -644,7 +765,7 @@ private fun profileIcon(kind: String) = when (kind) {
     else -> LumenIcons.band
 }
 
-/** An action for a phone gesture, grouped: profiles, media and volume, the screen, keys, the rest. */
+/** An action for a phone gesture, grouped: profiles, the air mouse, media and volume, the screen, keys, the rest. */
 @Composable
 private fun ActionPicker(
     title: String,
@@ -658,6 +779,7 @@ private fun ActionPicker(
         null to listOf(PhoneSettings.NONE),
         R.string.action_group_profiles to listOf(PhoneProfiles.NEXT, PhoneProfiles.PREVIOUS) +
             profiles.profiles.filter { it.id != profile.id }.map { PhoneProfiles.GO_PREFIX + it.id },
+        R.string.computer_group_mouse to listOf(ScreenPointer.TOGGLE),
         R.string.action_group_media to listOf("media.play_pause", "media.next", "media.previous", "volume.up", "volume.down", "volume.mute"),
         R.string.action_group_screen to listOf("screen.back", "screen.home", "screen.recents", "screen.swipe_up", "screen.swipe_down", "screen.swipe_left", "screen.swipe_right"),
         R.string.action_group_keys to listOf("key.dpad_up", "key.dpad_down", "key.dpad_left", "key.dpad_right", "key.enter"),
@@ -684,7 +806,10 @@ private fun ActionPicker(
                             modifier = Modifier.padding(top = Lumen.spacingSmMed, bottom = 2.dp),
                         )
                     }
-                    ids.forEach { id -> Option(actionText(id, profiles), id == current) { onChoose(id) } }
+                    ids.forEach { id ->
+                        val tag = if (id == ScreenPointer.TOGGLE) stringResource(R.string.computer_tag_experimental) else null
+                        Option(actionText(id, profiles), id == current, tag) { onChoose(id) }
+                    }
                 }
             }
         },

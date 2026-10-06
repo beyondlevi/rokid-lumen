@@ -85,6 +85,10 @@ object BandRuntime {
                 main.post { actions.forEach { this@BandRuntime.sink?.onBandAction(it) } }
             }
 
+            override fun onPointer(records: DoubleArray) {
+                main.post { GlassesPointer.onBand(records) }
+            }
+
             override fun onLog(line: String) {
                 main.post { note(line) }
             }
@@ -193,7 +197,17 @@ object BandRuntime {
     @JvmStatic
     fun setScreenOn(context: Context, on: Boolean) {
         screenOn = on
+        // No cursor over a dark display (and no motion for it).
+        if (!on) GlassesPointer.stop()
         applyStreams(context)
+    }
+
+    /** The air mouse on the band ([GlassesPointer]); false when the band isn't connected or can't run it. */
+    @JvmStatic
+    fun setPointer(on: Boolean, tuning: String): Boolean {
+        val device = device ?: return false
+        if (on && phase != Phase.CONNECTED) return false
+        return device.setPointer(on, tuning)
     }
 
     /**
@@ -272,6 +286,8 @@ object BandRuntime {
 
     private fun setPhase(phase: Phase, band: String?) {
         this.phase = phase
+        // The air mouse ends with the connection.
+        if (phase != Phase.CONNECTED) GlassesPointer.stop()
         if (band != null) bandName = band
         if (phase == Phase.STOPPED) status = JSONObject()
         notifyListeners()

@@ -546,6 +546,19 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
         return HomeResult.HANDLED
     }
 
+    override fun onTap(x: Float, y: Float): Boolean {
+        // The detail reads by scrolling (the cursor drags it); its replies are a bar of their own.
+        if (level is Level.Detail) return false
+        val index = rows.indexOfFirst { it.frame.isUnder(x, y) }
+        if (index < 0) return false
+        if (index != focus) {
+            focus = index
+            applyFocus(animate = true)
+        }
+        rows[index].activate()
+        return true
+    }
+
     private fun step(delta: Int) {
         if (level is Level.Detail) {
             scroll.smoothScrollBy(0, delta * px(120f))

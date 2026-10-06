@@ -292,4 +292,6 @@
     <string name="quick_reply_sent">Enviado</string>
     <string name="quick_reply_failed">Não deu para responder pelo celular</string>
     <string name="quick_reply_no_phone">O celular não está conectado</string>
+    <string name="feedback_pointer_on">Air Mouse ligado</string>
+    <string name="feedback_pointer_off">Air Mouse desligado</string>
 </resources>

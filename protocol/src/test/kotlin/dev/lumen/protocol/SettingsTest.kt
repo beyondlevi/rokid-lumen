@@ -30,6 +30,22 @@ class SettingsTest {
     }
 
     @Test
+    fun `grouped choices and ranges round-trip`() {
+        val gesture = Setting(
+            "swipe_right", Setting.Kind.CHOICE, "Swipe right", "pc.pointer",
+            listOf(SettingOption("nav.right", "Move right", "navigation"), SettingOption("pc.pointer", "Air Mouse", "mouse")), section = "gestures",
+        )
+        val speed = Setting("pointer_speed", Setting.Kind.RANGE, "Cursor speed", "50", section = "pointer", min = 10.0, max = 100.0, step = 5.0)
+        val schema = SettingsEvent.Schema(listOf(gesture, speed), emptyList(), BandStatus())
+        assertEquals(schema, SettingsEvent.from(Link.parse(schema.toJson().toString())))
+        assertEquals(50.0, speed.number, 0.0)
+        assertEquals(100.0, speed.copy(value = "400").number, 0.0)
+        assertEquals(10.0, speed.copy(value = "fast").number, 0.0)
+        // A group-less choice stays as it was on the wire.
+        assertFalse(SettingOption("none", "No action").toJson().has("group"))
+    }
+
+    @Test
     fun `visibility follows the other setting's value`() {
         assertTrue(app.isVisible(listOf(action, app)))
         assertFalse(app.isVisible(listOf(action.copy(value = "none"), app)))

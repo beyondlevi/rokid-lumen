@@ -77,6 +77,36 @@ class BandMappingTest {
     }
 
     @Test
+    fun everyGestureCanBeMappedAndKeepsItsDefaultOtherwise() {
+        val mapping = BandMapping.build(
+            mapOf("swipe_right" to GestureChoices.command(GestureChoices.POINTER, null), "middle_tap" to ""),
+            DialMode.VOLUME, "band",
+        )
+        assertEquals("pc.pointer", resolve(mapping, "swipe_right"))
+        assertNull(resolve(mapping, "middle_tap"))
+        // The others are as they always were.
+        assertEquals(BandCommand.LEFT, resolve(mapping, "swipe_left"))
+        assertEquals(BandCommand.ACTIVATE, resolve(mapping, "index_tap"))
+        assertEquals(BandCommand.SCREEN, resolve(mapping, "middle_double"))
+    }
+
+    @Test
+    fun choicesBecomeCommands() {
+        assertEquals(BandCommand.BACK, GestureChoices.command(BandCommand.BACK, null))
+        assertEquals("glasses.home", GestureChoices.command(GlassesAction.HOME.id(), null))
+        assertEquals("app:com.example.reader", GestureChoices.command(GlassesAction.LAUNCH_APP.id(), "com.example.reader"))
+        assertEquals("", GestureChoices.command(GestureChoices.NONE, null))
+        assertEquals("pc.pointer", GestureChoices.command(GestureChoices.POINTER, null))
+        // The index double tap's stored ids from before still read, Back as the navigation's.
+        assertEquals(GlassesAction.AI_ASSIST.id(), GestureChoices.of(GlassesAction.AI_ASSIST.id(), GestureChoices.NONE))
+        assertEquals(BandCommand.BACK, GestureChoices.of(GlassesAction.BACK.id(), GestureChoices.NONE))
+        assertEquals(BandCommand.ACTIVATE, GestureChoices.of("nonsense", BandCommand.ACTIVATE))
+        assertEquals(BandCommand.SCREEN, GestureChoices.of(null, BandCommand.SCREEN))
+        // Every gesture's default is a choice the phone can show.
+        MappableGesture.entries.forEach { assertEquals(true, GestureChoices.isChoice(it.default)) }
+    }
+
+    @Test
     fun everyGlassesActionRoundTripsThroughItsId() {
         for (action in GlassesAction.entries) {
             assertEquals(action, GlassesAction.fromId(action.id(), GlassesAction.NONE))

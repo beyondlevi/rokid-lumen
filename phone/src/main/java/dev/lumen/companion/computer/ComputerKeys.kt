@@ -1,5 +1,7 @@
 package dev.lumen.companion.computer
 
+import dev.lumen.band.ScreenPointer
+
 /**
  * What the band does on a computer, in the terms of a Bluetooth keyboard and mouse: key strokes
  * (a HID usage with its modifiers), media keys (consumer usages) and the mouse wheel.
@@ -43,7 +45,7 @@ object ComputerKeys {
      * The air mouse ([ComputerPointer]): the gesture mapped to it turns it on, and the band turns
      * it off with the same gesture. Not a key either.
      */
-    const val POINTER = "pc.pointer"
+    const val POINTER = ScreenPointer.TOGGLE
 
     /** A mouse move as reports of at most ±127 counts each way, keeping the total. */
     fun mouseMoves(dx: Int, dy: Int): List<Pair<Int, Int>> {

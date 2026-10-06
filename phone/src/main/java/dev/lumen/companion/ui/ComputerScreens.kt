@@ -36,6 +36,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -95,19 +97,7 @@ internal fun ComputerSettingsTab(
         }
     }
     if (PhoneSettings.GESTURES.any { it != phoneProfiles.switchGesture && current.action(it) == ComputerKeys.POINTER }) {
-        Row(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Lumen.radiusCard)).background(Lumen.surface).padding(Lumen.spacingMedium),
-            horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed),
-        ) {
-            Icon(LumenIcons.laptop, contentDescription = null, tint = Lumen.purple, modifier = Modifier.size(22.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmall), verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.computer_pointer_title), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
-                    Tag(stringResource(R.string.computer_tag_experimental))
-                }
-                Text(stringResource(R.string.computer_pointer_text), style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
-            }
-        }
+        PointerCard(LumenIcons.laptop, stringResource(R.string.computer_pointer_text))
     }
     PillButton(stringResource(R.string.profile_edit), primary = false, modifier = Modifier.fillMaxWidth()) { onComputerProfile(current.id) }
 
@@ -199,9 +189,31 @@ internal fun ComputerSettingsTab(
     }
 }
 
+/**
+ * What the air mouse does where it's mapped (a computer, this phone, the glasses), marked
+ * experimental; [note] is a line under it (what it needs).
+ */
+@Composable
+internal fun PointerCard(icon: ImageVector, text: String, note: String? = null, noteColor: Color = Lumen.textSecondary) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(Lumen.radiusCard)).background(Lumen.surface).padding(Lumen.spacingMedium),
+        horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed),
+    ) {
+        Icon(icon, contentDescription = null, tint = Lumen.purple, modifier = Modifier.size(22.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmall), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.computer_pointer_title), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                Tag(stringResource(R.string.computer_tag_experimental))
+            }
+            Text(text, style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
+            if (note != null) Text(note, style = MaterialTheme.typography.bodySmall, color = noteColor)
+        }
+    }
+}
+
 /** A setting on a slider (the scrolling, the air mouse), saved when it's let go. */
 @Composable
-private fun SliderRow(
+internal fun SliderRow(
     title: String,
     hint: String,
     value: Float,

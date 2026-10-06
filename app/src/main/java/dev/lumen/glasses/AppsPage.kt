@@ -262,6 +262,15 @@ class AppsPage(private val activity: Activity, private val onOpen: (Entry) -> Un
         return HomeResult.HANDLED
     }
 
+    override fun onTap(x: Float, y: Float): Boolean {
+        val index = cells.indexOfFirst { it.frame.isUnder(x, y) }
+        if (index < 0) return false
+        focus = index
+        applyFocus(animate = true)
+        entries.getOrNull(index)?.let(onOpen)
+        return true
+    }
+
     private fun px(value: Float) = MetaStyle.px(activity, value)
 
     companion object {

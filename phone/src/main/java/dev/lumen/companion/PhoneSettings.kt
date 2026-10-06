@@ -3,6 +3,7 @@ package dev.lumen.companion
 import android.content.Context
 import android.content.Intent
 import dev.lumen.band.BandLink
+import dev.lumen.band.ScreenPointer
 import dev.lumen.companion.computer.ComputerProfiles
 import dev.lumen.protocol.Setting
 import dev.lumen.protocol.SettingOption
@@ -65,6 +66,7 @@ object PhoneSettings {
         "torch.toggle" to "Flashlight on or off",
         OPEN_APP to "Open an app",
         SWITCH_TO_GLASSES to "Use the band on the glasses",
+        ScreenPointer.TOGGLE to "Air Mouse",
         PhoneProfiles.NEXT to "Next profile",
         PhoneProfiles.PREVIOUS to "Previous profile",
     )
@@ -80,8 +82,33 @@ object PhoneSettings {
 
     private val HANDS = linkedMapOf("band" to "As on the band", "left" to "Left", "right" to "Right")
 
-    /** Actions that need the accessibility service ([PhoneTouchService]). */
-    fun needsTouch(action: String) = action.startsWith("screen.") || action.startsWith("key.") || action == OPEN_APP
+    /** Actions that need the accessibility service ([PhoneTouchService]); the air mouse draws and touches through it. */
+    fun needsTouch(action: String) =
+        action.startsWith("screen.") || action.startsWith("key.") || action == OPEN_APP || action == ScreenPointer.TOGGLE
+
+    // ---- The air mouse on this phone ([PhonePointer]), set like a computer's ----
+
+    private const val POINTER_SPEED = "pointer_speed"
+    private const val POINTER_STEADINESS = "pointer_steadiness"
+    private const val POINTER_BOOST = "pointer_boost"
+
+    fun pointerTuning(context: Context): ScreenPointer.Tuning {
+        val prefs = prefs(context)
+        return ScreenPointer.Tuning(
+            prefs.getInt(POINTER_SPEED, ScreenPointer.SPEED_DEFAULT).coerceIn(ScreenPointer.SPEEDS),
+            prefs.getFloat(POINTER_STEADINESS, ScreenPointer.STEADINESS_DEFAULT).coerceIn(0f, 1f),
+            prefs.getFloat(POINTER_BOOST, ScreenPointer.BOOST_DEFAULT).coerceIn(ScreenPointer.BOOSTS),
+        )
+    }
+
+    fun setPointerSpeed(context: Context, speed: Int) =
+        prefs(context).edit().putInt(POINTER_SPEED, speed.coerceIn(ScreenPointer.SPEEDS)).apply()
+
+    fun setPointerSteadiness(context: Context, steadiness: Float) =
+        prefs(context).edit().putFloat(POINTER_STEADINESS, steadiness.coerceIn(0f, 1f)).apply()
+
+    fun setPointerBoost(context: Context, boost: Float) =
+        prefs(context).edit().putFloat(POINTER_BOOST, boost.coerceIn(ScreenPointer.BOOSTS)).apply()
 
     fun action(context: Context, gesture: String): String =
         prefs(context).getString(PREFIX + gesture, null) ?: DEFAULTS[gesture] ?: NONE

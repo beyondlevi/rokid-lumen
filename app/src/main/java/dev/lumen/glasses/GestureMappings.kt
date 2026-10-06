@@ -2,17 +2,92 @@ package dev.lumen.glasses
 
 import android.content.Context
 import android.content.SharedPreferences
+import dev.lumen.band.ScreenPointer
 
 /**
- * How the band's gestures drive the glasses. The navigation gestures are fixed, as the R08 ring's
- * are in R08 Access Bridge: a swipe moves the launcher or the focus one step (right and down
- * forward, left and up back), an index tap selects, a middle tap is Back. The middle double tap
- * turns the screen off and on, as on Meta's glasses ([BandCommand.SCREEN]). The index double tap
- * and pinch and turn can be mapped; the index double ships unmapped (the dial is volume) so that
- * an index tap never waits to rule out a double. The middle hold stays the controls toggle.
+ * How the band's gestures drive the glasses. Each gesture can be mapped ([GestureChoices]); by
+ * default they navigate as the R08 ring does in R08 Access Bridge: a swipe moves the launcher or
+ * the focus one step (right and down forward, left and up back), an index tap selects, a middle
+ * tap is Back, and the middle double tap turns the screen off and on, as on Meta's glasses
+ * ([BandCommand.SCREEN]). The index double tap ships unmapped (the dial is volume) so that an
+ * index tap never waits to rule out a double. The middle hold stays the controls toggle.
  */
-enum class MappableGesture(val key: String, val title: String) {
-    INDEX_DOUBLE("index_double", "Index double tap"),
+enum class MappableGesture(val key: String, val title: String, val default: String) {
+    SWIPE_RIGHT("swipe_right", "Swipe right", BandCommand.RIGHT),
+    SWIPE_LEFT("swipe_left", "Swipe left", BandCommand.LEFT),
+    SWIPE_DOWN("swipe_down", "Swipe down", BandCommand.DOWN),
+    SWIPE_UP("swipe_up", "Swipe up", BandCommand.UP),
+    INDEX_TAP("index_tap", "Index tap", BandCommand.ACTIVATE),
+    MIDDLE_TAP("middle_tap", "Middle tap", BandCommand.BACK),
+    INDEX_DOUBLE("index_double", "Index double tap", GestureChoices.NONE),
+    MIDDLE_DOUBLE("middle_double", "Middle double tap", BandCommand.SCREEN),
+}
+
+/**
+ * What a glasses gesture can do, by choice id: a band command (the navigation, the screen, the
+ * volume, the air mouse) or a [GlassesAction] id. The ids are what's stored and what the phone
+ * shows; [command] turns one into the bridge's action.
+ */
+object GestureChoices {
+    const val NONE = "none"
+
+    /** The air mouse ([GlassesPointer]): the bridge's toggle id (rust/bridge `POINTER_TOGGLE`). */
+    const val POINTER = ScreenPointer.TOGGLE
+
+    const val NAVIGATION = "navigation"
+    const val MOUSE = "mouse"
+    const val GLASSES = "glasses"
+    const val SCREEN = "screen"
+    const val OTHER = "other"
+
+    data class Choice(val id: String, val title: String, val group: String)
+
+    /** Every choice, in the order the phone lists them, under their groups. */
+    val ALL: List<Choice> = listOf(
+        Choice(BandCommand.RIGHT, "Move right", NAVIGATION),
+        Choice(BandCommand.LEFT, "Move left", NAVIGATION),
+        Choice(BandCommand.DOWN, "Move down", NAVIGATION),
+        Choice(BandCommand.UP, "Move up", NAVIGATION),
+        Choice(BandCommand.ACTIVATE, "Select", NAVIGATION),
+        Choice(BandCommand.BACK, "Back", NAVIGATION),
+        Choice(POINTER, "Air Mouse", MOUSE),
+    ) + listOf(
+        GlassesAction.HOME, GlassesAction.OPEN_APPS_GRID, GlassesAction.PLAY_PAUSE, GlassesAction.AI_ASSIST,
+        GlassesAction.HI_ROKID_SHORTCUT, GlassesAction.TAKE_PHOTO, GlassesAction.VIDEO_RECORD_TOGGLE,
+        GlassesAction.AR_SCREENSHOT, GlassesAction.AR_RECORD_TOGGLE,
+    ).map { Choice(it.id(), it.title(), GLASSES) } + listOf(
+        Choice(BandCommand.SCREEN, "Screen on and off", SCREEN),
+        Choice(BandCommand.VOLUME_UP, "Volume up", SCREEN),
+        Choice(BandCommand.VOLUME_DOWN, "Volume down", SCREEN),
+        Choice(BandCommand.BRIGHTNESS_UP, "Brightness up", SCREEN),
+        Choice(BandCommand.BRIGHTNESS_DOWN, "Brightness down", SCREEN),
+        Choice(GlassesAction.LAUNCH_APP.id(), GlassesAction.LAUNCH_APP.title(), OTHER),
+        Choice(GlassesAction.TO_PHONE.id(), GlassesAction.TO_PHONE.title(), OTHER),
+        Choice(NONE, GlassesAction.NONE.title(), OTHER),
+    )
+
+    private val ids = ALL.map { it.id }.toSet()
+
+    /**
+     * A stored choice, or [default] when there's none or it's unknown. The index double tap's
+     * Android Back of old (`back`) is the Back of the navigation now, which does that and more.
+     */
+    fun of(stored: String?, default: String): String = when (stored) {
+        null -> default
+        GlassesAction.BACK.id() -> BandCommand.BACK
+        in ids -> stored
+        else -> default
+    }
+
+    fun isChoice(id: String) = id in ids
+
+    /** The bridge's action for [choice]: a command as it is, `glasses.<id>`, `app:<package>`, or none. */
+    fun command(choice: String, launchPackage: String?): String = when {
+        choice == NONE || choice.isEmpty() -> ""
+        choice == GlassesAction.LAUNCH_APP.id() -> BandMapping.command(GlassesAction.LAUNCH_APP, launchPackage)
+        choice.contains('.') -> choice
+        else -> BandMapping.command(GlassesAction.fromId(choice, GlassesAction.NONE), launchPackage)
+    }
 }
 
 /** What pinch and turn does: one action per step each way. */
@@ -84,20 +159,19 @@ object BandCommand {
 
 /** The `gesture=action;…` string the bridge and the simulated band resolve gestures with. */
 object BandMapping {
-    fun build(indexDouble: String, dial: DialMode, hand: String): String = listOf(
-        "swipe_right" to BandCommand.RIGHT,
-        "swipe_down" to BandCommand.DOWN,
-        "swipe_left" to BandCommand.LEFT,
-        "swipe_up" to BandCommand.UP,
-        "index_tap" to BandCommand.ACTIVATE,
-        "middle_tap" to BandCommand.BACK,
-        "index_double" to indexDouble,
-        "middle_double" to BandCommand.SCREEN,
-        // Pinch and turn depends on what's playing, which only the glasses know at the time.
-        "dial_up" to BandCommand.DIAL_UP,
-        "dial_down" to BandCommand.DIAL_DOWN,
-        "hand" to hand,
+    /** [commands] by gesture key; a gesture left out keeps its default ([MappableGesture.default]). */
+    fun build(commands: Map<String, String>, dial: DialMode, hand: String): String = (
+        MappableGesture.entries.map { it.key to (commands[it.key] ?: GestureChoices.command(it.default, null)) } + listOf(
+            // Pinch and turn depends on what's playing, which only the glasses know at the time.
+            "dial_up" to BandCommand.DIAL_UP,
+            "dial_down" to BandCommand.DIAL_DOWN,
+            "hand" to hand,
+        )
     ).joinToString(";") { (key, value) -> "$key=$value" }
+
+    /** The defaults with the index double tap mapped to [indexDouble]. */
+    fun build(indexDouble: String, dial: DialMode, hand: String): String =
+        build(mapOf(MappableGesture.INDEX_DOUBLE.key to indexDouble), dial, hand)
 
     /** The action name for a mapped gesture: empty for none, `app:<package>` for an app. */
     fun command(action: GlassesAction, launchPackage: String?): String = when (action) {
@@ -115,19 +189,48 @@ object GestureMappings {
     private fun prefs(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    /** What [gesture] does ([GestureChoices]); the index double tap's keys are kept from before. */
     @JvmStatic
-    fun action(context: Context, gesture: MappableGesture): GlassesAction =
-        GlassesAction.fromId(prefs(context).getString("${gesture.key}_action", null), GlassesAction.NONE)
+    fun choice(context: Context, gesture: MappableGesture): String =
+        GestureChoices.of(prefs(context).getString("${gesture.key}_action", null), gesture.default)
 
     @JvmStatic
     fun launchPackage(context: Context, gesture: MappableGesture): String? =
         prefs(context).getString("${gesture.key}_launch_package", null)
 
     @JvmStatic
-    fun setAction(context: Context, gesture: MappableGesture, action: GlassesAction, launchPackage: String?) {
+    fun setChoice(context: Context, gesture: MappableGesture, choice: String, launchPackage: String?) {
         prefs(context).edit()
-            .putString("${gesture.key}_action", action.id())
-            .putString("${gesture.key}_launch_package", if (action == GlassesAction.LAUNCH_APP) launchPackage else null)
+            .putString("${gesture.key}_action", choice)
+            .putString("${gesture.key}_launch_package", if (choice == GlassesAction.LAUNCH_APP.id()) launchPackage else null)
+            .apply()
+    }
+
+    /** Every gesture back to what it does out of the box. */
+    @JvmStatic
+    fun resetGestures(context: Context) {
+        val edit = prefs(context).edit()
+        MappableGesture.entries.forEach { edit.remove("${it.key}_action").remove("${it.key}_launch_package") }
+        edit.apply()
+    }
+
+    /** The air mouse on the glasses ([GlassesPointer]), set from the phone. */
+    @JvmStatic
+    fun pointerTuning(context: Context): ScreenPointer.Tuning {
+        val prefs = prefs(context)
+        return ScreenPointer.Tuning(
+            prefs.getInt("pointer_speed", ScreenPointer.SPEED_DEFAULT).coerceIn(ScreenPointer.SPEEDS),
+            prefs.getFloat("pointer_steadiness", ScreenPointer.STEADINESS_DEFAULT).coerceIn(0f, 1f),
+            prefs.getFloat("pointer_boost", ScreenPointer.BOOST_DEFAULT).coerceIn(ScreenPointer.BOOSTS),
+        )
+    }
+
+    @JvmStatic
+    fun setPointerTuning(context: Context, tuning: ScreenPointer.Tuning) {
+        prefs(context).edit()
+            .putInt("pointer_speed", tuning.speed.coerceIn(ScreenPointer.SPEEDS))
+            .putFloat("pointer_steadiness", tuning.steadiness.coerceIn(0f, 1f))
+            .putFloat("pointer_boost", tuning.boost.coerceIn(ScreenPointer.BOOSTS))
             .apply()
     }
 
@@ -206,13 +309,13 @@ object GestureMappings {
     /** The mapping string for the bridge, from the current settings. */
     @JvmStatic
     fun mapping(context: Context): String = BandMapping.build(
-        command(context, MappableGesture.INDEX_DOUBLE),
+        MappableGesture.entries.associate { it.key to command(context, it) },
         dial(context),
         hand(context),
     )
 
     private fun command(context: Context, gesture: MappableGesture) =
-        BandMapping.command(action(context, gesture), launchPackage(context, gesture))
+        GestureChoices.command(choice(context, gesture), launchPackage(context, gesture))
 
     @JvmStatic
     fun isVideoRecordingRequested(context: Context) = isRecordingRequested(context, "video_recording")

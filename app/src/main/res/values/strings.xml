@@ -310,4 +310,6 @@
     <string name="quick_reply_sent">Sent</string>
     <string name="quick_reply_failed">Couldn\'t reply from the phone</string>
     <string name="quick_reply_no_phone">The phone isn\'t connected</string>
+    <string name="feedback_pointer_on">Air Mouse on</string>
+    <string name="feedback_pointer_off">Air Mouse off</string>
 </resources>

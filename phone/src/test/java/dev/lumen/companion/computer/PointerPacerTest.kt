@@ -1,5 +1,7 @@
 package dev.lumen.companion.computer
 
+import dev.lumen.band.PointerCounts
+import dev.lumen.band.PointerPacer
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
