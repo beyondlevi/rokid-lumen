@@ -590,4 +590,5 @@
     <string name="glasses_fixed_middle">Middle goes back</string>
     <string name="band_paused_locked">Paused: phone locked</string>
     <string name="band_setting_dial_silent">Pinch and turn without audio</string>
+    <string name="band_with">With %1$s</string>
 </resources>

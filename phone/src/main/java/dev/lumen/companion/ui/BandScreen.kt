@@ -456,13 +456,14 @@ private fun FixedGesture(icon: ImageVector, label: String, modifier: Modifier) {
 
 // ---- Pieces ----
 
+/** The band's name and state, and [device] (where it is), as on Home. */
 @Composable
-internal fun BandStatusCard(status: BandStatus) {
-    Card { BandStatusRow(status, lockedPause = false) }
+internal fun BandStatusCard(status: BandStatus, device: String? = null, lockedPause: Boolean = false) {
+    Card { BandStatusRow(status, lockedPause, device) }
 }
 
 @Composable
-private fun BandStatusRow(status: BandStatus, lockedPause: Boolean) {
+private fun BandStatusRow(status: BandStatus, lockedPause: Boolean, device: String? = null) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Lumen.spacingMedium)) {
         Box(
             modifier = Modifier.size(56.dp).clip(RoundedCornerShape(Lumen.radiusRow)).background(Lumen.elevation1),
@@ -485,6 +486,7 @@ private fun BandStatusRow(status: BandStatus, lockedPause: Boolean) {
                 if (status.paused) StatusPill(stringResource(R.string.band_paused), Lumen.warning)
                 else if (lockedPause) StatusPill(stringResource(R.string.band_paused_locked), Lumen.warning)
             }
+            if (device != null) Text(device, style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
         }
     }
 }

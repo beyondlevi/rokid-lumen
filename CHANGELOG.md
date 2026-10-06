@@ -3,6 +3,33 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.15]
+
+### Companion
+
+- **Gesture profiles on the phone**: Media, Navigation and your own, each with every gesture, its
+  pinch and turn and whether the band listens while the phone is locked. A switch gesture (the
+  same in every profile) moves to the next one, and any gesture can go to the next, the previous
+  or a given profile; the phone names the new profile in a short notification. Your layout from
+  before became *My layout*.
+- **The locked phone**: a profile that doesn't listen while locked turns the band off (its power
+  saving) until the phone is unlocked.
+- **The Band tab, redesigned**: where the band is and the switch on top, then the phone's and
+  the glasses' settings apart; a page per profile, and **Key and pairing** on its own page.
+- Home shows the band's state from the device it's with (it said *Off* while the band was on
+  the phone).
+
+### Glasses and companion
+
+- **Pinch and turn follows the audio**: while something plays it's the volume; otherwise what
+  you chose (the glasses: navigation, brightness, volume or nothing; the phone: brightness,
+  arrows, volume or nothing).
+
+### Band
+
+- After a handwriting session, the hand still moving while the band is restored can't pause the
+  band any more.
+
 ## [0.2.0-beta.14]
 
 ### Companion

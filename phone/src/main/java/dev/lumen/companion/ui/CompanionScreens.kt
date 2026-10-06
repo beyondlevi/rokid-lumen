@@ -333,7 +333,12 @@ private fun HomeScreen(state: CompanionUiState, actions: CompanionActions, onKey
             }
         }
     }
-    BandStatusCard(state.bandStatus)
+    // The band's state from the device it's with: the glasses report it stopped while it's here.
+    BandStatusCard(
+        if (state.bandOnPhone) state.phoneBandStatus else state.bandStatus,
+        stringResource(R.string.band_with, stringResource(if (state.bandOnPhone) R.string.band_device_phone else R.string.band_device_glasses).lowercase()),
+        lockedPause = state.bandOnPhone && !state.phoneListening,
+    )
     SectionTitle(stringResource(R.string.home_now))
     Group {
         ListRow(

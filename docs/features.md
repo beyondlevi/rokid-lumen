@@ -17,7 +17,7 @@ and hands the glasses an action name for each one. The navigation gestures are f
 | Middle double tap | Screen off and on | | |
 | Middle hold | Controls off and on | | |
 | Index double tap | Mappable, no action by default | | |
-| Pinch and turn | Volume (default), Navigation, or No action | | |
+| Pinch and turn | The volume while audio plays; otherwise Navigation, Brightness, Volume or No action | | |
 
 - **The middle double tap turns the screen off and on**, as on Meta's glasses. With the screen
   off it is the only gesture that does anything; the others are ignored. A gesture right after
@@ -34,8 +34,10 @@ and hands the glasses an action name for each one. The navigation gestures are f
   Launch app (any app with a launcher icon), MRBD apps (the grid), Rokid AI, Hi Rokid Shortcut
   (needs the self-arm), Take photo, Video toggle, AR screenshot, AR video toggle, or Use the
   band on the phone.
-- **Pinch and turn** steps the volume up and down by default (the system volume panel shows
-  it), or moves through lists and the launcher, or does nothing.
+- **Pinch and turn** follows what's playing: while audio plays it steps the volume (the system
+  volume panel shows it); otherwise it does what *Pinch and turn without audio* says: move
+  through lists and the launcher, the display's brightness (needs the self-arm), the volume
+  anyway, or nothing.
 - **Navigation: Stable or Fast.** In Fast mode, three swipes in a row on the Rokid launcher
   start moving two apps per swipe.
 - **Wrist**: as set on the band, left or right.
@@ -48,7 +50,7 @@ The glasses' touchpad keys work everywhere too.
 ### Band power saving
 
 The band streams motion (gyro and orientation, which only pinch and turn needs) only while the
-glasses' screen is on, the controls aren't paused and pinch and turn does something. With **band power saving** on, it also stops its gestures: it
+glasses' screen is on and the controls aren't paused. With **band power saving** on, it also stops its gestures: it
 recognises nothing and doesn't vibrate, and only the glasses' button turns the screen (and the
 band) back on. With it off, the middle double tap still wakes the screen.
 
@@ -449,14 +451,30 @@ or **Use on the glasses**. A **Reconnect** on the glasses takes it back too. Hi 
 messages from the phone to the glasses for minutes, so the phone's buttons can be slow; a
 gesture on the glasses (an index double tap mapped to *Use the band on the phone*) is quick.
 
-On the phone each gesture is set in the Band tab: media (play or pause, next, previous),
-volume and mute, brightness, the flashlight, swipes on the screen, Back, Home, Recent apps,
-the arrow keys and Enter, opening an app, or *Use the band on the glasses*. Pinch and turn is
-the volume, the playback position or the brightness. The defaults are a media layout: swipe up
-and down change the track, the index tap plays or pauses, the middle double tap mutes. The
-screen actions, arrow keys and opening apps need the companion's accessibility service (it
+The Band tab keeps each device's settings apart: **Phone** and **Glasses**, whichever has the
+band at the moment.
+
+On the phone the gestures come in **profiles**: **Media** (swipe up and down change the track,
+the index tap plays or pauses, the middle tap mutes), **Navigation** (the arrows, Enter on the
+index tap, Back on the middle tap) and any of your own (**New profile**, or **Duplicate** one).
+A profile sets every gesture: media (play or pause, next, previous), volume and mute,
+brightness, the flashlight, swipes on the screen, Back, Home, Recent apps, the arrow keys and
+Enter, opening an app, *Use the band on the glasses*, or another profile (the next, the
+previous, or a given one). One **switch gesture**, the same in every profile (the middle double
+tap unless your old layout used it), moves to the next profile, and the phone shows the new
+profile's name in a short silent notification. A layout from before profiles became **My
+layout**, as it was.
+
+Each profile also sets:
+- **Pinch and turn without audio**: while audio plays it's the volume; otherwise brightness,
+  the arrows up and down, the volume anyway, or nothing.
+- **Listen while locked**: off, the band stops while the phone is locked (no gestures, no
+  motion: its power saving) and comes back when the phone is unlocked. Media listens while
+  locked; Navigation doesn't.
+
+The screen actions, arrow keys and opening apps need the companion's accessibility service (it
 performs gestures only and reads nothing on the screen); brightness needs *Modify system
-settings*. The phone needs the band's key, imported from a file in the Band tab.
+settings*. The phone needs the band's key: **Key and pairing**, in the Band tab.
 
 #### The handwriting keyboard
 
