@@ -79,6 +79,9 @@ demo mode and simulated notifications.
   (media, volume, brightness, flashlight, screen gestures) with **gesture profiles** (Media,
   Navigation, your own) switched by a gesture, and its **handwriting keyboard**
   writes in any app's text field with the band. Either side hands it back.
+- **The band on a computer.** Through the phone, as its Bluetooth keyboard and mouse: scrolling,
+  desktops, keys, media and writing with the band on a laptop, with profiles of its own and
+  nothing to install there.
 
 Details: [docs/features.md](docs/features.md).
 

@@ -34,6 +34,13 @@ object CompanionPrefs {
     fun bandOnPhone(context: Context) = prefs(context).getBoolean("band_on_phone", false)
     fun setBandOnPhone(context: Context, value: Boolean) = prefs(context).edit().putBoolean("band_on_phone", value).apply()
 
+    /**
+     * The band on the phone works for a computer: the phone is its Bluetooth keyboard and mouse
+     * ([dev.lumen.companion.computer.ComputerLink]). Only counts while [bandOnPhone].
+     */
+    fun bandOnComputer(context: Context) = bandOnPhone(context) && prefs(context).getBoolean("band_on_computer", false)
+    fun setBandOnComputer(context: Context, value: Boolean) = prefs(context).edit().putBoolean("band_on_computer", value).apply()
+
     /** The glasses' banner blacks out the app behind it (the additive display shows only the notification). */
     fun focusBanner(context: Context) = prefs(context).getBoolean("focus_banner", false)
     fun setFocusBanner(context: Context, value: Boolean) = prefs(context).edit().putBoolean("focus_banner", value).apply()

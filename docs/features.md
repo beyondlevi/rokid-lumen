@@ -78,8 +78,8 @@ stop, pause, and a mapping string `gesture=action;...` built by `BandMapping`. T
 exist:
 
 - `BandLink`: the real band, through the Rust bridge.
-- `SimulatedBand`: no band, in debug builds. Turn on **Band > Simulated band**, then send
-  gestures with adb:
+- `SimulatedBand`: no band, in debug builds. Turn on **Band > Simulated band** (or
+  `--es simulated true`, and `false` to go back to the band), then send gestures with adb:
 
   ```sh
   adb shell am broadcast -a dev.lumen.glasses.SIMULATE --es gesture swipe_right
@@ -101,6 +101,12 @@ exist:
   answer "Sent" on the glasses alone), `--es notify_key <key>` and `--ez notify_alert true` (its
   banner shows). `--es grid_order <ids> --es grid_hidden <ids>` (comma-separated, as in
   `lumen_grid.xml`) arranges the apps grid.
+
+  The simulated band also writes: once the composer is writing, `--es handwriting_text "<text>"`
+  comes into the field a letter at a time, as from the band's model. On the phone, with the
+  handwriting keyboard writing, the debug build takes the same from
+  `adb shell run-as dev.lumen.companion am startservice --user 0 -n
+  dev.lumen.companion/.CompanionService -a dev.lumen.companion.WRITE_TEXT --es text "<text>"`.
 
 An official API, if Meta publishes one, would be a third implementation of the same interface.
 
@@ -446,13 +452,13 @@ technique comes from Rokid Nexus, Apache-2.0).
 ### The band on the phone
 
 The band talks to one device at a time. The Band tab shows which one it controls and hands it
-over: **Use on this phone** (the glasses let go and stay off the band until it's handed back)
-or **Use on the glasses**. A **Reconnect** on the glasses takes it back too. Hi Rokid can hold
+over: **This phone** (the glasses let go and stay off the band until it's handed back), **The
+glasses**, or **Other device**, a computer through the phone (below). A **Reconnect** on the glasses takes it back too. Hi Rokid can hold
 messages from the phone to the glasses for minutes, so the phone's buttons can be slow; a
 gesture on the glasses (an index double tap mapped to *Use the band on the phone*) is quick.
 
-The Band tab keeps each device's settings apart: **Phone** and **Glasses**, whichever has the
-band at the moment.
+The Band tab keeps each device's settings apart: **Phone**, **Glasses** and **Computer**,
+whichever has the band at the moment.
 
 On the phone the gestures come in **profiles**: **Media** (swipe up and down change the track,
 the index tap plays or pauses, the middle tap mutes), **Navigation** (the arrows, Enter on the
@@ -486,3 +492,39 @@ first letter, 15 s after), and **Write** starts again. It needs the band on the 
 band on the glasses it says so and offers **Use the band on this phone**, never taking it by
 itself. Password fields never get the band. The keyboard also has Space, Delete, Enter and
 **Keyboard**, back to the previous keyboard.
+
+#### The band on a computer
+
+With **Other device**, the band stays connected to the phone and the phone becomes a computer's
+Bluetooth keyboard and mouse (Android's HID device profile): nothing to install on the computer.
+For the glasses the band is on the phone, as with **This phone**.
+
+- **Pairing**: in the Band tab, **Other device**, then the computer's row, **Pair a new
+  computer**. Android asks to make the phone visible for two minutes; on the computer, open the
+  Bluetooth settings and pick the phone (a Mac may open its keyboard assistant: close it). A
+  computer already paired with the phone shows up in the list without pairing again. The phone
+  reconnects to the last computer by itself, also after a restart; the list switches between
+  computers and **Forget** takes one off it.
+- **Profiles of its own**: **Notebook** (swipes up and down scroll, sideways the next or previous
+  desktop, Enter on the index tap, Esc on the middle tap, **Write** on the double tap the switch
+  gesture doesn't use, pinch and turn scrolls) and **Presentation** (the arrows, for slides), plus
+  your own. The actions: the arrow keys, Enter, Esc, Tab, Space, Delete, the next or previous
+  desktop, Mission Control, the app switcher, scrolling, media keys, volume, brightness, and the
+  profiles. The shortcuts are macOS'. The switch gesture is the phone's, the same in every
+  profile.
+- **Writing**: **Write** turns the band's handwriting model on, as the handwriting keyboard does,
+  and each letter is typed where the computer's cursor is; a letter the band deletes is deleted
+  there too. The middle tap ends it, and so does a pause (30 s before the first letter, 15 s
+  after). The band gives no feedback while it writes, so the phone shows a silent notification
+  with the computer's name and the last letters (only that it writes on the lock screen).
+- **On the computer** (Band tab, Computer): the computer's **keyboard layout** (ABC/US or
+  Brazilian ABNT2: a keyboard sends where a key is, and the computer's layout turns it into a
+  character), the **scrolling speed** (a slider; a swipe sends a quick run of wheel steps, which
+  the computer's acceleration turns into distance), and **Reverse scrolling** for a computer
+  without natural scrolling (macOS has it on by default). With a computer the band always listens,
+  locked phone or not.
+
+Android lets one app at a time be a keyboard, only while it runs in front or as a foreground
+service (the companion's is), and turns the phone's own Bluetooth keyboards and mice off
+meanwhile: the phone registers as a keyboard only while the band is on **Other device**, and
+lets go when it moves to the phone or the glasses.

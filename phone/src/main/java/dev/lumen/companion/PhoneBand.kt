@@ -17,6 +17,10 @@ import dev.lumen.band.BandLink
 import dev.lumen.band.GestureDevice
 import dev.lumen.band.Identity
 import dev.lumen.band.Phase
+import dev.lumen.companion.computer.ComputerKeys
+import dev.lumen.companion.computer.ComputerLink
+import dev.lumen.companion.computer.ComputerProfiles
+import dev.lumen.companion.computer.ComputerWriter
 import dev.lumen.protocol.BandStatus
 import dev.lumen.protocol.SettingsOps
 import org.json.JSONObject
@@ -30,6 +34,10 @@ import org.json.JSONObject
  * where the band is: when it turns to the phone (the switch gesture on the glasses) the phone
  * connects, and when it turns back (the glasses took it: Reconnect there) the phone lets go. The
  * switch gesture here ([PhoneSettings.SWITCH_TO_GLASSES]) is [useOnGlasses].
+ *
+ * The band on the phone can also work for a computer ([useOnComputer]): the phone keeps the band
+ * and is the computer's Bluetooth keyboard and mouse ([ComputerLink]), with the computer's own
+ * profiles ([ComputerProfiles]). For the glasses the band is on the phone then, as before.
  * Runs inside [CompanionService]; main thread.
  */
 object PhoneBand {
@@ -59,10 +67,13 @@ object PhoneBand {
     /** Starts the link if the band belongs here and it can run (the service calls this). */
     fun resume(context: Context) {
         if (CompanionPrefs.bandOnPhone(context)) start(context)
+        if (CompanionPrefs.bandOnComputer(context)) ComputerLink.start(context)
     }
 
     /** The companion's "Use on the phone": the glasses let go, the phone connects. */
     fun useHere(context: Context) {
+        leaveComputer(context)
+        if (CompanionPrefs.bandOnPhone(context) && link != null) return
         CompanionPrefs.setBandOnPhone(context, true)
         // Until the glasses see the request they still say "not the phone's": no change then.
         glassesSaidPhone = false
@@ -72,10 +83,40 @@ object PhoneBand {
 
     /** The companion's "Use on the glasses": the phone lets go, then the glasses take it. */
     fun useOnGlasses(context: Context) {
+        leaveComputer(context)
         CompanionPrefs.setBandOnPhone(context, false)
         stop()
         glassesSaidPhone = true
         CompanionService.requestSettings(SettingsOps.action(SettingsOps.ACTION_TO_GLASSES))
+    }
+
+    /**
+     * The band for a computer: here, from the glasses if it's there, and the phone becomes the
+     * computer's keyboard and mouse (it connects to the last computer).
+     */
+    fun useOnComputer(context: Context) {
+        CompanionPrefs.setBandOnComputer(context, true)
+        if (!CompanionPrefs.bandOnPhone(context) || link == null) {
+            CompanionPrefs.setBandOnPhone(context, true)
+            glassesSaidPhone = false
+            CompanionService.requestSettings(SettingsOps.action(SettingsOps.ACTION_TO_PHONE))
+            start(context)
+        } else {
+            applyMapping(context)
+            applyLock(context)
+        }
+        ComputerLink.start(context)
+        changed()
+    }
+
+    /** Back to the phone's own gestures: the computer loses its keyboard. */
+    private fun leaveComputer(context: Context) {
+        if (!CompanionPrefs.bandOnComputer(context)) return
+        ComputerWriter.stop()
+        CompanionPrefs.setBandOnComputer(context, false)
+        ComputerLink.stop()
+        applyMapping(context)
+        applyLock(context)
     }
 
     /**
@@ -96,6 +137,7 @@ object PhoneBand {
             start(context)
         } else if (!glasses.onPhone && here) {
             Log.d(TAG, "the glasses took the band back")
+            leaveComputer(context)
             CompanionPrefs.setBandOnPhone(context, false)
             stop()
         }
@@ -154,6 +196,22 @@ object PhoneBand {
         link?.setMapping(PhoneSettings.mapping(context))
     }
 
+    /**
+     * Debug builds: [text] reaches the keyboard while it writes, a letter at a time, as if the band
+     * wrote it (for screenshots and demos). False when nothing is writing.
+     */
+    fun simulateWriting(text: String): Boolean {
+        if (handwriting == null) return false
+        text.indices.forEach { index ->
+            main.postDelayed({
+                handwriting?.onHandwriting(JSONObject().put("type", "text").put("text", text.take(index + 1)))
+            }, SIMULATED_LETTER_MS * (index + 1))
+        }
+        return true
+    }
+
+    private const val SIMULATED_LETTER_MS = 650L
+
     /** The usual mapping, with the middle tap ending the writing at once (no double tap). */
     private fun writingMapping(context: Context) =
         PhoneSettings.mapping(context) + ";middle_tap=$HANDWRITING_EXIT;middle_double="
@@ -201,6 +259,7 @@ object PhoneBand {
                             // Locked, and this profile doesn't count then (the band is told to
                             // stop sending too; this covers what was already on its way).
                             !listening -> Log.d(TAG, "$action ignored: the phone is locked")
+                            CompanionPrefs.bandOnComputer(app) -> onComputer(app, action)
                             action == PhoneSettings.SWITCH_TO_GLASSES -> useOnGlasses(app)
                             action == PhoneProfiles.DIAL_UP || action == PhoneProfiles.DIAL_DOWN ->
                                 dial(app, runner, action == PhoneProfiles.DIAL_UP)
@@ -229,6 +288,38 @@ object PhoneBand {
         watchLock(app)
         Log.d(TAG, "started")
         changed()
+    }
+
+    /** A gesture's action while the band works for a computer: a key there, writing, or a profile switch. */
+    private fun onComputer(context: Context, action: String) {
+        val computer = ComputerProfiles.state(context)
+        val sent = when {
+            action == PhoneProfiles.NEXT -> switchComputerProfile(context, ComputerProfiles.step(computer, +1))
+            action == PhoneProfiles.PREVIOUS -> switchComputerProfile(context, ComputerProfiles.step(computer, -1))
+            action.startsWith(PhoneProfiles.GO_PREFIX) -> switchComputerProfile(context, action.removePrefix(PhoneProfiles.GO_PREFIX))
+            action == ComputerKeys.WRITE -> ComputerWriter.start(context)
+            action == PhoneProfiles.DIAL_UP || action == PhoneProfiles.DIAL_DOWN ->
+                ComputerProfiles.dialAction(computer.current.dial, action == PhoneProfiles.DIAL_UP)?.let { send(context, it) } ?: true
+            else -> send(context, action)
+        }
+        if (!sent) Log.d(TAG, "$action: not sent (no computer connected)")
+    }
+
+    private fun send(context: Context, action: String): Boolean {
+        val output = ComputerKeys.action(action, ComputerProfiles.invertScroll(context), ComputerProfiles.scrollSteps(context)) ?: return true
+        return ComputerLink.send(output)
+    }
+
+    /** Makes the computer profile [id] the active one; the phone says its name. */
+    fun switchComputerProfile(context: Context, id: String): Boolean {
+        val app = context.applicationContext
+        val before = ComputerProfiles.state(app)
+        if (before.profiles.none { it.id == id } || before.active == id) return true
+        val after = ComputerProfiles.update(app) { it.copy(active = id) }
+        applyMapping(app)
+        ProfileNotice.show(app, before.current.name, after.current.name)
+        changed()
+        return true
     }
 
     // ---- Profiles ----
@@ -301,7 +392,8 @@ object PhoneBand {
         val app = context.applicationContext
         val locked = app.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true ||
             app.getSystemService(PowerManager::class.java)?.isInteractive == false
-        val now = !locked || PhoneProfiles.state(app).current.whenLocked
+        // For a computer the band always counts: the phone is in a pocket then.
+        val now = !locked || CompanionPrefs.bandOnComputer(app) || PhoneProfiles.state(app).current.whenLocked
         if (now == listening && lockApplied) return
         listening = now
         lockApplied = true
@@ -314,6 +406,7 @@ object PhoneBand {
     private var lockApplied = false
 
     fun stop() {
+        ComputerWriter.stop()
         handwriting = null
         lockContext?.let { unwatchLock(it) }
         link?.stop()

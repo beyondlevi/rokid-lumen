@@ -18,6 +18,7 @@ import android.util.Log
 import com.rokid.cxr.Caps
 import com.rokid.cxr.link.CXRLink
 import com.rokid.cxr.link.callbacks.IAudioStreamCbk
+import dev.lumen.companion.computer.ComputerLink
 import dev.lumen.companion.audio.PhoneAudio
 import com.rokid.cxr.link.callbacks.ICXRLinkCbk
 import com.rokid.cxr.link.callbacks.ICustomViewCbk
@@ -168,6 +169,7 @@ class CompanionService : Service() {
             ACTION_TEST_NOTIFICATION -> TestReplyReceiver.post(this)
             ACTION_COLLECT_LOGS -> LogShare.start(this)
             ACTION_DICTATE_FILE -> dictateFile(File(filesDir, intent.getStringExtra("file") ?: "speech.pcm"))
+            ACTION_WRITE_TEXT -> Log.d(TAG, "Simulated writing: ${PhoneBand.simulateWriting(intent.getStringExtra("text").orEmpty())}")
         }
         // Not sticky: a crash here must not become a restart loop.
         return START_NOT_STICKY
@@ -178,6 +180,7 @@ class CompanionService : Service() {
         runCatching { unregisterReceiver(batteryReceiver) }
         main.removeCallbacksAndMessages(null)
         PhoneBand.stop()
+        ComputerLink.stop()
         cancelListening("service stopped")
         network.down()
         link?.disconnect()
@@ -702,6 +705,7 @@ class CompanionService : Service() {
         const val ACTION_COLLECT_LOGS = "dev.lumen.companion.COLLECT_LOGS"
         const val ACTION_BENCH = "dev.lumen.companion.BENCH"
         const val ACTION_DICTATE_FILE = "dev.lumen.companion.DICTATE_FILE"
+        const val ACTION_WRITE_TEXT = "dev.lumen.companion.WRITE_TEXT"
 
         private const val AUDIO_START_ATTEMPTS = 4
 

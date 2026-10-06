@@ -20,7 +20,12 @@ import androidx.compose.runtime.mutableStateOf
 import com.rokid.sprite.aiapp.externalapp.auth.AuthResult
 import com.rokid.sprite.aiapp.externalapp.auth.AuthorizationHelper
 import com.rokid.sprite.aiapp.externalapp.auth.GlassPermission
+import dev.lumen.companion.computer.ComputerKeys
+import dev.lumen.companion.computer.ComputerLink
+import dev.lumen.companion.computer.ComputerProfiles
+import dev.lumen.companion.computer.ComputerWriter
 import dev.lumen.companion.ui.CompanionActions
+import dev.lumen.companion.ui.ComputerUiState
 import dev.lumen.companion.ui.CompanionApp
 import dev.lumen.companion.ui.CompanionUiState
 import dev.lumen.companion.ui.DictationUiState
@@ -82,6 +87,8 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         CompanionService.listeners += listener
         BandStore.listeners += bandListener
         PhoneBand.listeners += bandListener
+        ComputerLink.listeners += bandListener
+        ComputerWriter.listeners += bandListener
         GridCache.listeners += gridListener
         KeyboardLink.listeners += gridListener
         GlassesSetup.listeners += gridListener
@@ -104,6 +111,8 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         CompanionService.listeners -= listener
         BandStore.listeners -= bandListener
         PhoneBand.listeners -= bandListener
+        ComputerLink.listeners -= bandListener
+        ComputerWriter.listeners -= bandListener
         GridCache.listeners -= gridListener
         KeyboardLink.listeners -= gridListener
         GlassesSetup.listeners -= gridListener
@@ -176,6 +185,20 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
             setup = GlassesSetup.state(this),
             claim = BandClaim.state,
             debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0,
+            bandOnComputer = CompanionPrefs.bandOnComputer(this),
+            computer = ComputerUiState(
+                status = ComputerLink.status,
+                name = ComputerLink.computer?.name,
+                address = ComputerLink.computer?.address,
+                computers = ComputerLink.computers(this),
+                pairing = ComputerLink.pairingUntil > 0,
+                phoneName = ComputerLink.phoneName(this),
+                layout = ComputerProfiles.layout(this),
+                invertScroll = ComputerProfiles.invertScroll(this),
+                scrollSteps = ComputerProfiles.scrollSteps(this),
+                writing = ComputerWriter.writing,
+            ),
+            computerProfiles = ComputerProfiles.state(this),
         )
         // The switch turns off by itself when the snooze runs out.
         window.decorView.removeCallbacks(snoozeEnded)
@@ -222,6 +245,8 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_MICROPHONE) refresh()
+        // Granted with Bluetooth's other permissions (one group): go on to pairing.
+        if (requestCode == REQUEST_ADVERTISE && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) pairComputer()
     }
 
     override fun reconnect() = CompanionService.start(this, reconnect = true)
@@ -289,6 +314,104 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
 
     override fun useBandOnGlasses() {
         PhoneBand.useOnGlasses(this)
+        refresh()
+    }
+
+    override fun useBandOnComputer() {
+        PhoneBand.useOnComputer(this)
+        refresh()
+    }
+
+    override fun connectComputer(address: String) {
+        ComputerLink.connect(this, address)
+        refresh()
+    }
+
+    override fun forgetComputer(address: String) {
+        ComputerLink.forget(this, address)
+        refresh()
+    }
+
+    /** Android asks the person before the phone shows up in other devices' Bluetooth lists. */
+    private val discoverable = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        // The result code is the time it stays visible, or "canceled".
+        if (result.resultCode > 0) ComputerLink.pairingStarted() else say(getString(R.string.computer_pair_refused))
+        refresh()
+    }
+
+    override fun pairComputer() {
+        if (checkSelfPermission(Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_ADVERTISE), REQUEST_ADVERTISE)
+            return
+        }
+        discoverable.launch(
+            Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
+                .putExtra(android.bluetooth.BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, ComputerLink.PAIRING_SECONDS),
+        )
+    }
+
+    override fun cancelComputerPairing() {
+        ComputerLink.cancelPairing()
+        refresh()
+    }
+
+    override fun openBluetoothSettings() = startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+
+    private fun computerProfilesChanged() {
+        PhoneBand.applyMapping(this)
+        refresh()
+    }
+
+    override fun selectComputerProfile(id: String) {
+        PhoneBand.switchComputerProfile(this, id)
+        refresh()
+    }
+
+    override fun addComputerProfile() {
+        val count = ComputerProfiles.state(this).profiles.size + 1
+        val id = ComputerProfiles.add(this, getString(R.string.profile_new_name, count), from = null)
+        PhoneBand.switchComputerProfile(this, id)
+        refresh()
+    }
+
+    override fun duplicateComputerProfile(id: String) {
+        val from = ComputerProfiles.state(this).profiles.firstOrNull { it.id == id } ?: return
+        ComputerProfiles.add(this, getString(R.string.profile_copy, from.name), from)
+        refresh()
+    }
+
+    override fun removeComputerProfile(id: String) {
+        ComputerProfiles.remove(this, id)
+        computerProfilesChanged()
+    }
+
+    override fun renameComputerProfile(id: String, name: String) {
+        ComputerProfiles.edit(this, id) { it.copy(name = name) }
+        refresh()
+    }
+
+    override fun setComputerAction(id: String, gesture: String, action: String) {
+        ComputerProfiles.edit(this, id) { it.copy(actions = it.actions + (gesture to action)) }
+        computerProfilesChanged()
+    }
+
+    override fun setComputerDial(id: String, dial: String) {
+        ComputerProfiles.edit(this, id) { it.copy(dial = dial) }
+        refresh()
+    }
+
+    override fun setComputerLayout(layout: ComputerKeys.Layout) {
+        ComputerProfiles.setLayout(this, layout)
+        refresh()
+    }
+
+    override fun setComputerInvertScroll(on: Boolean) {
+        ComputerProfiles.setInvertScroll(this, on)
+        refresh()
+    }
+
+    override fun setComputerScrollSteps(steps: Int) {
+        ComputerProfiles.setScrollSteps(this, steps)
         refresh()
     }
 
@@ -615,6 +738,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         private const val REQUEST_AUTH = 7
         private const val REQUEST_MICROPHONE = 8
         private const val REQUEST_PERMISSIONS = 8
+        private const val REQUEST_ADVERTISE = 12
         const val TEST_CHANNEL = "test"
         const val TEST_ID = 42
     }

@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.lumen.companion.PhoneProfiles
@@ -54,33 +55,59 @@ import dev.lumen.protocol.SettingsAction
  * own settings, apart. The phone's are its gesture profiles, pinch and turn and the locked phone,
  * plus the keyboard and the permissions some actions need; the glasses' come from the schema they
  * send. The key has its own page ([BandKeyPage]); a profile's name and copies, too ([ProfilePage]).
+ * The band on the phone can also work for a computer, the phone as its keyboard and mouse: the
+ * computer's settings are a third tab ([ComputerSettingsTab]), its computers a page ([ComputersPage]).
  */
 @Composable
-internal fun BandScreen(state: CompanionUiState, actions: CompanionActions, onProfile: (String) -> Unit, onKey: () -> Unit) {
-    var tab by rememberSaveable { mutableStateOf(if (state.bandOnPhone) TAB_PHONE else TAB_GLASSES) }
+internal fun BandScreen(
+    state: CompanionUiState,
+    actions: CompanionActions,
+    onProfile: (String) -> Unit,
+    onKey: () -> Unit,
+    onComputers: () -> Unit,
+    onComputerProfile: (String) -> Unit,
+) {
+    val here = when {
+        state.bandOnComputer -> TAB_COMPUTER
+        state.bandOnPhone -> TAB_PHONE
+        else -> TAB_GLASSES
+    }
+    var tab by rememberSaveable { mutableStateOf(here) }
+    // The settings follow the band when it moves to another device.
+    LaunchedEffect(here) { tab = here }
 
     Header(stringResource(R.string.band_title), stringResource(R.string.band_subtitle))
-    BandHereCard(state, actions, onKey)
+    BandHereCard(state, actions, onKey, onComputers)
     Column(verticalArrangement = Arrangement.spacedBy(Lumen.spacingSmall)) {
         SectionTitle(stringResource(R.string.band_settings_of))
+        val tabs = listOf(TAB_PHONE, TAB_GLASSES, TAB_COMPUTER)
         Segmented(
             listOf(
-                Segment(stringResource(R.string.band_tab_phone), LumenIcons.phone, state.bandOnPhone),
-                Segment(stringResource(R.string.band_tab_glasses), LumenIcons.glasses, !state.bandOnPhone),
+                Segment(stringResource(R.string.band_tab_phone), LumenIcons.phone, here == TAB_PHONE),
+                Segment(stringResource(R.string.band_tab_glasses), LumenIcons.glasses, here == TAB_GLASSES),
+                Segment(stringResource(R.string.band_tab_computer), LumenIcons.laptop, here == TAB_COMPUTER),
             ),
-            selected = if (tab == TAB_PHONE) 0 else 1,
+            selected = tabs.indexOf(tab).coerceAtLeast(0),
             height = 40.dp,
-        ) { tab = if (it == 0) TAB_PHONE else TAB_GLASSES }
+        ) { tab = tabs[it] }
     }
-    if (tab == TAB_PHONE) PhoneSettingsTab(state, actions, onProfile, onKey) else GlassesSettingsTab(state, actions)
+    when (tab) {
+        TAB_PHONE -> PhoneSettingsTab(state, actions, onProfile, onKey)
+        TAB_COMPUTER -> ComputerSettingsTab(state, actions, onComputers, onComputerProfile, onKey)
+        else -> GlassesSettingsTab(state, actions)
+    }
 }
 
 private const val TAB_PHONE = "phone"
 private const val TAB_GLASSES = "glasses"
+private const val TAB_COMPUTER = "computer"
 
-/** The band's state, and which device it controls (a tap on the other hands it over). */
+/**
+ * The band's state, and which device it controls (a tap on another hands it over): the glasses,
+ * this phone, or a computer through this phone.
+ */
 @Composable
-private fun BandHereCard(state: CompanionUiState, actions: CompanionActions, onKey: () -> Unit) {
+private fun BandHereCard(state: CompanionUiState, actions: CompanionActions, onKey: () -> Unit, onComputers: () -> Unit) {
     val status = if (state.bandOnPhone) state.phoneBandStatus else state.bandStatus
     Card {
         BandStatusRow(status, lockedPause = state.bandOnPhone && !state.phoneListening)
@@ -91,16 +118,31 @@ private fun BandHereCard(state: CompanionUiState, actions: CompanionActions, onK
                 listOf(
                     Segment(stringResource(R.string.band_tab_glasses), LumenIcons.glasses),
                     Segment(stringResource(R.string.band_device_this_phone), LumenIcons.phone),
+                    Segment(stringResource(R.string.band_device_other), LumenIcons.laptop),
                 ),
-                selected = if (state.bandOnPhone) 1 else 0,
+                selected = when {
+                    state.bandOnComputer -> 2
+                    state.bandOnPhone -> 1
+                    else -> 0
+                },
+                height = 72.dp,
+                stacked = true,
                 enabled = ready,
-            ) { if (it == 1) actions.useBandOnPhone() else actions.useBandOnGlasses() }
+            ) {
+                when (it) {
+                    0 -> actions.useBandOnGlasses()
+                    1 -> actions.useBandOnPhone()
+                    else -> actions.useBandOnComputer()
+                }
+            }
             val hint = when {
                 !state.bandKeyPresent -> R.string.band_key_missing
                 !state.bluetoothGranted -> R.string.band_bluetooth_missing
+                state.bandOnComputer -> R.string.band_device_computer_hint
                 else -> R.string.band_device_switch_hint
             }
             Text(stringResource(hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textPlaceholder)
+            if (state.bandOnComputer && ready) ComputerRow(state.computer, onComputers)
             when {
                 !state.bandKeyPresent -> PillButton(stringResource(R.string.band_key_row), primary = true, modifier = Modifier.fillMaxWidth()) { onKey() }
                 !state.bluetoothGranted -> PillButton(stringResource(R.string.band_allow_bluetooth), primary = true, modifier = Modifier.fillMaxWidth()) { actions.allowBluetooth() }
@@ -115,7 +157,6 @@ private fun BandHereCard(state: CompanionUiState, actions: CompanionActions, onK
 private fun PhoneSettingsTab(state: CompanionUiState, actions: CompanionActions, onProfile: (String) -> Unit, onKey: () -> Unit) {
     val profiles = state.profiles ?: return
     val current = profiles.current
-    var choosingSwitch by remember { mutableStateOf(false) }
     var choosingHand by remember { mutableStateOf(false) }
 
     SectionTitle(stringResource(R.string.profile_section))
@@ -129,27 +170,7 @@ private fun PhoneSettingsTab(state: CompanionUiState, actions: CompanionActions,
             }
             ProfileChip(stringResource(R.string.profile_new), LumenIcons.plus, selected = false) { actions.addProfile() }
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(Lumen.radiusRow))
-                .background(Lumen.elevation1)
-                .clickable(role = Role.Button) { choosingSwitch = true }
-                .padding(Lumen.spacingSmMed),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed),
-        ) {
-            Icon(LumenIcons.refresh, contentDescription = null, tint = Lumen.purple, modifier = Modifier.size(22.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    if (profiles.switchGesture == PhoneSettings.NONE) stringResource(R.string.profile_switch_none)
-                    else stringResource(R.string.profile_switch_title, gestureLabel(profiles.switchGesture).lowercase()),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                Text(stringResource(R.string.profile_switch_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
-            }
-            Icon(LumenIcons.chevron, contentDescription = null, tint = Lumen.textPlaceholder, modifier = Modifier.size(18.dp))
-        }
+        SwitchGestureRow(profiles, actions)
     }
 
     SectionTitle(stringResource(R.string.profile_gestures, current.name))
@@ -205,16 +226,6 @@ private fun PhoneSettingsTab(state: CompanionUiState, actions: CompanionActions,
     SectionTitle(stringResource(R.string.band_key_section))
     Group { ListRow(title = stringResource(R.string.band_key_row), subtitle = stringResource(R.string.band_key_row_hint), icon = LumenIcons.shield, onClick = onKey) }
 
-    if (choosingSwitch) {
-        Choices(
-            title = stringResource(R.string.profile_switch_choose),
-            options = (listOf(PhoneSettings.NONE) + PhoneSettings.GESTURES).map {
-                it to if (it == PhoneSettings.NONE) stringResource(R.string.band_option_none) else gestureLabel(it)
-            },
-            selected = profiles.switchGesture,
-            onDismiss = { choosingSwitch = false },
-        ) { choosingSwitch = false; actions.setSwitchGesture(it) }
-    }
     if (choosingHand) {
         Choices(
             title = stringResource(R.string.band_setting_hand),
@@ -222,6 +233,46 @@ private fun PhoneSettingsTab(state: CompanionUiState, actions: CompanionActions,
             selected = state.phoneHand,
             onDismiss = { choosingHand = false },
         ) { choosingHand = false; actions.setPhoneSetting(PhoneSettings.HAND, it) }
+    }
+}
+
+/**
+ * The switch gesture, the same in every profile (the phone's and the computer's), and its picker.
+ * [hint] says what switching does where it's shown.
+ */
+@Composable
+internal fun SwitchGestureRow(profiles: PhoneProfiles.State, actions: CompanionActions, hint: String = stringResource(R.string.profile_switch_hint)) {
+    var choosing by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Lumen.radiusRow))
+            .background(Lumen.elevation1)
+            .clickable(role = Role.Button) { choosing = true }
+            .padding(Lumen.spacingSmMed),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed),
+    ) {
+        Icon(LumenIcons.refresh, contentDescription = null, tint = Lumen.purple, modifier = Modifier.size(22.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                if (profiles.switchGesture == PhoneSettings.NONE) stringResource(R.string.profile_switch_none)
+                else stringResource(R.string.profile_switch_title, gestureLabel(profiles.switchGesture).lowercase()),
+                style = MaterialTheme.typography.labelLarge,
+            )
+            Text(hint, style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
+        }
+        Icon(LumenIcons.chevron, contentDescription = null, tint = Lumen.textPlaceholder, modifier = Modifier.size(18.dp))
+    }
+    if (choosing) {
+        Choices(
+            title = stringResource(R.string.profile_switch_choose),
+            options = (listOf(PhoneSettings.NONE) + PhoneSettings.GESTURES).map {
+                it to if (it == PhoneSettings.NONE) stringResource(R.string.band_option_none) else gestureLabel(it)
+            },
+            selected = profiles.switchGesture,
+            onDismiss = { choosing = false },
+        ) { choosing = false; actions.setSwitchGesture(it) }
     }
 }
 
@@ -493,27 +544,56 @@ private fun BandStatusRow(status: BandStatus, lockedPause: Boolean, device: Stri
 
 private data class Segment(val label: String, val icon: ImageVector?, val badge: Boolean = false)
 
-/** A pill-shaped segmented control (a tab row or a two-way switch). */
+/**
+ * A pill-shaped segmented control (a tab row or a switch); [stacked] puts each label under its
+ * icon, for three choices with longer names.
+ */
 @Composable
-private fun Segmented(items: List<Segment>, selected: Int, height: Dp = 48.dp, enabled: Boolean = true, onSelect: (Int) -> Unit) {
+private fun Segmented(
+    items: List<Segment>,
+    selected: Int,
+    height: Dp = 48.dp,
+    enabled: Boolean = true,
+    stacked: Boolean = false,
+    onSelect: (Int) -> Unit,
+) {
+    val outer = if (stacked) RoundedCornerShape(Lumen.radiusCard) else CircleShape
+    val inner = if (stacked) RoundedCornerShape(20.dp) else CircleShape
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(CircleShape)
+            .clip(outer)
             .background(Lumen.bar)
-            .border(1.dp, Lumen.border, CircleShape)
+            .border(1.dp, Lumen.border, outer)
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         items.forEachIndexed { index, item ->
             val on = index == selected
+            val modifier = Modifier
+                .weight(1f)
+                .heightIn(min = height - 8.dp)
+                .clip(inner)
+                .background(if (on) Lumen.elevation2 else Lumen.bar)
+                .clickable(enabled = enabled && !on, role = Role.Tab) { onSelect(index) }
+            if (stacked) {
+                Column(
+                    modifier = modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+                ) {
+                    item.icon?.let { Icon(it, contentDescription = null, tint = if (on) Lumen.textPrimary else Lumen.textSecondary, modifier = Modifier.size(20.dp)) }
+                    Text(
+                        item.label,
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (on) FontWeight.Bold else FontWeight.Medium),
+                        color = if (on) Lumen.textPrimary else Lumen.textSecondary,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                return@forEachIndexed
+            }
             Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(height - 8.dp)
-                    .clip(CircleShape)
-                    .background(if (on) Lumen.elevation2 else Lumen.bar)
-                    .clickable(enabled = enabled && !on, role = Role.Tab) { onSelect(index) },
+                modifier = modifier,
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             ) {
@@ -530,7 +610,7 @@ private fun Segmented(items: List<Segment>, selected: Int, height: Dp = 48.dp, e
 }
 
 @Composable
-private fun ProfileChip(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
+internal fun ProfileChip(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .heightIn(min = 40.dp)
@@ -549,7 +629,7 @@ private fun ProfileChip(label: String, icon: ImageVector, selected: Boolean, onC
 }
 
 @Composable
-private fun Tag(text: String) {
+internal fun Tag(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.labelSmall,
@@ -613,7 +693,7 @@ private fun ActionPicker(
 }
 
 @Composable
-private fun Choices(title: String, options: List<Pair<String, String>>, selected: String, onDismiss: () -> Unit, onChoose: (String) -> Unit) {
+internal fun Choices(title: String, options: List<Pair<String, String>>, selected: String, onDismiss: () -> Unit, onChoose: (String) -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Lumen.elevation1,
@@ -628,7 +708,7 @@ private fun Choices(title: String, options: List<Pair<String, String>>, selected
 }
 
 @Composable
-private fun Option(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun Option(label: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.RadioButton, onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
@@ -672,7 +752,7 @@ private val GESTURE_LABELS = mapOf(
 )
 
 @Composable
-private fun gestureLabel(key: String): String = GESTURE_LABELS[key]?.let { stringResource(it) } ?: key
+internal fun gestureLabel(key: String): String = GESTURE_LABELS[key]?.let { stringResource(it) } ?: key
 
 /** A gesture's action in [profile], with the app's name for "open an app". */
 @Composable
@@ -683,7 +763,7 @@ private fun actionLabel(profile: PhoneProfiles.Profile, gesture: String, profile
 }
 
 @Composable
-private fun actionText(action: String, profiles: PhoneProfiles.State): String = when {
+internal fun actionText(action: String, profiles: PhoneProfiles.State): String = when {
     action == PhoneSettings.NONE -> stringResource(R.string.band_option_none)
     action == PhoneProfiles.NEXT -> stringResource(R.string.action_next_profile)
     action == PhoneProfiles.PREVIOUS -> stringResource(R.string.action_previous_profile)
@@ -695,7 +775,7 @@ private fun actionText(action: String, profiles: PhoneProfiles.State): String = 
 }
 
 @Composable
-private fun dialText(id: String): String = when (id) {
+internal fun dialText(id: String): String = when (id) {
     "brightness" -> stringResource(R.string.phone_dial_brightness)
     "arrows" -> stringResource(R.string.dial_arrows)
     "volume" -> stringResource(R.string.band_option_volume)
