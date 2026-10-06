@@ -104,6 +104,10 @@ class BandLink(
     /** The input-channel read of the current attempt answered. */
     @Volatile private var psmRead = false
     /** Writes to the open channel (the claim's answers come from other threads). */
+    /** A handwriting capture runs (switching on, writing or restoring). */
+    @Volatile private var handwritingActive = false
+    /** [stop] waits for the band's handwriting restore before letting go. */
+    @Volatile private var stopAfterRestore = false
     @Volatile private var writer: ((ByteArray) -> Unit)? = null
     /** The claim finished: later connections sign in with the new key. */
     @Volatile private var claimed = false
@@ -133,12 +137,38 @@ class BandLink(
     }
 
     override fun start() {
+        // Started again while a stop waited on the band's restore: the link simply stays.
+        if (stopAfterRestore) {
+            stopAfterRestore = false
+            main.removeCallbacks(finishStop)
+        }
         if (wanted) return
         wanted = true
         connect()
     }
 
+    /**
+     * Lets go of the band. With handwriting on it puts the band's settings back first (at most
+     * [RESTORE_WAIT_MS]): the next device the band goes to doesn't know they were changed.
+     */
     override fun stop() {
+        if (handwritingActive && handle != 0L && !stopAfterRestore) {
+            stopAfterRestore = true
+            setHandwriting(false)
+            main.postDelayed(finishStop, RESTORE_WAIT_MS)
+            return
+        }
+        stopNow()
+    }
+
+    private val finishStop = Runnable {
+        if (stopAfterRestore) {
+            stopAfterRestore = false
+            stopNow()
+        }
+    }
+
+    private fun stopNow() {
         wanted = false
         teardown()
         listener.onPhase(Phase.STOPPED, null)
@@ -166,6 +196,7 @@ class BandLink(
     }
 
     override fun setHandwriting(enabled: Boolean): Boolean {
+        if (enabled) handwritingActive = true
         val bytes = try {
             synchronized(lock) {
                 if (handle == 0L) return false
@@ -205,6 +236,8 @@ class BandLink(
 
     private fun onHandwritingEvent(event: JSONObject) {
         if (event.optString("type") == "state") {
+            handwritingActive = event.optString("phase") in setOf("preparing", "ready", "restoring")
+            if (!handwritingActive && stopAfterRestore) main.post(finishStop)
             val collection = event.optInt("collection_id", 0)
             val model = event.optInt("model_id", 0)
             if (collection > 0 && model > 0) Identity.saveHandwritingIds(context, collection, model)
@@ -264,6 +297,13 @@ class BandLink(
      * band that stays away isn't asked every 2 s. A connection resets it.
      */
     private fun retry(delayMs: Long) {
+        if (stopAfterRestore) {
+            // The link dropped while a stop waited on the restore: stop now (the marker makes
+            // the next connection here restore the band).
+            stopAfterRestore = false
+            stopNow()
+            return
+        }
         teardown()
         // A claim that can't even connect: most often a band that wasn't factory reset (it
         // shows up, then turns each connection down). Stop and say so instead of trying forever.
@@ -583,6 +623,8 @@ class BandLink(
         /** [Claim.onFailed]'s message when the band never let the claim connect. */
         const val CLAIM_NO_CONNECTION = "no_connection"
         private const val CLAIM_MAX_FAILURES = 4
+        /** How long a stop waits for the band's handwriting restore (it takes ~0.2 s). */
+        private const val RESTORE_WAIT_MS = 2_500L
         val BAND_SERVICE: UUID = UUID.fromString("0000feb8-0000-1000-8000-00805f9b34fb")
         val PSM_CHARACTERISTIC: UUID = UUID.fromString("2d41da7c-82b6-42aa-b34e-e2e01df8cc1a")
 

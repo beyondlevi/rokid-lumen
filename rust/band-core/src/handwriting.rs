@@ -291,10 +291,10 @@ mod tests {
     fn reset_keeps_the_field_text_and_the_held_class() {
         let mut decoder = HandwritingDecoder::default();
         decoder.consume(&sample(1, 0));
-        decoder.reset("Olá ");
+        decoder.reset("Café ");
         decoder.consume(&sample(2, 0));
         decoder.consume(&sample(3, 1));
-        assert_eq!(decoder.text(), "Olá b");
+        assert_eq!(decoder.text(), "Café b");
     }
 
     #[test]

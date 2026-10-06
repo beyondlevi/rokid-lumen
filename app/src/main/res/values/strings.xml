@@ -192,6 +192,16 @@
     <string name="composer_allow_mic">Allow the microphone to dictate</string>
     <string name="composer_no_mic">No microphone permission</string>
     <string name="composer_speak">Speak now</string>
+    <string name="composer_choose">Dictate or write?</string>
+    <string name="composer_choose_hint">Swipe: switch · Index: start · Middle: cancel</string>
+    <string name="composer_mode_dictate">Dictate</string>
+    <string name="composer_mode_write">Write</string>
+    <string name="composer_write_no_band">Connect the band to write with it</string>
+    <string name="composer_write_preparing">Getting the band ready to write…</string>
+    <string name="composer_write_ready">Write with a finger on any surface</string>
+    <string name="composer_write_hint">Push forward: space · Sweep back: delete · Middle: done</string>
+    <string name="composer_write_now">Write now</string>
+    <string name="composer_write_failed">The band stopped writing: %1$s</string>
     <string name="webapp_https_only">Web apps open only over HTTPS or as an installed package</string>
     <string name="webapp_local_server">Couldn\'t open the app\'s local server</string>
     <string name="webapp_added">Added: %1$s</string>
