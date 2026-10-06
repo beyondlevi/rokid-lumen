@@ -367,6 +367,15 @@ public final class BandAccessibilityService extends AccessibilityService {
         if (command == null || command.isEmpty() || command.startsWith("dial.changed.")) {
             return;
         }
+        if (BandCommand.DIAL_UP.equals(command) || BandCommand.DIAL_DOWN.equals(command)) {
+            // Pinch and turn: the volume while audio plays, otherwise the chosen mode.
+            AudioManager audio = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+            command = GestureMappings.dial(this).resolve(BandCommand.DIAL_UP.equals(command),
+                    audio != null && audio.isMusicActive());
+            if (command == null) {
+                return;
+            }
+        }
         // As on Meta's glasses: the middle double tap turns the screen off and on, and with the
         // screen off it's the only gesture that does anything.
         if (BandCommand.SCREEN.equals(command)) {
@@ -439,6 +448,15 @@ public final class BandAccessibilityService extends AccessibilityService {
             case BandCommand.VOLUME_UP:
             case BandCommand.VOLUME_DOWN:
                 adjustVolume(BandCommand.VOLUME_UP.equals(command));
+                return;
+            case BandCommand.BRIGHTNESS_UP:
+            case BandCommand.BRIGHTNESS_DOWN:
+                SystemControls.stepBrightness(this, SystemControls.brightness(this),
+                        BandCommand.BRIGHTNESS_UP.equals(command),
+                        () -> {
+                            Log.d(TAG, "Brightness: no way to write it (no self-arm)");
+                            return kotlin.Unit.INSTANCE;
+                        });
                 return;
             default:
                 break;

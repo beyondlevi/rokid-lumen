@@ -116,7 +116,7 @@ object BandSettings {
             )
         }
         settings += Setting(
-            KEY_DIAL, Setting.Kind.CHOICE, "Pinch and turn", GestureMappings.dial(context).key,
+            KEY_DIAL, Setting.Kind.CHOICE, "Pinch and turn without audio", GestureMappings.dial(context).key,
             DialMode.entries.map { SettingOption(it.key, it.title) }, SECTION_GESTURES,
         )
         settings += Setting(

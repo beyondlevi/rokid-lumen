@@ -142,9 +142,10 @@ impl Controller {
         }
     }
 
-    /// While the band's handwriting runs, a writing stroke can look like any gesture (the middle
-    /// hold that pauses included): only the middle tap counts, at once and even while paused, so
-    /// it can always end the writing. The dial is off.
+    /// While the band's handwriting runs (and while it's being switched off: the hand is often
+    /// still moving), a writing stroke can look like any gesture (the middle hold that pauses
+    /// included): only the middle tap counts, at once and even while paused, so it can always
+    /// end the writing. The dial is off.
     pub fn set_writing(&mut self, writing: bool) {
         if writing != self.writing {
             self.writing = writing;

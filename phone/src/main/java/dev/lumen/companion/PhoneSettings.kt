@@ -64,6 +64,8 @@ object PhoneSettings {
         "torch.toggle" to "Flashlight on or off",
         OPEN_APP to "Open an app",
         SWITCH_TO_GLASSES to "Use the band on the glasses",
+        PhoneProfiles.NEXT to "Next profile",
+        PhoneProfiles.PREVIOUS to "Previous profile",
     )
 
     /** Pinch and turn: one action per step each way. */
@@ -117,13 +119,11 @@ object PhoneSettings {
         return valid
     }
 
-    /** The bridge's `gesture=action;…` string. */
-    fun mapping(context: Context): String = mapping(
-        GESTURES.associateWith { action(context, it) },
-        GESTURES.associateWith { app(context, it) },
-        dial(context),
-        hand(context),
-    )
+    /** The bridge's `gesture=action;…` string: the active profile's ([PhoneProfiles]). */
+    fun mapping(context: Context): String {
+        val profiles = PhoneProfiles.state(context)
+        return PhoneProfiles.mapping(profiles.current, profiles.switchGesture, hand(context))
+    }
 
     fun mapping(actions: Map<String, String>, apps: Map<String, String>, dial: String, hand: String): String {
         val (up, down) = DIALS[dial] ?: DIALS.getValue("volume")
@@ -142,7 +142,8 @@ object PhoneSettings {
         override fun mapping(): String = mapping(context)
     }
 
-    private fun launchableApps(context: Context): List<SettingOption> {
+    /** The phone's launchable apps (not this one), for "open an app". */
+    fun launchableApps(context: Context): List<SettingOption> {
         val pm = context.packageManager
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         return pm.queryIntentActivities(intent, 0)

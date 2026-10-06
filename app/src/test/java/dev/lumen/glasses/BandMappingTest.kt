@@ -48,15 +48,25 @@ class BandMappingTest {
     }
 
     @Test
-    fun theDialFollowsItsMode() {
-        val volume = BandMapping.build("", DialMode.VOLUME, "band")
-        assertEquals(BandCommand.VOLUME_UP, resolve(volume, SimulatedBand.DIAL_UP))
-        assertEquals(BandCommand.VOLUME_DOWN, resolve(volume, SimulatedBand.DIAL_DOWN))
-        val navigation = BandMapping.build("", DialMode.NAVIGATION, "band")
-        assertEquals(BandCommand.FORWARD, resolve(navigation, SimulatedBand.DIAL_UP))
-        assertEquals(BandCommand.BACKWARD, resolve(navigation, SimulatedBand.DIAL_DOWN))
-        val none = BandMapping.build("", DialMode.NONE, "band")
-        assertNull(resolve(none, SimulatedBand.DIAL_UP))
+    fun theDialIsResolvedOnTheGlasses() {
+        for (mode in DialMode.entries) {
+            val mapping = BandMapping.build("", mode, "band")
+            assertEquals(BandCommand.DIAL_UP, resolve(mapping, SimulatedBand.DIAL_UP))
+            assertEquals(BandCommand.DIAL_DOWN, resolve(mapping, SimulatedBand.DIAL_DOWN))
+        }
+    }
+
+    @Test
+    fun theDialIsTheVolumeWhileAudioPlaysAndItsModeOtherwise() {
+        for (mode in DialMode.entries) {
+            assertEquals(BandCommand.VOLUME_UP, mode.resolve(up = true, playing = true))
+            assertEquals(BandCommand.VOLUME_DOWN, mode.resolve(up = false, playing = true))
+        }
+        assertEquals(BandCommand.VOLUME_UP, DialMode.VOLUME.resolve(up = true, playing = false))
+        assertEquals(BandCommand.FORWARD, DialMode.NAVIGATION.resolve(up = true, playing = false))
+        assertEquals(BandCommand.BACKWARD, DialMode.NAVIGATION.resolve(up = false, playing = false))
+        assertEquals(BandCommand.BRIGHTNESS_DOWN, DialMode.BRIGHTNESS.resolve(up = false, playing = false))
+        assertNull(DialMode.NONE.resolve(up = true, playing = false))
     }
 
     @Test

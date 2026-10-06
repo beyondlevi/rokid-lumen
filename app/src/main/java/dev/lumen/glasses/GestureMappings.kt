@@ -16,10 +16,21 @@ enum class MappableGesture(val key: String, val title: String) {
 }
 
 /** What pinch and turn does: one action per step each way. */
+/**
+ * What pinch and turn does while nothing plays: with audio playing it's always the volume
+ * ([resolve]). [up] and [down] are the commands for a turn each way.
+ */
 enum class DialMode(val key: String, val title: String, val detail: String, val up: String, val down: String) {
     VOLUME("volume", "Volume", "Turn to raise or lower the volume", BandCommand.VOLUME_UP, BandCommand.VOLUME_DOWN),
     NAVIGATION("navigation", "Navigation", "Turn to move through lists and the launcher", BandCommand.FORWARD, BandCommand.BACKWARD),
-    NONE("none", "No action", "Pinch and turn does nothing", "", "");
+    BRIGHTNESS("brightness", "Brightness", "Turn to brighten or dim the display", BandCommand.BRIGHTNESS_UP, BandCommand.BRIGHTNESS_DOWN),
+    NONE("none", "No action", "Pinch and turn does nothing without audio", "", "");
+
+    /** The command for one turn step: the volume while audio [playing], else this mode's (null: nothing). */
+    fun resolve(up: Boolean, playing: Boolean): String? = when {
+        playing -> if (up) BandCommand.VOLUME_UP else BandCommand.VOLUME_DOWN
+        else -> (if (up) this.up else down).ifEmpty { null }
+    }
 
     companion object {
         fun of(key: String?) = entries.firstOrNull { it.key == key } ?: VOLUME
@@ -41,6 +52,11 @@ object BandCommand {
     const val BACK = "nav.back"
     const val VOLUME_UP = "volume.up"
     const val VOLUME_DOWN = "volume.down"
+    const val BRIGHTNESS_UP = "brightness.up"
+    const val BRIGHTNESS_DOWN = "brightness.down"
+    /** Pinch and turn's steps, resolved on the glasses ([DialMode.resolve]): audio playing or not. */
+    const val DIAL_UP = "dial.up"
+    const val DIAL_DOWN = "dial.down"
 
     /**
      * The middle double tap: screen off when it's on, on when it's off. With the screen off it's
@@ -77,8 +93,9 @@ object BandMapping {
         "middle_tap" to BandCommand.BACK,
         "index_double" to indexDouble,
         "middle_double" to BandCommand.SCREEN,
-        "dial_up" to dial.up,
-        "dial_down" to dial.down,
+        // Pinch and turn depends on what's playing, which only the glasses know at the time.
+        "dial_up" to BandCommand.DIAL_UP,
+        "dial_down" to BandCommand.DIAL_DOWN,
         "hand" to hand,
     ).joinToString(";") { (key, value) -> "$key=$value" }
 

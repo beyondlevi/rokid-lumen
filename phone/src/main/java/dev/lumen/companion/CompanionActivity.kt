@@ -144,7 +144,10 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
             ),
             bandKeyPresent = Identity.present(this),
             bluetoothGranted = PhoneBand.problem(this) != PhoneBand.Problem.NO_BLUETOOTH,
-            phoneSettings = PhoneSettings.schema(this),
+            profiles = PhoneProfiles.state(this),
+            phoneHand = PhoneSettings.hand(this),
+            phoneApps = phoneApps,
+            phoneListening = PhoneBand.listening,
             touchEnabled = PhoneTouchService.instance != null,
             handwritingKeyboardOn = getSystemService(android.view.inputmethod.InputMethodManager::class.java)
                 ?.enabledInputMethodList?.any { it.packageName == packageName } == true,
@@ -344,6 +347,68 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     override fun setPhoneSetting(key: String, value: String) {
         if (PhoneSettings.set(this, key, value)) PhoneBand.applyMapping(this)
         refresh()
+    }
+
+    /** The launchable apps, read once (the list for "open an app"). */
+    private val phoneApps by lazy { PhoneSettings.launchableApps(this) }
+
+    private fun profilesChanged() {
+        PhoneBand.applyMapping(this)
+        PhoneBand.applyLock(this)
+        refresh()
+    }
+
+    override fun selectProfile(id: String) {
+        PhoneBand.switchProfile(this, id)
+        refresh()
+    }
+
+    override fun addProfile() {
+        val count = PhoneProfiles.state(this).profiles.size + 1
+        val id = PhoneProfiles.add(this, getString(R.string.profile_new_name, count), from = null)
+        PhoneBand.switchProfile(this, id)
+        refresh()
+    }
+
+    override fun duplicateProfile(id: String) {
+        val from = PhoneProfiles.state(this).profiles.firstOrNull { it.id == id } ?: return
+        PhoneProfiles.add(this, getString(R.string.profile_copy, from.name), from)
+        refresh()
+    }
+
+    override fun removeProfile(id: String) {
+        PhoneProfiles.remove(this, id)
+        profilesChanged()
+    }
+
+    override fun renameProfile(id: String, name: String) {
+        PhoneProfiles.edit(this, id) { it.copy(name = name) }
+        refresh()
+    }
+
+    override fun setProfileAction(id: String, gesture: String, action: String, app: String) {
+        PhoneProfiles.edit(this, id) { profile ->
+            profile.copy(
+                actions = profile.actions + (gesture to action),
+                apps = if (action == PhoneSettings.OPEN_APP) profile.apps + (gesture to app) else profile.apps - gesture,
+            )
+        }
+        profilesChanged()
+    }
+
+    override fun setProfileDial(id: String, dial: String) {
+        PhoneProfiles.edit(this, id) { it.copy(dial = dial) }
+        refresh()
+    }
+
+    override fun setProfileWhenLocked(id: String, on: Boolean) {
+        PhoneProfiles.edit(this, id) { it.copy(whenLocked = on) }
+        profilesChanged()
+    }
+
+    override fun setSwitchGesture(gesture: String) {
+        PhoneProfiles.update(this) { it.copy(switchGesture = gesture) }
+        profilesChanged()
     }
 
     override fun openTouchSettings() = startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
