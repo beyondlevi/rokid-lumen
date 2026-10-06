@@ -353,6 +353,19 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         }
     }
 
+    /** The air mouse: a tab of the pill, or what's under it in the page in front. */
+    override fun onPointerTap(x: Float, y: Float) {
+        val index = pill.tabAt(x, y)
+        if (index >= 0) {
+            if (index != tab) switchTo(index, intoPage = true)
+            if (onPill) setPillFocus(false)
+            return
+        }
+        if (onPill) setPillFocus(false)
+        val handled = pages[tab].onTap(x, y)
+        Log.d(TAG, "air mouse tap → ${pages[tab].javaClass.simpleName} $handled")
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val command = when (event.keyCode) {
             KeyEvent.KEYCODE_DPAD_UP -> BandCommand.UP

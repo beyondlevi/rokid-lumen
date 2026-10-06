@@ -77,6 +77,9 @@ class SubNavigationView(context: Context, private val tabs: List<Tab>) : LinearL
     }
 
     /** The tab shown in the page under the pill. */
+    /** The tab under [x], [y] (screen pixels), or -1. */
+    fun tabAt(x: Float, y: Float): Int = items.indexOfFirst { it.cell.isUnder(x, y) }
+
     fun setActive(index: Int, animate: Boolean = true) {
         if (index == active) return
         active = index

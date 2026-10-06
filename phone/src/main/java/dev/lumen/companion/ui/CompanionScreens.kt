@@ -125,6 +125,8 @@ data class CompanionUiState(
     val computer: ComputerUiState = ComputerUiState(),
     /** The computer's gesture profiles ([dev.lumen.companion.computer.ComputerProfiles]). */
     val computerProfiles: dev.lumen.companion.computer.ComputerProfiles.State? = null,
+    /** The air mouse on this phone's screen ([dev.lumen.companion.PhonePointer]): its settings. */
+    val phonePointer: dev.lumen.band.ScreenPointer.Tuning = dev.lumen.band.ScreenPointer.Tuning(),
 )
 
 /** The phone as a computer's keyboard and mouse: the link, the computers, the settings. */
@@ -230,6 +232,9 @@ interface CompanionActions {
     fun setComputerPointerSpeed(speed: Int)
     fun setComputerPointerSteadiness(steadiness: Float)
     fun setComputerPointerBoost(boost: Float)
+    fun setPhonePointerSpeed(speed: Int)
+    fun setPhonePointerSteadiness(steadiness: Float)
+    fun setPhonePointerBoost(boost: Float)
     fun importBandKey()
     fun allowBluetooth()
     fun setPhoneSetting(key: String, value: String)

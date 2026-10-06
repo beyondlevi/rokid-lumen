@@ -3,6 +3,25 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.18]
+
+### Companion
+
+- **Air Mouse on the phone** (experimental): a phone profile can put it on a gesture. A cursor
+  shows in the middle of the screen and your forearm moves it; the index pinch is a finger there
+  (tap, long press, hold and move to drag and scroll), the middle pinch is Back, and the same
+  gesture hides it. Its speed, steadiness and flick boost are sliders in the Phone settings. It
+  goes through Screen gestures, the accessibility service the screen actions already use.
+- The Glasses settings list every gesture of the glasses, with the actions grouped and
+  **Restore the default gestures**, and the glasses' Air Mouse sliders.
+
+### Glasses
+
+- **Every band gesture is mappable** on the glasses (the navigation was fixed), with the same
+  defaults as before.
+- **Air Mouse on the glasses** (experimental): the same cursor on the display, from any gesture.
+  It taps apps and web pages, and on Lumen's home the tab, app, control or notification under it.
+
 ## [0.2.0-beta.17]
 
 ### Companion

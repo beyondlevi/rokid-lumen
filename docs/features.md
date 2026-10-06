@@ -6,9 +6,10 @@ What Rokid Lumen does on the glasses and on the phone. To set it up, start with
 ## Band gestures
 
 The band link recognises the gestures on the band itself (in the Rust bridge, `rust/bridge/`)
-and hands the glasses an action name for each one. The navigation gestures are fixed:
+and hands the glasses an action name for each one. Every gesture can be mapped from the
+companion's Band tab (Glasses); out of the box they navigate:
 
-| Gesture | Action | On the Rokid launcher and lists | In a web app |
+| Gesture | Default action | On the Rokid launcher and lists | In a web app |
 | --- | --- | --- | --- |
 | Swipe right or down | Next | Next app, next item | Arrow right, arrow down |
 | Swipe left or up | Previous | Previous app, previous item | Arrow left, arrow up |
@@ -30,10 +31,21 @@ and hands the glasses an action name for each one. The navigation gestures are f
   its gestures do nothing until the next hold. The settings screen shows *Band connected,
   controls off*.
 - **The index double tap ships unmapped**, so an index tap is immediate: the bridge only waits
-  to rule out a double tap when one is mapped. It can be set to: Back, Home, Play or pause,
-  Launch app (any app with a launcher icon), MRBD apps (the grid), Rokid AI, Hi Rokid Shortcut
-  (needs the self-arm), Take photo, Video toggle, AR screenshot, AR video toggle, or Use the
-  band on the phone.
+  to rule out a double tap when one is mapped.
+- **A gesture can be set to**: a navigation step (right, left, down, up, Select, Back), the
+  **Air Mouse** (below), Home, MRBD apps (the grid), Play or pause, Rokid AI, Hi Rokid Shortcut
+  (needs the self-arm), Take photo, Video toggle, AR screenshot, AR video toggle, the screen off
+  and on, the volume or the brightness up or down, Launch app (any app with a launcher icon), Use
+  the band on the phone, or nothing. **Restore the default gestures** puts them back. The middle
+  hold isn't mappable: it stays the controls' pause.
+- **Air Mouse** (experimental): the gesture mapped to it shows a cursor in the middle of the
+  display, and the same gesture hides it. Your forearm moves it, as the [air mouse on a
+  computer](#the-band-on-a-computer) does; the index pinch is a finger where the cursor is (a tap,
+  or held and moved to drag and scroll a page), and the middle pinch is Back. It taps apps and web
+  pages as a touch would, and on Lumen's own home it picks the tab, app, control or notification
+  under it. Swipes keep their actions, pinch and turn rests, and the middle double tap can't turn
+  the screen off meanwhile. It stops with the screen, a pause or the band going away. Its speed,
+  steadiness and flick boost are sliders in the Band tab (Glasses).
 - **Pinch and turn** follows what's playing: while audio plays it steps the volume (the system
   volume panel shows it); otherwise it does what *Pinch and turn without audio* says: move
   through lists and the launcher, the display's brightness (needs the self-arm), the volume
@@ -478,9 +490,17 @@ Each profile also sets:
   motion: its power saving) and comes back when the phone is unlocked. Media listens while
   locked; Navigation doesn't.
 
-The screen actions, arrow keys and opening apps need the companion's accessibility service (it
-performs gestures only and reads nothing on the screen); brightness needs *Modify system
-settings*. The phone needs the band's key: **Key and pairing**, in the Band tab.
+A profile can also put the **Air Mouse** (experimental) on a gesture: a cursor in the middle of
+the phone's screen, moved by your forearm as on a [computer](#the-band-on-a-computer), and hidden
+by the same gesture. The index pinch is a finger where the cursor is (a tap, a long press, or held
+and moved to drag and scroll), the middle pinch is Back, and swipes keep the profile's actions.
+A silent notification says it's on; locking the phone, writing or the band going to a computer
+ends it. Its speed, steadiness and flick boost are sliders in the Band tab (Phone).
+
+The screen actions, arrow keys, opening apps and the Air Mouse need the companion's accessibility
+service (it performs gestures and draws the cursor, and reads nothing on the screen); brightness
+needs *Modify system settings*. The phone needs the band's key: **Key and pairing**, in the Band
+tab.
 
 #### The handwriting keyboard
 

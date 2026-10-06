@@ -9,10 +9,18 @@ import dev.lumen.companion.R
  */
 object BandLabels {
     private val settings = mapOf(
+        // The glasses' gestures, all mappable since the air mouse (older glasses send the index double only).
+        "swipe_right" to R.string.phone_gesture_swipe_right,
+        "swipe_left" to R.string.phone_gesture_swipe_left,
+        "swipe_down" to R.string.phone_gesture_swipe_down,
+        "swipe_up" to R.string.phone_gesture_swipe_up,
+        "index_tap" to R.string.phone_gesture_index_tap,
+        "middle_tap" to R.string.phone_gesture_middle_tap,
         "index_double" to R.string.band_setting_index_double,
         "middle_double" to R.string.band_setting_middle_double,
-        "index_double_app" to R.string.band_setting_app,
-        "middle_double_app" to R.string.band_setting_app,
+        "pointer_speed" to R.string.computer_pointer_speed,
+        "pointer_steadiness" to R.string.computer_pointer_steadiness,
+        "pointer_boost" to R.string.computer_pointer_boost,
         "dial" to R.string.band_setting_dial_silent,
         "navigation" to R.string.band_setting_navigation,
         "hand" to R.string.band_setting_hand,
@@ -31,8 +39,10 @@ object BandLabels {
         "phone.middle_double" to R.string.band_setting_middle_double,
         "phone.dial" to R.string.band_setting_dial,
         "phone.hand" to R.string.band_setting_hand,
-    ).let { base -> base + listOf("swipe_up", "swipe_down", "swipe_left", "swipe_right", "index_tap", "index_double", "middle_tap", "middle_double")
-        .associate { "phone.${it}_app" to R.string.band_setting_app } }
+    ).let { base ->
+        val gestures = listOf("swipe_up", "swipe_down", "swipe_left", "swipe_right", "index_tap", "index_double", "middle_tap", "middle_double")
+        base + gestures.associate { "phone.${it}_app" to R.string.band_setting_app } + gestures.associate { "${it}_app" to R.string.band_setting_app }
+    }
 
     /** Options by id; the gesture actions, the dial, the navigation and the wrist. */
     private val options = mapOf(
@@ -88,6 +98,33 @@ object BandLabels {
         "device.glasses" to R.string.phone_action_to_glasses,
         "seek" to R.string.phone_dial_seek,
         "brightness" to R.string.phone_dial_brightness,
+        // The glasses' gesture commands, and the air mouse (the phone's and the glasses').
+        "nav.right" to R.string.glasses_option_right,
+        "nav.left" to R.string.glasses_option_left,
+        "nav.down" to R.string.glasses_option_down,
+        "nav.up" to R.string.glasses_option_up,
+        "nav.activate" to R.string.glasses_option_select,
+        "nav.back" to R.string.band_option_back,
+        "screen.toggle" to R.string.glasses_option_screen,
+        "pc.pointer" to R.string.pc_pointer,
+    )
+
+    /** The groups of a long list of choices (the glasses' gesture actions). */
+    private val groups = mapOf(
+        "navigation" to R.string.glasses_group_navigation,
+        "mouse" to R.string.computer_group_mouse,
+        "glasses" to R.string.glasses_group_glasses,
+        "screen" to R.string.glasses_group_screen,
+        "other" to R.string.action_group_other,
+    )
+
+    /** A slider's hint and the words at its two ends, by setting key. */
+    data class Range(@StringRes val hint: Int, @StringRes val start: Int, @StringRes val end: Int)
+
+    private val ranges = mapOf(
+        "pointer_speed" to Range(R.string.computer_pointer_speed_hint, R.string.computer_scroll_slow, R.string.computer_scroll_fast),
+        "pointer_steadiness" to Range(R.string.computer_pointer_steadiness_hint, R.string.computer_pointer_responsive, R.string.computer_pointer_steady),
+        "pointer_boost" to Range(R.string.pointer_boost_hint_screen, R.string.computer_pointer_boost_none, R.string.computer_pointer_boost_more),
     )
 
     private val sections = mapOf(
@@ -95,11 +132,13 @@ object BandLabels {
         "phone" to R.string.band_section_phone,
         "band" to R.string.band_section_band,
         "glasses" to R.string.band_section_glasses,
+        "pointer" to R.string.glasses_pointer_section,
     )
 
     private val actions = mapOf(
         "reconnect" to R.string.band_action_reconnect,
         "forget" to R.string.band_action_forget,
+        "reset_gestures" to R.string.band_action_reset_gestures,
     )
 
     private val phases = mapOf(
@@ -115,6 +154,10 @@ object BandLabels {
     @StringRes fun option(settingKey: String, id: String): Int? = if (settingKey.endsWith("_app")) null else options[id]
 
     @StringRes fun section(key: String): Int? = sections[key]
+
+    @StringRes fun group(id: String): Int? = groups[id]
+
+    fun range(key: String): Range? = ranges[key]
 
     @StringRes fun action(name: String): Int? = actions[name]
 

@@ -1,4 +1,4 @@
-package dev.lumen.companion.computer
+package dev.lumen.band
 
 /**
  * Plays the air mouse's movement back smoothly, a fixed moment behind the arm (kinesis
@@ -6,7 +6,8 @@ package dev.lumen.companion.computer
  * sometimes 30 ms, so moving the pointer by whatever arrived looked choppy. Each step sits at
  * the time the band sampled it, and each frame takes the movement up to [seconds] ago, part of a
  * step when the frame falls between two samples. A batch later than that is taken at once.
- * Units are whatever the caller adds (mouse counts here). Times are seconds.
+ * Units are whatever the caller adds (mouse counts for a computer, pixels on a screen). Times
+ * are seconds.
  */
 class PointerPacer(private val seconds: Double = PLAYBACK_SECONDS) {
     private class Step(val start: Double, val end: Double, var x: Double, var y: Double)

@@ -217,6 +217,19 @@ class ControlsPage(private val activity: Activity, private val say: (String) -> 
         return HomeResult.HANDLED
     }
 
+    override fun onTap(x: Float, y: Float): Boolean {
+        val index = tiles.indexOfFirst { it.frame.isUnder(x, y) }
+        if (index < 0) return false
+        // A tap ends adjusting the volume or the brightness, as the index tap does there.
+        adjusting?.let { was ->
+            onCommand(BandCommand.ACTIVATE)
+            if (was === tiles[index]) return true
+        }
+        move(index)
+        activate(tiles[index])
+        return true
+    }
+
     /** The tile of [row] under the focused one's middle. */
     private fun nearest(row: Int): Int {
         val middle = tiles[focus].let { (it.start + it.end) / 2 }

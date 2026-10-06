@@ -28,6 +28,7 @@ import android.util.Log;
 import android.view.Display;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.Toast;
+import dev.lumen.band.ScreenPointer;
 import java.io.File;
 
 /**
@@ -70,6 +71,13 @@ public final class BandAccessibilityService extends AccessibilityService {
     /** The app's own screen takes band input while it's in front (see MainActivity). */
     interface InputTarget {
         boolean onBandCommand(String command);
+
+        /**
+         * The air mouse tapped at x, y (screen pixels; the touch itself already went to the
+         * window): a screen that moves a focus instead of taking touches acts on it here.
+         */
+        default void onPointerTap(float x, float y) {
+        }
     }
 
     private static BandAccessibilityService activeService;
@@ -245,6 +253,7 @@ public final class BandAccessibilityService extends AccessibilityService {
         if (activeService == this) {
             activeService = null;
         }
+        GlassesPointer.stop();
         BandRuntime.shutdown();
         PhoneLink.setAlertListener(null);
         if (banner != null) {
@@ -378,9 +387,27 @@ public final class BandAccessibilityService extends AccessibilityService {
         mainHandler.post(() -> Toast.makeText(this, text, Toast.LENGTH_SHORT).show());
     }
 
+    /** The air mouse's middle pinch: the navigation's Back, as the middle tap. */
+    void onPointerBack() {
+        onBandAction(BandCommand.BACK);
+    }
+
+    /** The air mouse's tap, for our own screens in front ([InputTarget#onPointerTap]). */
+    void onPointerTap(float x, float y) {
+        InputTarget target = inputTarget;
+        if (target != null && navigator != null && navigator.isPackageActive(getPackageName())) {
+            target.onPointerTap(x, y);
+        }
+    }
+
     /** An action name from the band's bridge (see GestureMappings), on the main thread. */
     private void onBandAction(String command) {
         if (command == null || command.isEmpty() || command.startsWith("dial.changed.")) {
+            return;
+        }
+        // The band turned the air mouse off (its gesture, a pause, the mapping changed).
+        if (ScreenPointer.OFF.equals(command)) {
+            GlassesPointer.stop();
             return;
         }
         if (BandCommand.DIAL_UP.equals(command) || BandCommand.DIAL_DOWN.equals(command)) {
@@ -416,6 +443,12 @@ public final class BandAccessibilityService extends AccessibilityService {
         }
         if (screenWakeGraceActive) {
             Log.d(TAG, "Ignored band input during screen wake grace command=" + command);
+            return;
+        }
+        if (GestureChoices.POINTER.equals(command)) {
+            if (!GlassesPointer.start(this)) {
+                Log.d(TAG, "The air mouse can't start (the band isn't connected)");
+            }
             return;
         }
         if (banner != null && banner.onBandCommand(command)) {

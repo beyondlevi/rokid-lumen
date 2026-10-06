@@ -2,6 +2,7 @@ package dev.lumen.glasses
 
 import dev.lumen.band.Identity
 import dev.lumen.band.Phase
+import dev.lumen.band.ScreenPointer
 import android.content.Context
 import android.content.Intent
 import android.os.Handler
@@ -29,6 +30,11 @@ object BandSettings {
     const val SECTION_GESTURES = "gestures"
     const val SECTION_BAND = "band"
     const val SECTION_GLASSES = "glasses"
+    const val SECTION_POINTER = "pointer"
+    const val KEY_POINTER_SPEED = "pointer_speed"
+    const val KEY_POINTER_STEADINESS = "pointer_steadiness"
+    const val KEY_POINTER_BOOST = "pointer_boost"
+    const val ACTION_RESET_GESTURES = "reset_gestures"
     const val KEY_NAVIGATION = "navigation"
     const val KEY_DIAL = "dial"
     const val KEY_HAND = "hand"
@@ -104,12 +110,9 @@ object BandSettings {
     fun schema(context: Context): SettingsEvent.Schema {
         val apps = launchableApps(context)
         val settings = mutableListOf<Setting>()
+        val choices = GestureChoices.ALL.map { SettingOption(it.id, it.title, it.group) }
         MappableGesture.entries.forEach { gesture ->
-            val action = GestureMappings.action(context, gesture)
-            settings += Setting(
-                gesture.key, Setting.Kind.CHOICE, gesture.title, action.id(),
-                GlassesAction.entries.map { SettingOption(it.id(), it.title()) }, SECTION_GESTURES,
-            )
+            settings += Setting(gesture.key, Setting.Kind.CHOICE, gesture.title, GestureMappings.choice(context, gesture), choices, SECTION_GESTURES)
             settings += Setting(
                 gesture.key + APP_SUFFIX, Setting.Kind.CHOICE, "App to open", GestureMappings.launchPackage(context, gesture).orEmpty(),
                 apps, SECTION_GESTURES, visibleWhen = gesture.key to GlassesAction.LAUNCH_APP.id(),
@@ -122,6 +125,19 @@ object BandSettings {
         settings += Setting(
             KEY_NAVIGATION, Setting.Kind.CHOICE, "Navigation", if (GestureMappings.isFastNavigation(context)) "fast" else "stable",
             listOf(SettingOption("stable", "Stable"), SettingOption("fast", "Fast")), SECTION_GESTURES,
+        )
+        val tuning = GestureMappings.pointerTuning(context)
+        settings += Setting(
+            KEY_POINTER_SPEED, Setting.Kind.RANGE, "Cursor speed", tuning.speed.toString(), section = SECTION_POINTER,
+            min = ScreenPointer.SPEEDS.first.toDouble(), max = ScreenPointer.SPEEDS.last.toDouble(), step = 5.0,
+        )
+        settings += Setting(
+            KEY_POINTER_STEADINESS, Setting.Kind.RANGE, "Steadiness", tuning.steadiness.toString(), section = SECTION_POINTER,
+            min = 0.0, max = 1.0, step = 0.1,
+        )
+        settings += Setting(
+            KEY_POINTER_BOOST, Setting.Kind.RANGE, "Fast movement boost", tuning.boost.toString(), section = SECTION_POINTER,
+            min = ScreenPointer.BOOSTS.start.toDouble(), max = ScreenPointer.BOOSTS.endInclusive.toDouble(), step = 0.1,
         )
         settings += Setting(
             KEY_HAND, Setting.Kind.CHOICE, "Wrist", GestureMappings.hand(context),
@@ -141,6 +157,7 @@ object BandSettings {
             ScreenTimeout.CHOICES.map { SettingOption(screenTimeoutId(it), screenTimeoutTitle(it)) }, SECTION_GLASSES,
         )
         val actions = listOf(
+            SettingsAction(ACTION_RESET_GESTURES, "Restore the default gestures"),
             SettingsAction(ACTION_RECONNECT, "Reconnect"),
             SettingsAction(ACTION_FORGET, "Forget the band", destructive = true),
         )
@@ -154,12 +171,23 @@ object BandSettings {
         val gesture = MappableGesture.entries.firstOrNull { it.key == key || it.key + APP_SUFFIX == key }
         when {
             gesture != null && key == gesture.key -> {
-                val action = GlassesAction.entries.firstOrNull { it.id() == value } ?: return "unknown action $value"
-                GestureMappings.setAction(context, gesture, action, GestureMappings.launchPackage(context, gesture))
+                if (!GestureChoices.isChoice(value)) return "unknown action $value"
+                GestureMappings.setChoice(context, gesture, value, GestureMappings.launchPackage(context, gesture))
             }
             gesture != null -> {
                 if (launchableApps(context).none { it.id == value }) return "app not installed: $value"
-                GestureMappings.setAction(context, gesture, GlassesAction.LAUNCH_APP, value)
+                GestureMappings.setChoice(context, gesture, GlassesAction.LAUNCH_APP.id(), value)
+            }
+            key == KEY_POINTER_SPEED || key == KEY_POINTER_STEADINESS || key == KEY_POINTER_BOOST -> {
+                val number = value.toFloatOrNull() ?: return "not a number: $value"
+                val tuning = GestureMappings.pointerTuning(context)
+                GestureMappings.setPointerTuning(context, when (key) {
+                    KEY_POINTER_SPEED -> tuning.copy(speed = Math.round(number))
+                    KEY_POINTER_STEADINESS -> tuning.copy(steadiness = number)
+                    else -> tuning.copy(boost = number)
+                })
+                GlassesPointer.retune(context)
+                return null
             }
             key == KEY_DIAL -> {
                 val mode = DialMode.entries.firstOrNull { it.key == value } ?: return "unknown dial mode $value"
@@ -231,6 +259,12 @@ object BandSettings {
 
     @JvmStatic
     fun action(context: Context, name: String): String? = when (name) {
+        ACTION_RESET_GESTURES -> {
+            GestureMappings.resetGestures(context)
+            BandRuntime.applyMapping(context)
+            pushSchema(context)
+            null
+        }
         // Reconnecting here takes the band back from the phone too.
         ACTION_RECONNECT -> {
             GestureMappings.setBandOnPhone(context, false)

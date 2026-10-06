@@ -17,6 +17,7 @@ import dev.lumen.band.BandLink
 import dev.lumen.band.GestureDevice
 import dev.lumen.band.Identity
 import dev.lumen.band.Phase
+import dev.lumen.band.ScreenPointer
 import dev.lumen.companion.computer.ComputerKeys
 import dev.lumen.companion.computer.ComputerLink
 import dev.lumen.companion.computer.ComputerPointer
@@ -96,6 +97,7 @@ object PhoneBand {
      * computer's keyboard and mouse (it connects to the last computer).
      */
     fun useOnComputer(context: Context) {
+        PhonePointer.stop()
         CompanionPrefs.setBandOnComputer(context, true)
         if (!CompanionPrefs.bandOnPhone(context) || link == null) {
             CompanionPrefs.setBandOnPhone(context, true)
@@ -175,6 +177,7 @@ object PhoneBand {
     fun startHandwriting(context: Context, sink: HandwritingSink): Boolean {
         val link = link ?: return false
         if (phase != Phase.CONNECTED) return false
+        PhonePointer.stop()
         handwriting = sink
         link.setMapping(writingMapping(context))
         if (!link.setHandwriting(true)) {
@@ -215,8 +218,8 @@ object PhoneBand {
     private const val SIMULATED_LETTER_MS = 650L
 
     /**
-     * The air mouse on the band here (see [ComputerPointer]); false when the band isn't
-     * connected here or can't run it.
+     * The air mouse on the band here (see [ComputerPointer] and [PhonePointer]); false when the
+     * band isn't connected here or can't run it.
      */
     fun setPointer(on: Boolean, tuning: String): Boolean {
         val link = link ?: return false
@@ -252,13 +255,16 @@ object PhoneBand {
                 main.post {
                     this@PhoneBand.phase = phase
                     // The air mouse ends with the connection.
-                    if (phase != Phase.CONNECTED) ComputerPointer.stop()
+                    if (phase != Phase.CONNECTED) {
+                        ComputerPointer.stop()
+                        PhonePointer.stop()
+                    }
                     changed()
                 }
             }
 
             override fun onPointer(records: DoubleArray) {
-                main.post { ComputerPointer.onBand(records) }
+                main.post { if (ComputerPointer.on) ComputerPointer.onBand(records) else PhonePointer.onBand(records) }
             }
 
             override fun onStatus(status: JSONObject) {
@@ -274,7 +280,10 @@ object PhoneBand {
                         Log.d(TAG, "action $action")
                         when {
                             action == HANDWRITING_EXIT -> handwriting?.onExit()
-                            action == ComputerPointer.OFF -> ComputerPointer.stop()
+                            action == ScreenPointer.OFF -> {
+                                ComputerPointer.stop()
+                                PhonePointer.stop()
+                            }
                             // Locked, and this profile doesn't count then (the band is told to
                             // stop sending too; this covers what was already on its way).
                             !listening -> Log.d(TAG, "$action ignored: the phone is locked")
@@ -285,6 +294,7 @@ object PhoneBand {
                             action == PhoneProfiles.NEXT -> switchProfile(app, PhoneProfiles.step(PhoneProfiles.state(app), +1))
                             action == PhoneProfiles.PREVIOUS -> switchProfile(app, PhoneProfiles.step(PhoneProfiles.state(app), -1))
                             action.startsWith(PhoneProfiles.GO_PREFIX) -> switchProfile(app, action.removePrefix(PhoneProfiles.GO_PREFIX))
+                            action == ScreenPointer.TOGGLE -> if (!PhonePointer.start(app)) Log.d(TAG, "$action: the air mouse can't start")
                             else -> runner.run(action)?.let { Log.d(TAG, "$action: $it") }
                         }
                     }
@@ -414,6 +424,8 @@ object PhoneBand {
             app.getSystemService(PowerManager::class.java)?.isInteractive == false
         // For a computer the band always counts: the phone is in a pocket then.
         val now = !locked || CompanionPrefs.bandOnComputer(app) || PhoneProfiles.state(app).current.whenLocked
+        // No cursor over a locked phone or a dark screen.
+        if (locked) PhonePointer.stop()
         if (now == listening && lockApplied) return
         listening = now
         lockApplied = true
@@ -428,6 +440,7 @@ object PhoneBand {
     fun stop() {
         ComputerWriter.stop()
         ComputerPointer.stop()
+        PhonePointer.stop()
         handwriting = null
         lockContext?.let { unwatchLock(it) }
         link?.stop()

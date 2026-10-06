@@ -11,7 +11,8 @@ import android.view.accessibility.AccessibilityEvent
  * a swipe through the middle of the screen, Back / Home / Recents, or a D-pad
  * key (the arrows and the centre, Android 13+). It also
  * opens mapped apps, which Android allows an accessibility service from the
- * background. It performs gestures only; it reads nothing on screen.
+ * background, and draws the air mouse's cursor ([PhonePointer]), its touches being gestures
+ * too. It reads nothing on screen.
  */
 class PhoneTouchService : AccessibilityService() {
     override fun onServiceConnected() {
@@ -20,11 +21,13 @@ class PhoneTouchService : AccessibilityService() {
 
     override fun onDestroy() {
         instance = null
+        PhonePointer.stop()
         super.onDestroy()
     }
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
         instance = null
+        PhonePointer.stop()
         return super.onUnbind(intent)
     }
 

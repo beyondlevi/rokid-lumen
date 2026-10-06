@@ -8,6 +8,9 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import dev.lumen.band.PointerCounts
+import dev.lumen.band.PointerPacer
+import dev.lumen.band.ScreenPointer
 import dev.lumen.companion.PhoneBand
 import dev.lumen.companion.R
 
@@ -22,7 +25,7 @@ import dev.lumen.companion.R
  */
 object ComputerPointer {
     /** The band's action when it turns the air mouse off (rust/bridge `POINTER_OFF`). */
-    const val OFF = "pointer.off"
+    const val OFF = ScreenPointer.OFF
 
     private const val TAG = "NbComputer"
     private const val CHANNEL = "computer_pointer"
