@@ -14,6 +14,7 @@ pub mod gestures;
 pub mod handwriting;
 pub mod identity;
 pub mod model_capture;
+pub mod pointer;
 pub mod proto;
 pub mod responder;
 pub mod session;

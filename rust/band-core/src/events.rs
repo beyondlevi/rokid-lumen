@@ -173,6 +173,12 @@ pub enum Event {
         raw: String,
         class: usize,
     },
+    /// A gyro sample in raw counts, for the air mouse (only while
+    /// [crate::session::BandSession::set_motion_samples] is on). Sensor data: never log it.
+    Gyro { timestamp_us: u64, raw: [i16; 3] },
+    /// An orientation sample, a unit quaternion in wire order w, x, y, z (only while
+    /// [crate::session::BandSession::set_motion_samples] is on). Sensor data: never log it.
+    Orientation { timestamp_us: u64, quaternion: [f32; 4] },
 }
 
 impl std::fmt::Debug for Event {
@@ -204,6 +210,8 @@ impl std::fmt::Debug for Event {
             Self::HandwritingText { text, class, .. } => {
                 write!(f, "HandwritingText(len={}, class={class})", text.chars().count())
             }
+            Self::Gyro { timestamp_us, .. } => write!(f, "Gyro(at={timestamp_us})"),
+            Self::Orientation { timestamp_us, .. } => write!(f, "Orientation(at={timestamp_us})"),
         }
     }
 }

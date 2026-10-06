@@ -25,6 +25,9 @@ interface GestureDevice {
 
         /** A handwriting event (see [Bridge.handwritingEvents]); the text is never to be logged. */
         fun onHandwriting(event: JSONObject) = Unit
+
+        /** The air mouse's records (see [Bridge.pointer]), after the drain's actions. */
+        fun onPointer(records: DoubleArray) = Unit
     }
 
     fun start()
@@ -51,4 +54,10 @@ interface GestureDevice {
 
     /** Start the written text over from [text] (what the field holds). */
     fun resetHandwritingText(text: String) = Unit
+
+    /**
+     * The air mouse on or off (see [Bridge.setPointer]); false when it can't run here. Its
+     * movement and buttons come to [Listener.onPointer]. It ends with the connection.
+     */
+    fun setPointer(enabled: Boolean, tuning: String): Boolean = false
 }

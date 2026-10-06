@@ -62,4 +62,15 @@ class ComputerProfilesTest {
         assertEquals("presentation", ComputerProfiles.step(state, -1))
         assertEquals("notebook", ComputerProfiles.step(state.copy(active = "presentation"), +1))
     }
+
+    @Test
+    fun `the air mouse is an action a profile keeps and maps`() {
+        assertTrue(ComputerProfiles.isAction(ComputerKeys.POINTER))
+        val json = JSONObject().put("id", "c1").put("name", "Mine").put("actions", JSONObject().put("swipe_left", ComputerKeys.POINTER))
+        val profile = ComputerProfiles.Profile.fromJson(json)
+        assertEquals(ComputerKeys.POINTER, profile.action("swipe_left"))
+        assertEquals(ComputerKeys.POINTER, parse(ComputerProfiles.mapping(profile, "index_double", "right"))["swipe_left"])
+        // Not in Notebook by default: the person chooses the gesture.
+        assertTrue(ComputerProfiles.notebook("Notebook", "index_double").actions.values.none { it == ComputerKeys.POINTER })
+    }
 }

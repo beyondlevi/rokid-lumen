@@ -3,6 +3,22 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.17]
+
+### Companion
+
+- **Air Mouse** (experimental): with the band on a computer, a gesture turns it on and the same
+  gesture off; off and on again is the clutch, to set the arm somewhere comfortable while the
+  pointer stays. The forearm moves the pointer like a mouse (relative, steadied while the arm is
+  still, accelerated on a flick); the index pinch is the left button and the middle pinch the
+  right one, held to drag; swipes keep their actions. Pointer speed, steadiness and flick boost
+  are sliders in the Computer settings. Ported from kinesis' experimental air cursor.
+
+### Band
+
+- The orientation and gyro samples reach the air mouse (they were read and dropped before), with
+  their lateness measured by the band's clock: late data is skipped and a held button let go.
+
 ## [0.2.0-beta.16]
 
 ### Companion

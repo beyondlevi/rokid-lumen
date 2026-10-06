@@ -100,6 +100,7 @@ object ComputerLink {
     }
 
     private fun close() {
+        buttons = 0
         val hid = hid ?: return
         host?.let { runCatching { hid.disconnect(it) } }
         if (registered) runCatching { hid.unregisterApp() }
@@ -148,6 +149,7 @@ object ComputerLink {
                 BluetoothProfile.STATE_CONNECTING -> set(Status.CONNECTING, "connecting")
                 BluetoothProfile.STATE_DISCONNECTED -> if (host == null || host == device) {
                     host = null
+                    buttons = 0
                     if (registered) set(Status.READY, "disconnected")
                 }
             }
@@ -279,8 +281,9 @@ object ComputerLink {
             val chunk = minOf(left, WHEEL_CHUNK)
             left -= chunk
             val value = (chunk * sign).toByte()
-            if (delay == 0L) report(MOUSE, byteArrayOf(0, 0, 0, value))
-            else main.postDelayed({ report(MOUSE, byteArrayOf(0, 0, 0, value)) }, delay)
+            // The buttons held stay held: scrolling during a drag.
+            if (delay == 0L) report(MOUSE, byteArrayOf(buttons.toByte(), 0, 0, value))
+            else main.postDelayed({ report(MOUSE, byteArrayOf(buttons.toByte(), 0, 0, value)) }, delay)
             delay += WHEEL_INTERVAL_MS
         }
         return true
@@ -288,6 +291,31 @@ object ComputerLink {
 
     private const val WHEEL_CHUNK = 2
     private const val WHEEL_INTERVAL_MS = 12L
+
+    // ---- The mouse (the air mouse) ----
+
+    const val LEFT = 1
+    const val RIGHT = 2
+
+    /** The mouse buttons held now (bits: [LEFT], [RIGHT]); every mouse report carries them. */
+    @Volatile var buttons = 0
+        private set
+
+    /** Holds [state] (0 lets go); false when no computer is connected. */
+    fun buttons(state: Int): Boolean {
+        if (state == buttons) return true
+        buttons = state
+        return report(MOUSE, byteArrayOf(state.toByte(), 0, 0, 0))
+    }
+
+    /** Lets go of any button, so none stays stuck down. */
+    fun release() {
+        if (buttons != 0) buttons(0)
+    }
+
+    /** Moves the pointer by [dx], [dy] counts (right, down), in reports of at most ±127 each. */
+    fun move(dx: Int, dy: Int): Boolean =
+        ComputerKeys.mouseMoves(dx, dy).all { (x, y) -> report(MOUSE, byteArrayOf(buttons.toByte(), x.toByte(), y.toByte(), 0)) }
 
     fun type(strokes: List<ComputerKeys.Stroke>): Boolean = strokes.all { stroke(it) }
 

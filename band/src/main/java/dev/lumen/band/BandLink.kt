@@ -100,6 +100,8 @@ class BandLink(
     /** When [drain] last asked the bridge for its status (elapsedRealtime). */
     private var lastStatusCheck = 0L
     @Volatile private var motion = true
+    /** The air mouse runs: [drain] fetches its records. */
+    @Volatile private var pointer = false
     @Volatile private var gestures = true
     /** The input-channel read of the current attempt answered. */
     @Volatile private var psmRead = false
@@ -184,6 +186,22 @@ class BandLink(
     override fun setGestures(enabled: Boolean) = synchronized(lock) {
         gestures = enabled
         if (handle != 0L) Bridge.setGestures(handle, enabled)
+    }
+
+    override fun setPointer(enabled: Boolean, tuning: String): Boolean = synchronized(lock) {
+        if (handle == 0L) {
+            pointer = false
+            return false
+        }
+        try {
+            Bridge.setPointer(handle, enabled, tuning, now())
+        } catch (_: UnsatisfiedLinkError) {
+            // A band library from before the air mouse.
+            pointer = false
+            return false
+        }
+        pointer = enabled
+        true
     }
 
     override fun setPaused(paused: Boolean) = synchronized(lock) {
@@ -288,6 +306,7 @@ class BandLink(
             if (handle != 0L) Bridge.close(handle)
             handle = 0L
             lastStatus = ""
+            pointer = false
         }
     }
 
@@ -514,6 +533,10 @@ class BandLink(
         }
         if ("connected" in lines.lines()) recoverHandwriting()
         if (actions.isNotEmpty()) listener.onActions(actions.lines())
+        if (pointer) {
+            val records = synchronized(lock) { if (handle == 0L) null else Bridge.pointer(handle, now()) }
+            if (records != null && records.isNotEmpty()) listener.onPointer(records)
+        }
         val handwriting = synchronized(lock) { if (handle == 0L) "" else Bridge.handwritingEvents(handle) }
         if (handwriting.isNotEmpty()) handwriting.lines().forEach { onHandwritingEvent(JSONObject(it)) }
         if (claim != null && !claimed) {

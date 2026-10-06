@@ -61,5 +61,17 @@ object Bridge {
      * never log it.
      */
     @JvmStatic external fun handwritingEvents(handle: Long): String
+    /**
+     * The air mouse on or off, with its [tuning] (`steadiness=0.5;boost=1.0`): the forearm's aim
+     * moves a pointer, the index and middle pinches are its buttons. Turning it on fails quietly
+     * (a `pointer.off` action) without a live band or while it writes.
+     */
+    @JvmStatic external fun setPointer(handle: Long, enabled: Boolean, tuning: String, now: Double)
+    /**
+     * The air mouse's records since the last call, four numbers each: kind (0 move: degrees
+     * right, degrees down at a band sample's time; 1 clear: drop the movement waiting to play;
+     * 2 buttons: 1 left, 2 right, 0 none), time (the [now] clock), a, b.
+     */
+    @JvmStatic external fun pointer(handle: Long, now: Double): DoubleArray
     @JvmStatic external fun close(handle: Long)
 }

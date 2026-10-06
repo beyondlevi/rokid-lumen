@@ -40,6 +40,27 @@ object ComputerKeys {
     const val WRITE = "pc.write"
 
     /**
+     * The air mouse ([ComputerPointer]): the gesture mapped to it turns it on, and the band turns
+     * it off with the same gesture. Not a key either.
+     */
+    const val POINTER = "pc.pointer"
+
+    /** A mouse move as reports of at most ±127 counts each way, keeping the total. */
+    fun mouseMoves(dx: Int, dy: Int): List<Pair<Int, Int>> {
+        val out = mutableListOf<Pair<Int, Int>>()
+        var x = dx
+        var y = dy
+        while (x != 0 || y != 0) {
+            val stepX = x.coerceIn(-127, 127)
+            val stepY = y.coerceIn(-127, 127)
+            out += stepX to stepY
+            x -= stepX
+            y -= stepY
+        }
+        return out
+    }
+
+    /**
      * How far one scroll gesture goes, in wheel steps (the person sets it, between [SCROLL_MIN]
      * and [SCROLL_MAX]). [ComputerLink] sends them as a quick run of small steps, which the
      * computer's scrolling acceleration turns into distance; pinch and turn moves one step per notch.

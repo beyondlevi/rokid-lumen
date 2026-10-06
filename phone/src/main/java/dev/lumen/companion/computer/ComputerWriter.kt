@@ -48,6 +48,8 @@ object ComputerWriter : PhoneBand.HandwritingSink {
     fun start(context: Context): Boolean {
         val app = context.applicationContext.also { this.app = it }
         if (writing) return true
+        // Writing and the air mouse share the band: the air mouse gives way.
+        ComputerPointer.stop()
         if (!ComputerLink.connected || !PhoneBand.canWrite) {
             Log.d(TAG, "writing: no computer or no band here")
             return false

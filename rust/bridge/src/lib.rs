@@ -16,7 +16,7 @@ mod jni_api;
 pub mod status;
 
 use config::{Config, DIAL_TOGGLE, DialTarget};
-use controller::{Command, Controller};
+use controller::{Command, Controller, POINTER_OFF, PointerTuning};
 use status::Status;
 
 fn config_with(mapping: &str) -> Config {
@@ -52,6 +52,8 @@ pub struct Connection {
     claim_pending: Option<Vec<u8>>,
     /// The handwriting capture's events, as JSON lines for the app.
     handwriting: Vec<String>,
+    /// When the air mouse's motion delay was last logged.
+    delay_logged: f64,
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -137,6 +139,7 @@ impl Connection {
             claim: Vec::new(),
             claim_pending: None,
             handwriting: Vec::new(),
+            delay_logged: 0.0,
         }
     }
 
@@ -154,6 +157,34 @@ impl Connection {
         for event in &result.events {
             outgoing.extend(self.on_event(event, now)?);
         }
+        outgoing.extend(self.pointer_waits(now)?);
+        Ok(outgoing)
+    }
+
+    /// A switch pinch's wait that came due (checked on every read, about every 15 ms while
+    /// motion flows, and every tick); keeps the motion samples in step with the air mouse.
+    fn pointer_waits(&mut self, now: f64) -> Result<Vec<u8>, String> {
+        let mut outgoing = Vec::new();
+        if self.controller.pointer_due().is_some_and(|due| now >= due) {
+            let gestures = self.controller.status().gestures;
+            for command in self.controller.fire_pointer_wait(now) {
+                outgoing.extend(self.apply(command, now)?);
+            }
+            let status = self.controller.status();
+            if status.gestures != gestures
+                && let Some(gesture) = &status.last_gesture
+            {
+                self.log.push(format!("gesture {gesture}"));
+            }
+        }
+        self.session.set_motion_samples(self.controller.pointer_on());
+        // Every 10 s while the air mouse runs: how late the band's motion arrives (a congested
+        // radio shows here first: kinesis saw samples arrive seconds late).
+        if self.controller.pointer_on() && now - self.delay_logged >= 10.0 {
+            self.delay_logged = now;
+            let (late, samples) = self.controller.take_delay_report();
+            self.log.push(format!("air mouse motion: {samples} samples, up to {:.0} ms late", late * 1000.0));
+        }
         Ok(outgoing)
     }
 
@@ -169,6 +200,7 @@ impl Connection {
                 outgoing.extend(self.apply(command, now)?);
             }
         }
+        outgoing.extend(self.pointer_waits(now)?);
         if self.session.streams_enabled() && now >= self.next_battery {
             self.next_battery = now + BATTERY_EVERY;
             outgoing.extend(
@@ -327,11 +359,37 @@ impl Connection {
     }
 
     pub fn set_paused(&mut self, paused: bool, now: f64) {
+        let pointer = self.controller.pointer_on();
         if paused {
             self.controller.pause();
         } else {
             self.controller.resume(now);
         }
+        if pointer && !self.controller.pointer_on() {
+            self.actions.push(POINTER_OFF.into());
+            self.session.set_motion_samples(false);
+        }
+    }
+
+    /// The air mouse on or off, with its `tuning` (`steadiness=0.5;boost=1.0`); see
+    /// `Controller::set_pointer`. Its movement and buttons come out of `take_pointer`.
+    pub fn set_pointer(&mut self, enabled: bool, tuning: &str, now: f64) {
+        let was = self.controller.pointer_on();
+        for command in self.controller.set_pointer(enabled, PointerTuning::parse(tuning), now) {
+            if let Command::Run(action) = command {
+                self.actions.push(action);
+            }
+        }
+        let on = self.controller.pointer_on();
+        self.session.set_motion_samples(on);
+        if on != was {
+            self.log.push(format!("air mouse {}", if on { "on" } else { "off" }));
+        }
+    }
+
+    /// The air mouse's records since the last call (see `controller::RECORD_MOVE`).
+    pub fn take_pointer(&mut self, now: f64) -> Vec<f64> {
+        self.controller.take_pointer(now)
     }
 
     /// Replace the gesture and dial mapping (see `Config::apply_mapping`).
@@ -346,6 +404,7 @@ impl Connection {
         if paused {
             self.controller.pause();
         }
+        self.session.set_motion_samples(self.controller.pointer_on());
     }
 
     pub fn set_dial(&mut self, dial: &str) {
@@ -402,6 +461,14 @@ impl Connection {
                 self.log.push("connected".into());
             }
             Event::Handedness(hand) => self.log.push(format!("hand {hand:?}").to_lowercase()),
+            // While the air mouse runs, each pinch report (no sensor data), to see what the band sends.
+            Event::Gesture(message) if self.controller.pointer_on() && message.finger != "thumb" => self.log.push(format!(
+                "air mouse pinch {} {}/{}{}",
+                message.finger,
+                message.action,
+                message.derived_action,
+                if message.synthetic { " synthetic" } else { "" }
+            )),
             Event::HandwritingState(status) => {
                 self.log.push(format!(
                     "handwriting {}: {}{}",

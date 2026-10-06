@@ -22,6 +22,7 @@ import com.rokid.sprite.aiapp.externalapp.auth.AuthorizationHelper
 import com.rokid.sprite.aiapp.externalapp.auth.GlassPermission
 import dev.lumen.companion.computer.ComputerKeys
 import dev.lumen.companion.computer.ComputerLink
+import dev.lumen.companion.computer.ComputerPointer
 import dev.lumen.companion.computer.ComputerProfiles
 import dev.lumen.companion.computer.ComputerWriter
 import dev.lumen.companion.ui.CompanionActions
@@ -89,6 +90,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         PhoneBand.listeners += bandListener
         ComputerLink.listeners += bandListener
         ComputerWriter.listeners += bandListener
+        ComputerPointer.listeners += bandListener
         GridCache.listeners += gridListener
         KeyboardLink.listeners += gridListener
         GlassesSetup.listeners += gridListener
@@ -113,6 +115,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         PhoneBand.listeners -= bandListener
         ComputerLink.listeners -= bandListener
         ComputerWriter.listeners -= bandListener
+        ComputerPointer.listeners -= bandListener
         GridCache.listeners -= gridListener
         KeyboardLink.listeners -= gridListener
         GlassesSetup.listeners -= gridListener
@@ -197,6 +200,10 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
                 invertScroll = ComputerProfiles.invertScroll(this),
                 scrollSteps = ComputerProfiles.scrollSteps(this),
                 writing = ComputerWriter.writing,
+                pointer = ComputerPointer.on,
+                pointerSpeed = ComputerProfiles.pointerSpeed(this),
+                pointerSteadiness = ComputerProfiles.pointerSteadiness(this),
+                pointerBoost = ComputerProfiles.pointerBoost(this),
             ),
             computerProfiles = ComputerProfiles.state(this),
         )
@@ -407,6 +414,25 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
 
     override fun setComputerInvertScroll(on: Boolean) {
         ComputerProfiles.setInvertScroll(this, on)
+        refresh()
+    }
+
+    override fun setComputerPointerSpeed(speed: Int) {
+        ComputerProfiles.setPointerSpeed(this, speed)
+        ComputerPointer.retune(this)
+        refresh()
+    }
+
+    override fun setComputerPointerSteadiness(steadiness: Float) {
+        // The slider's steps are tenths: keep them clean.
+        ComputerProfiles.setPointerSteadiness(this, Math.round(steadiness * 10) / 10f)
+        ComputerPointer.retune(this)
+        refresh()
+    }
+
+    override fun setComputerPointerBoost(boost: Float) {
+        ComputerProfiles.setPointerBoost(this, Math.round(boost * 10) / 10f)
+        ComputerPointer.retune(this)
         refresh()
     }
 
