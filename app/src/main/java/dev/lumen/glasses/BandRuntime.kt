@@ -202,7 +202,8 @@ object BandRuntime {
      * No action still streamed them (the radio and a thread wakeup per sample, ~190 a second).
      */
     private fun wantsMotion(context: Context) =
-        screenOn && !GestureMappings.isPaused(context) && GestureMappings.dial(context) != DialMode.NONE
+        // Pinch and turn always has something to do: the volume while audio plays.
+        screenOn && !GestureMappings.isPaused(context)
 
     /** The streams for the screen, the pause, the dial and power saving now; kept for new links. */
     @JvmStatic

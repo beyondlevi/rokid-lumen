@@ -13,7 +13,7 @@ object BandLabels {
         "middle_double" to R.string.band_setting_middle_double,
         "index_double_app" to R.string.band_setting_app,
         "middle_double_app" to R.string.band_setting_app,
-        "dial" to R.string.band_setting_dial,
+        "dial" to R.string.band_setting_dial_silent,
         "navigation" to R.string.band_setting_navigation,
         "hand" to R.string.band_setting_hand,
         "paused" to R.string.band_setting_paused,

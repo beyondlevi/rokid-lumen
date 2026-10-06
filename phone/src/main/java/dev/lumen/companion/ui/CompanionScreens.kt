@@ -83,7 +83,13 @@ data class CompanionUiState(
     val bandKeyPresent: Boolean = false,
     val bluetoothGranted: Boolean = false,
     /** What the band's gestures do on the phone ([dev.lumen.companion.PhoneSettings]). */
-    val phoneSettings: List<Setting> = emptyList(),
+    /** The phone's gesture profiles ([dev.lumen.companion.PhoneProfiles]). */
+    val profiles: dev.lumen.companion.PhoneProfiles.State? = null,
+    val phoneHand: String = "band",
+    /** The phone's apps, for a gesture that opens one. */
+    val phoneApps: List<dev.lumen.protocol.SettingOption> = emptyList(),
+    /** The band counts on the phone now (false: locked, with a profile that stops then). */
+    val phoneListening: Boolean = true,
     val touchEnabled: Boolean = false,
     /** Lumen's handwriting keyboard is turned on in the system's keyboard settings. */
     val handwritingKeyboardOn: Boolean = false,
@@ -175,6 +181,17 @@ interface CompanionActions {
     fun importBandKey()
     fun allowBluetooth()
     fun setPhoneSetting(key: String, value: String)
+    /** The phone's gesture profiles: the active one, new, copied, removed, renamed, changed. */
+    fun selectProfile(id: String)
+    fun addProfile()
+    fun duplicateProfile(id: String)
+    fun removeProfile(id: String)
+    fun renameProfile(id: String, name: String)
+    fun setProfileAction(id: String, gesture: String, action: String, app: String)
+    fun setProfileDial(id: String, dial: String)
+    fun setProfileWhenLocked(id: String, on: Boolean)
+    /** The gesture that moves to the next profile in every profile ("none": no gesture). */
+    fun setSwitchGesture(gesture: String)
     fun openTouchSettings()
     fun allowWriteSettings()
     fun setGridEngine(id: String, engine: String)
@@ -211,6 +228,9 @@ const val PAGE_UPDATES = "updates"
 const val PAGE_NOTES = "notes"
 const val PAGE_KEYBOARD = "keyboard"
 const val PAGE_SETUP = "setup"
+const val PAGE_BAND_KEY = "band_key"
+/** `profile:<id>`: a phone gesture profile's page. */
+const val PAGE_PROFILE = "profile"
 
 /** Set while a list row is dragged: the page doesn't scroll under the finger meanwhile. */
 internal val LocalScrollLock = androidx.compose.runtime.staticCompositionLocalOf { mutableStateOf(false) }
@@ -270,6 +290,9 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: 
             val current = page
             when {
                 current == PAGE_SETUP -> SetupPage(state, actions, onBack = { page = null })
+                current == PAGE_BAND_KEY -> BandKeyPage(state, actions, onBack = { page = null })
+                current != null && current.startsWith("$PAGE_PROFILE:") ->
+                    ProfilePage(state, actions, current.removePrefix("$PAGE_PROFILE:"), onBack = { page = null })
                 current == PAGE_KEYBOARD -> KeyboardPage(state.keyboardField, state.link.healthy, actions, onBack = { page = null })
                 current == PAGE_UPDATES -> UpdatesPage(state.update, actions, onNotes = { page = PAGE_NOTES }, onBack = { page = null })
                 current != null && current.startsWith(PAGE_NOTES) -> NotesPage(
@@ -280,7 +303,7 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: 
                 else -> when (tab) {
                 Tab.HOME -> HomeScreen(state, actions, onKeyboard = { page = PAGE_KEYBOARD }, onSetup = { page = PAGE_SETUP }) { page = PAGE_NOTES }
                 Tab.APPS -> AppsScreen(state.gridItems, state.gridAvailable, state.gridKnown, state.gridIcons, state.gridError, state.packageTransfer, actions)
-                Tab.BAND -> BandScreen(state, actions)
+                Tab.BAND -> BandScreen(state, actions, onProfile = { page = "$PAGE_PROFILE:$it" }, onKey = { page = PAGE_BAND_KEY })
                 Tab.NOTIFICATIONS -> NotificationsScreen(state, actions)
                 Tab.SETTINGS -> SettingsScreen(state, actions, onSetup = { page = PAGE_SETUP }) { page = PAGE_UPDATES }
                 }
@@ -310,7 +333,12 @@ private fun HomeScreen(state: CompanionUiState, actions: CompanionActions, onKey
             }
         }
     }
-    BandStatusCard(state.bandStatus)
+    // The band's state from the device it's with: the glasses report it stopped while it's here.
+    BandStatusCard(
+        if (state.bandOnPhone) state.phoneBandStatus else state.bandStatus,
+        stringResource(R.string.band_with, stringResource(if (state.bandOnPhone) R.string.band_device_phone else R.string.band_device_glasses).lowercase()),
+        lockedPause = state.bandOnPhone && !state.phoneListening,
+    )
     SectionTitle(stringResource(R.string.home_now))
     Group {
         ListRow(

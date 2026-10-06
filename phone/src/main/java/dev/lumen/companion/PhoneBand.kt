@@ -1,9 +1,16 @@
 package dev.lumen.companion
 
 import android.Manifest
+import android.app.KeyguardManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.media.AudioManager
+import android.os.Build
 import android.os.Handler
+import android.os.PowerManager
 import android.os.Looper
 import android.util.Log
 import dev.lumen.band.BandLink
@@ -189,9 +196,19 @@ object PhoneBand {
                 main.post {
                     actions.forEach { action ->
                         Log.d(TAG, "action $action")
-                        if (action == HANDWRITING_EXIT) handwriting?.onExit()
-                        else if (action == PhoneSettings.SWITCH_TO_GLASSES) useOnGlasses(app)
-                        else runner.run(action)?.let { Log.d(TAG, "$action: $it") }
+                        when {
+                            action == HANDWRITING_EXIT -> handwriting?.onExit()
+                            // Locked, and this profile doesn't count then (the band is told to
+                            // stop sending too; this covers what was already on its way).
+                            !listening -> Log.d(TAG, "$action ignored: the phone is locked")
+                            action == PhoneSettings.SWITCH_TO_GLASSES -> useOnGlasses(app)
+                            action == PhoneProfiles.DIAL_UP || action == PhoneProfiles.DIAL_DOWN ->
+                                dial(app, runner, action == PhoneProfiles.DIAL_UP)
+                            action == PhoneProfiles.NEXT -> switchProfile(app, PhoneProfiles.step(PhoneProfiles.state(app), +1))
+                            action == PhoneProfiles.PREVIOUS -> switchProfile(app, PhoneProfiles.step(PhoneProfiles.state(app), -1))
+                            action.startsWith(PhoneProfiles.GO_PREFIX) -> switchProfile(app, action.removePrefix(PhoneProfiles.GO_PREFIX))
+                            else -> runner.run(action)?.let { Log.d(TAG, "$action: $it") }
+                        }
                     }
                 }
             }
@@ -209,12 +226,96 @@ object PhoneBand {
             }
         }
         link = BandLink(app, listener, PhoneSettings.config(app)).also { it.start() }
+        watchLock(app)
         Log.d(TAG, "started")
         changed()
     }
 
+    // ---- Profiles ----
+
+    /** Makes [id] the active profile: the band gets its gestures, and the phone says its name. */
+    fun switchProfile(context: Context, id: String) {
+        val app = context.applicationContext
+        val before = PhoneProfiles.state(app)
+        if (before.profiles.none { it.id == id } || before.active == id) return
+        val after = PhoneProfiles.update(app) { it.copy(active = id) }
+        applyMapping(app)
+        applyLock(app)
+        ProfileNotice.show(app, before.current.name, after.current.name)
+        changed()
+    }
+
+    /** Pinch and turn: the volume while audio plays, otherwise what the active profile says. */
+    private fun dial(context: Context, runner: PhoneActions, up: Boolean) {
+        val playing = context.getSystemService(AudioManager::class.java)?.isMusicActive == true
+        val target = if (playing) "volume" else PhoneProfiles.state(context).current.dial
+        val action = when (target) {
+            "volume" -> if (up) "volume.up" else "volume.down"
+            "brightness" -> if (up) "brightness.up" else "brightness.down"
+            "arrows" -> if (up) "key.dpad_up" else "key.dpad_down"
+            else -> return
+        }
+        runner.run(action)?.let { Log.d(TAG, "$action: $it") }
+    }
+
+    // ---- The locked phone ----
+
+    /** Whether band gestures count now: always while unlocked, locked only if the profile says so. */
+    @Volatile var listening = true
+        private set
+
+    private var lockReceiver: BroadcastReceiver? = null
+    private var lockContext: Context? = null
+
+    private fun watchLock(app: Context) {
+        if (lockReceiver != null) return
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) = applyLock(app)
+        }
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) app.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        else app.registerReceiver(receiver, filter)
+        lockReceiver = receiver
+        lockContext = app
+        applyLock(app)
+    }
+
+    private fun unwatchLock(app: Context) {
+        lockReceiver?.let { runCatching { app.unregisterReceiver(it) } }
+        lockReceiver = null
+        lockContext = null
+        lockApplied = false
+        listening = true
+    }
+
+    /**
+     * Locked (or the screen off) with a profile that doesn't count then: the band stops sending
+     * gestures and motion (its power saving, as on the glasses with the screen off), and comes
+     * back when the phone is unlocked.
+     */
+    fun applyLock(context: Context) {
+        val app = context.applicationContext
+        val locked = app.getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true ||
+            app.getSystemService(PowerManager::class.java)?.isInteractive == false
+        val now = !locked || PhoneProfiles.state(app).current.whenLocked
+        if (now == listening && lockApplied) return
+        listening = now
+        lockApplied = true
+        Log.d(TAG, if (now) "listening" else "the phone is locked: the band stops until it's unlocked")
+        link?.setGestures(now)
+        link?.setMotion(now)
+        changed()
+    }
+
+    private var lockApplied = false
+
     fun stop() {
         handwriting = null
+        lockContext?.let { unwatchLock(it) }
         link?.stop()
         link = null
         actions?.close()
