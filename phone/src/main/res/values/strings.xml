@@ -729,4 +729,5 @@
     <string name="action_group_band">Band</string>
     <string name="phone_write_no_keyboard">Turn on the Lumen handwriting keyboard in the keyboard settings to write with the band</string>
     <string name="phone_write_no_touch">Writing with a gesture needs Screen gestures turned on in Rokid Lumen</string>
+    <string name="glasses_option_devices">Choose the band\'s device</string>
 </resources>

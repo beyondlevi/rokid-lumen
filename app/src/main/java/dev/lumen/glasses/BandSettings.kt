@@ -271,6 +271,8 @@ object BandSettings {
             BandRuntime.restart(context).also { pushStatusNow() }
         }
         SettingsOps.ACTION_TO_GLASSES -> {
+            // Back from the phone or a computer: a toast once it connects here.
+            if (GestureMappings.isBandOnPhone(context)) BandSwitch.arrivalPending = true
             GestureMappings.setBandOnPhone(context, false)
             (if (BandRuntime.phase == Phase.CONNECTED) null else BandRuntime.restart(context)).also { pushStatusNow() }
         }

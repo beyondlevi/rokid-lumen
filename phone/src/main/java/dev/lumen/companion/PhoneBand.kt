@@ -24,7 +24,9 @@ import dev.lumen.companion.computer.ComputerPointer
 import dev.lumen.companion.computer.ComputerProfiles
 import dev.lumen.companion.computer.ComputerWriter
 import dev.lumen.companion.ime.HandwritingSwitch
+import dev.lumen.protocol.BandDevices
 import dev.lumen.protocol.BandStatus
+import dev.lumen.protocol.SettingsEvent
 import dev.lumen.protocol.SettingsOps
 import org.json.JSONObject
 
@@ -146,6 +148,45 @@ object PhoneBand {
             CompanionPrefs.setBandOnPhone(context, false)
             stop()
         }
+    }
+
+    /**
+     * The glasses' Controls sent the band here ([SettingsEvent.BandTarget]): to this phone with
+     * one of its profiles, or to a computer through this phone with a computer profile. The
+     * glasses let it go themselves, so nothing is asked of them (a late request over Rokid's link
+     * could take the band from them again after they took it back).
+     */
+    fun onGlassesTarget(context: Context, target: SettingsEvent.BandTarget) {
+        val app = context.applicationContext
+        Log.d(TAG, "the glasses send the band to the ${target.target}")
+        glassesSaidPhone = true
+        when (target.target) {
+            BandDevices.PHONE -> {
+                if (PhoneProfiles.state(app).profiles.any { it.id == target.profile }) {
+                    PhoneProfiles.update(app) { it.copy(active = target.profile) }
+                }
+                if (CompanionPrefs.bandOnComputer(app)) leaveComputer(app)
+            }
+            BandDevices.COMPUTER -> {
+                if (ComputerProfiles.state(app).profiles.any { it.id == target.profile }) {
+                    ComputerProfiles.update(app) { it.copy(active = target.profile) }
+                }
+                if (target.computer.isNotEmpty()) ComputerLink.prefer(app, target.computer)
+                PhonePointer.stop()
+                CompanionPrefs.setBandOnComputer(app, true)
+            }
+            else -> return
+        }
+        CompanionPrefs.setBandOnPhone(app, true)
+        if (link == null) start(app) else {
+            applyMapping(app)
+            applyLock(app)
+        }
+        if (target.target == BandDevices.COMPUTER) {
+            ComputerLink.start(app)
+            if (target.computer.isNotEmpty() && ComputerLink.computer?.address != target.computer) ComputerLink.connect(app, target.computer)
+        }
+        changed()
     }
 
     /** The gesture settings changed in the Band tab: the band gets the new mapping. */
@@ -330,6 +371,10 @@ object PhoneBand {
             action.startsWith(PhoneProfiles.GO_PREFIX) -> switchComputerProfile(context, action.removePrefix(PhoneProfiles.GO_PREFIX))
             action == ComputerKeys.WRITE -> ComputerWriter.start(context)
             action == ComputerKeys.POINTER -> ComputerPointer.start(context)
+            action == PhoneSettings.SWITCH_TO_GLASSES -> {
+                useOnGlasses(context)
+                true
+            }
             action == PhoneProfiles.DIAL_UP || action == PhoneProfiles.DIAL_DOWN ->
                 ComputerProfiles.dialAction(computer.current.dial, action == PhoneProfiles.DIAL_UP)?.let { send(context, it) } ?: true
             else -> send(context, action)

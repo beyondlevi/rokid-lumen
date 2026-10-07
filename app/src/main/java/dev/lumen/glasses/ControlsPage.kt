@@ -42,7 +42,7 @@ import kotlin.math.roundToInt
  * down change rows, keeping to the column (up from the first row is the tabs).
  */
 class ControlsPage(private val activity: Activity, private val say: (String) -> Unit) : HomePage {
-    private enum class Kind { CAMERA, GALLERY, MUSIC, VOLUME, BRIGHTNESS, DND, SETTINGS, ROKID }
+    private enum class Kind { CAMERA, GALLERY, MUSIC, VOLUME, BRIGHTNESS, DND, SETTINGS, BAND, ROKID }
 
     /** A tile: its row and its horizontal span (fractions of the row), for up and down. */
     private class Tile(
@@ -71,6 +71,9 @@ class ControlsPage(private val activity: Activity, private val say: (String) -> 
     }
     private val bandListener = BandRuntime.StateListener { showBandBattery() }
     private val phoneListener: () -> Unit = { showPhoneBattery() }
+    private val placeListener: () -> Unit = { showBandPlace() }
+    /** The Band tile's second line: where the band is, with the battery or the profile. */
+    private var bandDetail: TextView? = null
 
     override var active = false
         set(value) {
@@ -147,7 +150,8 @@ class ControlsPage(private val activity: Activity, private val say: (String) -> 
             controlTile(Kind.DND, 2, 0f, .5f, R.drawable.ic_ctl_dnd, R.string.controls_dnd, progress = false) to half,
             controlTile(Kind.SETTINGS, 2, .5f, 1f, R.drawable.ic_ctl_settings, R.string.controls_settings, progress = false) to half,
         )
-        row(appTile(Kind.ROKID, 3, 0f, 1f, R.drawable.ic_ctl_rokid, R.string.controls_rokid, ROKID_COLORS, titled = true) to width)
+        row(bandTile(3) to width)
+        row(appTile(Kind.ROKID, 4, 0f, 1f, R.drawable.ic_ctl_rokid, R.string.controls_rokid, ROKID_COLORS, titled = true) to width)
         tiles = built
         applyFocus(animate = false)
     }
@@ -156,6 +160,7 @@ class ControlsPage(private val activity: Activity, private val say: (String) -> 
         NotificationSnooze.listeners += snoozeListener
         BandRuntime.addListener(bandListener)
         PhoneBattery.listeners += phoneListener
+        BandSwitch.listeners += placeListener
         // Sticky: the current charge comes back at once.
         activity.registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))?.let { showGlassesBattery(it) }
         showBandBattery()
@@ -174,6 +179,7 @@ class ControlsPage(private val activity: Activity, private val say: (String) -> 
         NotificationSnooze.listeners -= snoozeListener
         BandRuntime.removeListener(bandListener)
         PhoneBattery.listeners -= phoneListener
+        BandSwitch.listeners -= placeListener
         runCatching { activity.unregisterReceiver(batteryReceiver) }
         adjusting = null
         applyFocus(animate = false)
@@ -251,6 +257,7 @@ class ControlsPage(private val activity: Activity, private val say: (String) -> 
             Kind.MUSIC -> openRokid(SystemControls.RokidScreen.MUSIC)
             Kind.SETTINGS -> openRokid(SystemControls.RokidScreen.SETTINGS)
             Kind.ROKID -> SystemControls.openRokidLauncher(activity)
+            Kind.BAND -> BandDeviceActivity.open(activity)
             Kind.VOLUME, Kind.BRIGHTNESS -> {
                 refresh()
                 adjusting = tile
@@ -309,6 +316,68 @@ class ControlsPage(private val activity: Activity, private val say: (String) -> 
     private fun showBandBattery() {
         val connected = BandRuntime.phase == dev.lumen.band.Phase.CONNECTED
         showBattery(bandBattery, if (connected) BandRuntime.battery() else -1, connected && BandRuntime.status.optBoolean("charging"))
+        showBandPlace()
+    }
+
+    /** "On the glasses · 88%", "On the phone · Media", "On <computer> · Notebook". */
+    private fun showBandPlace() {
+        val detail = bandDetail ?: return
+        val devices = BandSwitch.devices
+        val where = BandSwitch.where(activity)
+        val tile = tiles.firstOrNull { it.kind == Kind.BAND }
+        when (where) {
+            dev.lumen.protocol.BandDevices.GLASSES -> {
+                val battery = BandRuntime.battery().takeIf { BandRuntime.phase == dev.lumen.band.Phase.CONNECTED && it >= 0 }
+                detail.text = if (battery != null) activity.getString(R.string.controls_band_glasses_battery, battery)
+                else activity.getString(R.string.controls_band_glasses)
+                tile?.icon?.setImageResource(R.drawable.ic_band)
+            }
+            dev.lumen.protocol.BandDevices.COMPUTER -> {
+                val name = devices?.computers?.firstOrNull { it.address == devices.computer }?.name ?: activity.getString(R.string.band_switch_computer)
+                val profile = devices?.computerProfiles?.firstOrNull { it.id == devices.computerProfile }?.name
+                detail.text = if (profile != null) activity.getString(R.string.controls_band_computer_profile, name, profile)
+                else activity.getString(R.string.controls_band_computer, name)
+                tile?.icon?.setImageResource(R.drawable.ic_laptop)
+            }
+            else -> {
+                val profile = devices?.phoneProfiles?.firstOrNull { it.id == devices.phoneProfile }?.name
+                detail.text = if (profile != null) activity.getString(R.string.controls_band_phone_profile, profile)
+                else activity.getString(R.string.controls_band_phone)
+                tile?.icon?.setImageResource(R.drawable.ic_phone)
+            }
+        }
+    }
+
+    /** The Band tile: where the band is, and the way to move it ([BandDeviceActivity]). */
+    private fun bandTile(row: Int): Tile {
+        val frame = tileFrame()
+        val content = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(px(24f), px(16f), px(24f), px(16f))
+        }
+        val circle = FrameLayout(activity).apply { background = circleIdle() }
+        val icon = glyph(R.drawable.ic_band)
+        circle.addView(icon, FrameLayout.LayoutParams(px(32f), px(32f), Gravity.CENTER))
+        content.addView(circle, LinearLayout.LayoutParams(px(72f), px(72f)))
+        val texts = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        val label = label(R.string.controls_band).apply { maxLines = 1 }
+        texts.addView(label)
+        val detail = TextView(activity).apply {
+            setTextColor(MetaStyle.TEXT_SECONDARY)
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, MetaStyle.textPx(context, 20f))
+            typeface = MetaStyle.REGULAR
+            isSingleLine = true
+            ellipsize = TextUtils.TruncateAt.END
+            includeFontPadding = false
+            setPadding(0, px(6f), 0, 0)
+        }
+        bandDetail = detail
+        texts.addView(detail)
+        content.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = px(24f) })
+        content.addView(glyph(R.drawable.ic_chevron).apply { setColorFilter(MetaStyle.TEXT_SECONDARY, PorterDuff.Mode.SRC_IN) }, LinearLayout.LayoutParams(px(28f), px(28f)))
+        frame.addView(content, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        return Tile(Kind.BAND, row, 0f, 1f, frame, circle, icon, label, null)
     }
 
     private fun showPhoneBattery() {

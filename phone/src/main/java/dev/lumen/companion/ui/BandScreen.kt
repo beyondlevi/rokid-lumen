@@ -785,8 +785,8 @@ private fun ActionPicker(
         R.string.action_group_media to listOf("media.play_pause", "media.next", "media.previous", "volume.up", "volume.down", "volume.mute"),
         R.string.action_group_screen to listOf("screen.back", "screen.home", "screen.recents", "screen.swipe_up", "screen.swipe_down", "screen.swipe_left", "screen.swipe_right"),
         R.string.action_group_keys to listOf("key.dpad_up", "key.dpad_down", "key.dpad_left", "key.dpad_right", "key.enter"),
-        R.string.action_group_other to listOf("brightness.up", "brightness.down", "torch.toggle", PhoneSettings.OPEN_APP, PhoneSettings.SWITCH_TO_GLASSES),
-        R.string.action_group_band to listOf(PhoneSettings.PAUSE),
+        R.string.action_group_other to listOf("brightness.up", "brightness.down", "torch.toggle", PhoneSettings.OPEN_APP),
+        R.string.action_group_band to listOf(PhoneSettings.SWITCH_TO_GLASSES, PhoneSettings.PAUSE),
     ).filter { (_, ids) -> ids.isNotEmpty() }
     val current = profile.action(gesture)
     AlertDialog(

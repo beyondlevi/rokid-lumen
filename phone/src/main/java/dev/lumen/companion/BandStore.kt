@@ -49,6 +49,8 @@ object BandStore {
                 if (event.subject == BAND_KEY) bandKeyResult = event else lastError = event.takeIf { !it.ok }
             }
             is SettingsEvent.SelfArm -> selfArm = event
+            // The glasses moved the band ([PhoneBand.onGlassesTarget]): nothing to keep here.
+            is SettingsEvent.BandTarget -> Unit
         }
         listeners.toList().forEach { it() }
     }

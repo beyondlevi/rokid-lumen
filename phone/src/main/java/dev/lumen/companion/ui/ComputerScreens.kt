@@ -554,6 +554,7 @@ private val ACTION_LABELS = mapOf(
     ComputerKeys.WRITE to R.string.pc_write,
     ComputerKeys.POINTER to R.string.pc_pointer,
     PhoneSettings.PAUSE to R.string.action_pause,
+    PhoneSettings.SWITCH_TO_GLASSES to R.string.phone_action_to_glasses,
     "pc.key.up" to R.string.pc_key_up,
     "pc.key.down" to R.string.pc_key_down,
     "pc.key.left" to R.string.pc_key_left,

@@ -115,6 +115,7 @@ object BandLabels {
         "screen.toggle" to R.string.glasses_option_screen,
         "pc.pointer" to R.string.pc_pointer,
         "band.pause" to R.string.action_pause,
+        "band.devices" to R.string.glasses_option_devices,
         "phone.write" to R.string.action_write,
     )
 
@@ -124,6 +125,7 @@ object BandLabels {
         "mouse" to R.string.computer_group_mouse,
         "glasses" to R.string.glasses_group_glasses,
         "screen" to R.string.glasses_group_screen,
+        "band" to R.string.action_group_band,
         "other" to R.string.action_group_other,
     )
 

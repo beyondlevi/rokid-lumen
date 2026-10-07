@@ -69,6 +69,14 @@
         tools:targetApi="s">
 
         <!-- The glasses' own settings, opened from the grid's last item. -->
+        <!-- The band's device chooser (the Controls tab's Band tile, or a gesture). -->
+        <activity
+            android:name=".BandDeviceActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity="dev.lumen.glasses.apps"
+            android:screenOrientation="portrait"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

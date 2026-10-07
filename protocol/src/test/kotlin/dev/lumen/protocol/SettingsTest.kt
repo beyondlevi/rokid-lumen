@@ -46,6 +46,20 @@ class SettingsTest {
     }
 
     @Test
+    fun `the devices the band can go to and a move round-trip`() {
+        val devices = BandDevices(
+            BandDevices.COMPUTER, "AA:BB", paused = true, pauseGesture = "middle_hold",
+            phoneProfiles = listOf(DeviceProfile("media", "Media", "media")), phoneProfile = "media",
+            computers = listOf(DeviceComputer("AA:BB", "Laptop")),
+            computerProfiles = listOf(DeviceProfile("notebook", "Notebook", "notebook")), computerProfile = "notebook",
+        )
+        assertEquals(devices, BandDevices.from(Link.parse(devices.toJson().toString())))
+        assertEquals(null, BandDevices.from(PhoneEvent(50, false).toJson()))
+        val target = SettingsEvent.BandTarget(BandDevices.PHONE, profile = "media")
+        assertEquals(target, SettingsEvent.from(target.toJson()))
+    }
+
+    @Test
     fun `visibility follows the other setting's value`() {
         assertTrue(app.isVisible(listOf(action, app)))
         assertFalse(app.isVisible(listOf(action.copy(value = "none"), app)))

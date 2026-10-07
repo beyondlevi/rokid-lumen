@@ -251,6 +251,17 @@ sealed class SettingsEvent {
         fun toJson(): JSONObject = Link.message().put("type", "status").put("status", status.toJson())
     }
 
+    /**
+     * The glasses' Controls moved the band: to [target] ([BandDevices.PHONE] or
+     * [BandDevices.COMPUTER], [computer] its address) with [profile] (an id there, "" for the one
+     * in use). The glasses let the band go themselves; back to the glasses needs no message (their
+     * status says it).
+     */
+    data class BandTarget(val target: String, val computer: String = "", val profile: String = "") : SettingsEvent() {
+        fun toJson(): JSONObject = Link.message().put("type", "band_target").put("target", target).put("computer", computer)
+            .put("profile", profile)
+    }
+
     companion object {
         @JvmStatic
         fun from(json: JSONObject): SettingsEvent? = when (json.optString("type")) {
@@ -269,6 +280,7 @@ sealed class SettingsEvent {
             "result" -> Result(json.optBoolean("ok"), json.optString("subject"), json.optString("error"))
             "status" -> Status(BandStatus.from(json.optJSONObject("status")))
             "self_arm" -> SelfArm(json.optString("state"), json.optString("message"), json.optBoolean("armed"))
+            "band_target" -> BandTarget(json.optString("target"), json.optString("computer"), json.optString("profile"))
             else -> null
         }
     }
