@@ -30,7 +30,8 @@ As upstream does: the Rust `band-core` (a port of
 Bluetooth protocol, worked out by reverse engineering. After the phone claims the band (the
 companion does it with a Meta account sign-in, as kinesis does; this unlinks it from Meta's
 glasses and app), the band connects over L2CAP and the core
-recognises swipes, index and middle taps, the middle hold, and pinch and turn. That's
+recognises swipes, index and middle taps, the middle hold, and pinch and turn (the bridge adds
+the index hold: a pinch held and let go without turning). That's
 unofficial: a band firmware update could change it, and Meta doesn't support it.
 
 ## The seam: `GestureDevice`
@@ -51,7 +52,8 @@ that API's events into the gesture keys (`swipe_up`, `index_tap`, …, `dial_up`
 and resolve them through the mapping string. Everything above it stays as it is.
 
 Simulator keys: `swipe_up`, `swipe_down`, `swipe_left`, `swipe_right`, `index_tap`,
-`index_double`, `middle_tap`, `middle_double`, `dial_up`, `dial_down`, `middle_hold`.
+`index_double`, `middle_tap`, `middle_double`, `dial_up`, `dial_down`, `index_hold`,
+`middle_hold`.
 
 ## Handwriting
 

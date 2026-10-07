@@ -3,6 +3,21 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.19]
+
+### Band
+
+- **Index hold and middle hold** are gestures of their own on every device: the phone's and the
+  computer's profiles and the glasses. The index hold is a pinch held and let go without
+  turning the wrist (turning keeps it pinch and turn).
+- **Pause or resume the band** is an action: the middle hold's by default, any gesture's when
+  mapped, and the only one that works while paused. A mapping without it doesn't stay paused.
+
+### Companion
+
+- **Write** on the phone: a gesture switches to the Lumen handwriting keyboard on the focused
+  field and the band writes there; your keyboard comes back when the writing ends.
+
 ## [0.2.0-beta.18]
 
 ### Companion

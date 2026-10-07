@@ -16,8 +16,9 @@ companion's Band tab (Glasses); out of the box they navigate:
 | Index tap | Select | Open the app, click the item | Enter |
 | Middle tap | Back | Android Back | MRBD's Back (see below) |
 | Middle double tap | Screen off and on | | |
-| Middle hold | Controls off and on | | |
-| Index double tap | Mappable, no action by default | | |
+| Middle hold | Pause or resume the band | | |
+| Index double tap | No action | | |
+| Index hold | No action | | |
 | Pinch and turn | The volume while audio plays; otherwise Navigation, Brightness, Volume or No action | | |
 
 - **The middle double tap turns the screen off and on**, as on Meta's glasses. With the screen
@@ -27,17 +28,22 @@ companion's Band tab (Glasses); out of the box they navigate:
   after*: 30 seconds to 10 minutes, or Never, which keeps Rokid's own 10 days). Band gestures
   and the touchpad count as input, and an app that asks to keep the screen on (a video, the
   Rokid assistant) keeps it on.
-- **The middle hold pauses the controls.** The band stays connected and still vibrates, but
-  its gestures do nothing until the next hold. The settings screen shows *Band connected,
+- **The middle hold pauses the controls** (*Pause or resume the band*, which any gesture can
+  have instead). The band stays connected and still vibrates, but its gestures do nothing until
+  the gesture with the pause runs again: only that one works while paused. A mapping with no
+  gesture for the pause doesn't stay paused. The settings screen shows *Band connected,
   controls off*.
+- **The holds**: the middle hold is the band's own long press; the index hold is a pinch held
+  for at least 0.6 s and let go without turning the wrist (pinch and turn starts with the same
+  held pinch, so it's decided when you let go; turning makes it pinch and turn).
 - **The index double tap ships unmapped**, so an index tap is immediate: the bridge only waits
   to rule out a double tap when one is mapped.
 - **A gesture can be set to**: a navigation step (right, left, down, up, Select, Back), the
   **Air Mouse** (below), Home, MRBD apps (the grid), Play or pause, Rokid AI, Hi Rokid Shortcut
   (needs the self-arm), Take photo, Video toggle, AR screenshot, AR video toggle, the screen off
   and on, the volume or the brightness up or down, Launch app (any app with a launcher icon), Use
-  the band on the phone, or nothing. **Restore the default gestures** puts them back. The middle
-  hold isn't mappable: it stays the controls' pause.
+  the band on the phone, Pause or resume the band, or nothing. A hold can't be the Air Mouse
+  (while it runs, the pinches are its clicks). **Restore the default gestures** puts them back.
 - **Air Mouse** (experimental): the gesture mapped to it shows a cursor in the middle of the
   display, and the same gesture hides it. Your forearm moves it, as the [air mouse on a
   computer](#the-band-on-a-computer) does; the index pinch is a finger where the cursor is (a tap,
@@ -489,6 +495,12 @@ Each profile also sets:
 - **Listen while locked**: off, the band stops while the phone is locked (no gestures, no
   motion: its power saving) and comes back when the phone is unlocked. Media listens while
   locked; Navigation doesn't.
+
+A profile sets the holds too (the index hold, and the middle hold, which pauses unless the
+profile says otherwise), and can put **Write** on a gesture: the Screen gestures service switches
+to the Lumen handwriting keyboard on the focused field, the band writes there, and your keyboard
+comes back when the writing ends (the middle tap, a pause, or leaving the field). It needs the
+Lumen keyboard turned on in the system's keyboard settings.
 
 A profile can also put the **Air Mouse** (experimental) on a gesture: a cursor in the middle of
 the phone's screen, moved by your forearm as on a [computer](#the-band-on-a-computer), and hidden
