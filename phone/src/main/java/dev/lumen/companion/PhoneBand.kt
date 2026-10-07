@@ -159,7 +159,8 @@ object PhoneBand {
     fun onGlassesTarget(context: Context, target: SettingsEvent.BandTarget) {
         val app = context.applicationContext
         Log.d(TAG, "the glasses send the band to the ${target.target}")
-        glassesSaidPhone = true
+        // They let it go already; a status of theirs from before must not read as taking it back.
+        glassesSaidPhone = false
         when (target.target) {
             BandDevices.PHONE -> {
                 if (PhoneProfiles.state(app).profiles.any { it.id == target.profile }) {

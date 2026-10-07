@@ -344,8 +344,10 @@ class CompanionService : Service() {
             Link.SETTINGS_EVENT -> SettingsEvent.from(json)?.let { event ->
                 main.post {
                     BandStore.onEvent(event)
+                    // A move carries no status: the glasses' last one would read as "the band is
+                    // theirs" and undo it (their status saying they let it go comes next).
                     if (event is SettingsEvent.BandTarget) PhoneBand.onGlassesTarget(this, event)
-                    PhoneBand.onGlassesStatus(this, BandStore.status)
+                    else PhoneBand.onGlassesStatus(this, BandStore.status)
                     if (event is SettingsEvent.Debug || event is SettingsEvent.Schema) GlassesDebug.onStatus(this, BandStore.debug)
                 }
             }

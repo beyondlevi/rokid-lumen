@@ -163,7 +163,7 @@ class HandwritingKeyboard : InputMethodService(), PhoneBand.HandwritingSink {
         PhoneBand.resetHandwritingText("")
         wrote = false
         lastWriting = System.currentTimeMillis()
-        status.text = getString(R.string.ime_status_preparing)
+        if (::status.isInitialized) status.text = getString(R.string.ime_status_preparing)
         main.removeCallbacks(idleCheck)
         main.postDelayed(idleCheck, IDLE_CHECK_MS)
         render()
@@ -308,7 +308,12 @@ class HandwritingKeyboard : InputMethodService(), PhoneBand.HandwritingSink {
 
     /** The Write gesture with this keyboard already up: it writes again (see [HandwritingSwitch]). */
     private fun writeNow() {
-        if (state == State.STOPPED || state == State.IDLE && currentInputStarted()) begin()
+        // Not shown on a field yet: up it comes, and writing starts there (onStartInputView).
+        if (!::status.isInitialized || state == State.IDLE) {
+            if (currentInputStarted()) requestShowSelf(0)
+            return
+        }
+        if (state == State.STOPPED) begin()
     }
 
     private fun currentInputStarted() = currentInputEditorInfo != null && currentInputConnection != null
