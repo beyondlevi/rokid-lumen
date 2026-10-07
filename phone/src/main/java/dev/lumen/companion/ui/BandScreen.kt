@@ -765,7 +765,7 @@ private fun profileIcon(kind: String) = when (kind) {
     else -> LumenIcons.band
 }
 
-/** An action for a phone gesture, grouped: profiles, the air mouse, media and volume, the screen, keys, the rest. */
+/** An action for a phone gesture, grouped: profiles, writing, the air mouse, media and volume, the screen, keys, the rest, the band. */
 @Composable
 private fun ActionPicker(
     title: String,
@@ -779,12 +779,15 @@ private fun ActionPicker(
         null to listOf(PhoneSettings.NONE),
         R.string.action_group_profiles to listOf(PhoneProfiles.NEXT, PhoneProfiles.PREVIOUS) +
             profiles.profiles.filter { it.id != profile.id }.map { PhoneProfiles.GO_PREFIX + it.id },
-        R.string.computer_group_mouse to listOf(ScreenPointer.TOGGLE),
+        R.string.computer_group_writing to listOf(PhoneSettings.WRITE),
+        // A hold can't switch the air mouse: while it runs, the pinches are its clicks.
+        R.string.computer_group_mouse to listOf(ScreenPointer.TOGGLE).filter { gesture !in PhoneSettings.HOLDS },
         R.string.action_group_media to listOf("media.play_pause", "media.next", "media.previous", "volume.up", "volume.down", "volume.mute"),
         R.string.action_group_screen to listOf("screen.back", "screen.home", "screen.recents", "screen.swipe_up", "screen.swipe_down", "screen.swipe_left", "screen.swipe_right"),
         R.string.action_group_keys to listOf("key.dpad_up", "key.dpad_down", "key.dpad_left", "key.dpad_right", "key.enter"),
         R.string.action_group_other to listOf("brightness.up", "brightness.down", "torch.toggle", PhoneSettings.OPEN_APP, PhoneSettings.SWITCH_TO_GLASSES),
-    )
+        R.string.action_group_band to listOf(PhoneSettings.PAUSE),
+    ).filter { (_, ids) -> ids.isNotEmpty() }
     val current = profile.action(gesture)
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -875,6 +878,8 @@ private val GESTURE_LABELS = mapOf(
     "index_double" to R.string.band_setting_index_double,
     "middle_tap" to R.string.phone_gesture_middle_tap,
     "middle_double" to R.string.band_setting_middle_double,
+    "index_hold" to R.string.gesture_index_hold,
+    "middle_hold" to R.string.gesture_middle_hold,
 )
 
 @Composable

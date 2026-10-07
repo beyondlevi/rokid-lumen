@@ -26,6 +26,7 @@ object ComputerProfiles {
         "desktops" to listOf("pc.desktop.next", "pc.desktop.previous", "pc.mission_control", "pc.app_switch"),
         "scroll" to listOf("pc.scroll.up", "pc.scroll.down"),
         "media" to listOf("pc.media.play_pause", "pc.media.next", "pc.media.previous", "pc.volume.up", "pc.volume.down", "pc.volume.mute", "pc.brightness.up", "pc.brightness.down"),
+        "band" to listOf(PhoneSettings.PAUSE),
     )
 
     private val ACTIONS = GROUPS.values.flatten().toSet()
@@ -41,7 +42,7 @@ object ComputerProfiles {
         val actions: Map<String, String>,
         val dial: String = "scroll",
     ) {
-        fun action(gesture: String) = actions[gesture] ?: PhoneSettings.NONE
+        fun action(gesture: String) = actions[gesture] ?: PhoneSettings.GESTURE_DEFAULTS[gesture] ?: PhoneSettings.NONE
 
         fun toJson(): JSONObject = JSONObject()
             .put("id", id).put("name", name).put("kind", kind).put("dial", dial).put("actions", JSONObject(actions))

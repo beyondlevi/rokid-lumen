@@ -42,7 +42,7 @@ object PhoneProfiles {
         /** The band still counts while the phone is locked (media: yes; navigation: no). */
         val whenLocked: Boolean = false,
     ) {
-        fun action(gesture: String) = actions[gesture] ?: PhoneSettings.NONE
+        fun action(gesture: String) = actions[gesture] ?: PhoneSettings.GESTURE_DEFAULTS[gesture] ?: PhoneSettings.NONE
         fun app(gesture: String) = apps[gesture].orEmpty()
 
         fun toJson(): JSONObject = JSONObject()

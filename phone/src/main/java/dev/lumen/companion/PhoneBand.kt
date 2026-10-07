@@ -23,6 +23,7 @@ import dev.lumen.companion.computer.ComputerLink
 import dev.lumen.companion.computer.ComputerPointer
 import dev.lumen.companion.computer.ComputerProfiles
 import dev.lumen.companion.computer.ComputerWriter
+import dev.lumen.companion.ime.HandwritingSwitch
 import dev.lumen.protocol.BandStatus
 import dev.lumen.protocol.SettingsOps
 import org.json.JSONObject
@@ -295,6 +296,7 @@ object PhoneBand {
                             action == PhoneProfiles.PREVIOUS -> switchProfile(app, PhoneProfiles.step(PhoneProfiles.state(app), -1))
                             action.startsWith(PhoneProfiles.GO_PREFIX) -> switchProfile(app, action.removePrefix(PhoneProfiles.GO_PREFIX))
                             action == ScreenPointer.TOGGLE -> if (!PhonePointer.start(app)) Log.d(TAG, "$action: the air mouse can't start")
+                            action == PhoneSettings.WRITE -> if (!HandwritingSwitch.start(app)) Log.d(TAG, "$action: can't switch to the handwriting keyboard")
                             else -> runner.run(action)?.let { Log.d(TAG, "$action: $it") }
                         }
                     }

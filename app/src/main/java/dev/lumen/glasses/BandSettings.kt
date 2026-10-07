@@ -110,8 +110,8 @@ object BandSettings {
     fun schema(context: Context): SettingsEvent.Schema {
         val apps = launchableApps(context)
         val settings = mutableListOf<Setting>()
-        val choices = GestureChoices.ALL.map { SettingOption(it.id, it.title, it.group) }
         MappableGesture.entries.forEach { gesture ->
+            val choices = GestureChoices.choicesFor(gesture).map { SettingOption(it.id, it.title, it.group) }
             settings += Setting(gesture.key, Setting.Kind.CHOICE, gesture.title, GestureMappings.choice(context, gesture), choices, SECTION_GESTURES)
             settings += Setting(
                 gesture.key + APP_SUFFIX, Setting.Kind.CHOICE, "App to open", GestureMappings.launchPackage(context, gesture).orEmpty(),
@@ -171,7 +171,7 @@ object BandSettings {
         val gesture = MappableGesture.entries.firstOrNull { it.key == key || it.key + APP_SUFFIX == key }
         when {
             gesture != null && key == gesture.key -> {
-                if (!GestureChoices.isChoice(value)) return "unknown action $value"
+                if (GestureChoices.choicesFor(gesture).none { it.id == value }) return "unknown action $value"
                 GestureMappings.setChoice(context, gesture, value, GestureMappings.launchPackage(context, gesture))
             }
             gesture != null -> {

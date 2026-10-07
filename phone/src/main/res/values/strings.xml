@@ -722,4 +722,11 @@
     <string name="glasses_option_select">Select</string>
     <string name="glasses_option_screen">Screen on and off</string>
     <string name="band_action_reset_gestures">Restore the default gestures</string>
+    <string name="gesture_index_hold">Index hold</string>
+    <string name="gesture_middle_hold">Middle hold</string>
+    <string name="action_pause">Pause or resume the band</string>
+    <string name="action_write">Write</string>
+    <string name="action_group_band">Band</string>
+    <string name="phone_write_no_keyboard">Turn on the Lumen handwriting keyboard in the keyboard settings to write with the band</string>
+    <string name="phone_write_no_touch">Writing with a gesture needs Screen gestures turned on in Rokid Lumen</string>
 </resources>

@@ -497,8 +497,11 @@ private fun ComputerActionPicker(
     onDismiss: () -> Unit,
     onChoose: (String) -> Unit,
 ) {
+    // A hold can't switch the air mouse: while it runs, the pinches are its clicks.
     val groups: List<Pair<Int?, List<String>>> = listOf(null to listOf(PhoneSettings.NONE)) +
-        ComputerProfiles.GROUPS.map { (group, ids) -> GROUP_LABELS.getValue(group) to ids } +
+        ComputerProfiles.GROUPS.map { (group, ids) ->
+            GROUP_LABELS.getValue(group) to ids.filter { gesture !in PhoneSettings.HOLDS || it != ComputerKeys.POINTER }
+        }.filter { (_, ids) -> ids.isNotEmpty() } +
         listOf(
             R.string.action_group_profiles to listOf(PhoneProfiles.NEXT, PhoneProfiles.PREVIOUS) +
                 profiles.profiles.filter { it.id != profile.id }.map { PhoneProfiles.GO_PREFIX + it.id },
@@ -544,11 +547,13 @@ private val GROUP_LABELS = mapOf(
     "desktops" to R.string.computer_group_desktops,
     "scroll" to R.string.computer_group_scroll,
     "media" to R.string.computer_group_media,
+    "band" to R.string.action_group_band,
 )
 
 private val ACTION_LABELS = mapOf(
     ComputerKeys.WRITE to R.string.pc_write,
     ComputerKeys.POINTER to R.string.pc_pointer,
+    PhoneSettings.PAUSE to R.string.action_pause,
     "pc.key.up" to R.string.pc_key_up,
     "pc.key.down" to R.string.pc_key_down,
     "pc.key.left" to R.string.pc_key_left,

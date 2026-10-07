@@ -713,4 +713,11 @@
     <string name="glasses_option_select">Selecionar</string>
     <string name="glasses_option_screen">Ligar e desligar a tela</string>
     <string name="band_action_reset_gestures">Restaurar os gestos padrão</string>
+    <string name="gesture_index_hold">Tocar e segurar o indicador</string>
+    <string name="gesture_middle_hold">Tocar e segurar o médio</string>
+    <string name="action_pause">Pausar ou retomar a band</string>
+    <string name="action_write">Escrever</string>
+    <string name="action_group_band">Band</string>
+    <string name="phone_write_no_keyboard">Ative o teclado Lumen handwriting nas configurações de teclado para escrever com a band</string>
+    <string name="phone_write_no_touch">Escrever com um gesto precisa dos Gestos na tela ligados no Rokid Lumen</string>
 </resources>
