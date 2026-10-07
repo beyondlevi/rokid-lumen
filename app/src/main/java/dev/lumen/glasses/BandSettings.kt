@@ -267,12 +267,13 @@ object BandSettings {
         }
         // Reconnecting here takes the band back from the phone too.
         ACTION_RECONNECT -> {
+            if (GestureMappings.isBandOnPhone(context)) BandSwitch.arriving(context)
             GestureMappings.setBandOnPhone(context, false)
             BandRuntime.restart(context).also { pushStatusNow() }
         }
         SettingsOps.ACTION_TO_GLASSES -> {
-            // Back from the phone or a computer: a toast once it connects here.
-            if (GestureMappings.isBandOnPhone(context)) BandSwitch.arrivalPending = true
+            // Back from the phone or a computer: its steps in a toast until it connects here.
+            if (GestureMappings.isBandOnPhone(context)) BandSwitch.arriving(context)
             GestureMappings.setBandOnPhone(context, false)
             (if (BandRuntime.phase == Phase.CONNECTED) null else BandRuntime.restart(context)).also { pushStatusNow() }
         }

@@ -52,8 +52,13 @@ class SettingsTest {
             phoneProfiles = listOf(DeviceProfile("media", "Media", "media")), phoneProfile = "media",
             computers = listOf(DeviceComputer("AA:BB", "Laptop")),
             computerProfiles = listOf(DeviceProfile("notebook", "Notebook", "notebook")), computerProfile = "notebook",
+            since = 1_000L, phase = BandStatus.PHASE_CONNECTED, computerConnected = true,
         )
         assertEquals(devices, BandDevices.from(Link.parse(devices.toJson().toString())))
+        assertTrue(devices.arrived)
+        assertFalse(devices.copy(computerConnected = false).arrived)
+        assertTrue(devices.copy(where = BandDevices.PHONE, computerConnected = false).arrived)
+        assertFalse(devices.copy(phase = BandStatus.PHASE_SEARCHING).arrived)
         assertEquals(null, BandDevices.from(PhoneEvent(50, false).toJson()))
         val target = SettingsEvent.BandTarget(BandDevices.PHONE, profile = "media")
         assertEquals(target, SettingsEvent.from(target.toJson()))

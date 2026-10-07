@@ -288,7 +288,7 @@ object BandRuntime {
         this.phase = phase
         // The air mouse ends with the connection.
         if (phase != Phase.CONNECTED) GlassesPointer.stop()
-        if (phase == Phase.CONNECTED) appContext?.let { BandSwitch.onArrived(it) }
+        appContext?.let { BandSwitch.onPhase(it, phase) }
         if (band != null) bandName = band
         if (phase == Phase.STOPPED) status = JSONObject()
         notifyListeners()

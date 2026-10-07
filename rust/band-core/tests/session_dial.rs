@@ -84,14 +84,24 @@ fn startup_motion_does_not_turn_an_old_press_into_a_new_pinch() {
 }
 
 #[test]
-fn an_invalid_orientation_sample_is_an_error() {
+fn a_lone_invalid_orientation_sample_is_skipped_and_a_run_of_them_is_an_error() {
     let mut peer = Peer::legacy(true, false);
-    let not_unit = [0u8; 16];
-    let payload = [
-        band_core::proto::field_int(1, 1),
-        band_core::proto::field_int(2, 1),
-        band_core::proto::field_bytes(3, &not_unit),
-    ]
-    .concat();
-    assert!(peer.send(ORIENTATION, &payload, 0.0).is_err());
+    let sample = |sequence: u64, quaternion: [f32; 4]| {
+        let bytes: Vec<u8> = quaternion.iter().flat_map(|v| v.to_le_bytes()).collect();
+        [
+            band_core::proto::field_int(1, sequence),
+            band_core::proto::field_int(2, sequence * 1_000),
+            band_core::proto::field_bytes(3, &bytes),
+        ]
+        .concat()
+    };
+    let not_unit = [0.0f32; 4];
+    let unit = [1.0f32, 0.0, 0.0, 0.0];
+    assert!(peer.send(ORIENTATION, &sample(1, not_unit), 0.0).is_ok());
+    assert!(peer.send(ORIENTATION, &sample(2, unit), 0.01).is_ok());
+    // A good one in between starts the count again.
+    for sequence in 3..27 {
+        assert!(peer.send(ORIENTATION, &sample(sequence, not_unit), sequence as f64 * 0.01).is_ok());
+    }
+    assert!(peer.send(ORIENTATION, &sample(27, not_unit), 0.27).is_err());
 }

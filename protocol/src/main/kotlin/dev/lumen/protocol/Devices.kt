@@ -28,8 +28,11 @@ data class DeviceComputer(val address: String, val name: String) {
  * then says which), with the profile in use there, whether the controls are [paused], and the
  * gesture that resumes them ([pauseGesture], a mapping key, "" for none). [since] is when the band
  * got there (the phone's clock, ms; 0 unknown): a report that the phone let it go for the glasses
- * is acted on only if it's newer than the glasses' own last move. Sent when it changes and with the
- * battery's heartbeat: Rokid's link can hold a message for minutes.
+ * is acted on only if it's newer than the glasses' own last move. While the band is on the phone,
+ * [phase] is its link there ([BandStatus] phases; "" from a phone too old to say) and
+ * [computerConnected] whether the computer took the phone as its keyboard: the glasses' toast
+ * follows a move with them. Sent when it changes and with the battery's heartbeat: Rokid's link
+ * can hold a message for minutes.
  */
 data class BandDevices(
     val where: String,
@@ -42,13 +45,18 @@ data class BandDevices(
     val computerProfiles: List<DeviceProfile> = emptyList(),
     val computerProfile: String = "",
     val since: Long = 0L,
+    val phase: String = "",
+    val computerConnected: Boolean = false,
 ) {
+    /** The band works where [where] says: connected on the phone, and to the computer if there. */
+    val arrived: Boolean get() = phase == BandStatus.PHASE_CONNECTED && (where != COMPUTER || computerConnected)
+
     fun toJson(): JSONObject = Link.message().put("type", TYPE).put("where", where).put("computer", computer)
         .put("paused", paused).put("pause_gesture", pauseGesture)
         .put("phone_profiles", JSONArray().apply { phoneProfiles.forEach { put(it.toJson()) } }).put("phone_profile", phoneProfile)
         .put("computers", JSONArray().apply { computers.forEach { put(it.toJson()) } })
         .put("computer_profiles", JSONArray().apply { computerProfiles.forEach { put(it.toJson()) } }).put("computer_profile", computerProfile)
-        .put("since", since)
+        .put("since", since).put("phase", phase).put("computer_connected", computerConnected)
 
     companion object {
         const val TYPE = "devices"
@@ -75,6 +83,8 @@ data class BandDevices(
                 computerProfiles = list("computer_profiles", DeviceProfile::from),
                 computerProfile = json.optString("computer_profile"),
                 since = json.optLong("since"),
+                phase = json.optString("phase"),
+                computerConnected = json.optBoolean("computer_connected"),
             )
         }
     }

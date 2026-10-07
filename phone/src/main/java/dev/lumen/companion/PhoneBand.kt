@@ -132,6 +132,7 @@ object PhoneBand {
      * the glasses connects here; the band taken back by the glasses stops here.
      */
     fun onGlassesStatus(context: Context, glasses: BandStatus) {
+        BandMoveNotice.onGlasses()
         val before = glassesSaidPhone
         glassesSaidPhone = glasses.onPhone
         if (before == glasses.onPhone) return
@@ -142,11 +143,13 @@ object PhoneBand {
             Log.d(TAG, "the glasses handed the band over")
             CompanionPrefs.setBandOnPhone(context, true)
             start(context)
+            BandMoveNotice.toPhone(context)
         } else if (!glasses.onPhone && here) {
             Log.d(TAG, "the glasses took the band back")
             leaveComputer(context)
             CompanionPrefs.setBandOnPhone(context, false)
             stop()
+            BandMoveNotice.toGlasses(context)
         }
     }
 
@@ -188,6 +191,7 @@ object PhoneBand {
             if (target.computer.isNotEmpty() && ComputerLink.computer?.address != target.computer) ComputerLink.connect(app, target.computer)
         }
         changed()
+        BandMoveNotice.toPhone(app)
     }
 
     /** The gesture settings changed in the Band tab: the band gets the new mapping. */
@@ -331,7 +335,10 @@ object PhoneBand {
                             // stop sending too; this covers what was already on its way).
                             !listening -> Log.d(TAG, "$action ignored: the phone is locked")
                             CompanionPrefs.bandOnComputer(app) -> onComputer(app, action)
-                            action == PhoneSettings.SWITCH_TO_GLASSES -> useOnGlasses(app)
+                            action == PhoneSettings.SWITCH_TO_GLASSES -> {
+                                useOnGlasses(app)
+                                BandMoveNotice.toGlasses(app)
+                            }
                             action == PhoneProfiles.DIAL_UP || action == PhoneProfiles.DIAL_DOWN ->
                                 dial(app, runner, action == PhoneProfiles.DIAL_UP)
                             action == PhoneProfiles.NEXT -> switchProfile(app, PhoneProfiles.step(PhoneProfiles.state(app), +1))
@@ -374,6 +381,7 @@ object PhoneBand {
             action == ComputerKeys.POINTER -> ComputerPointer.start(context)
             action == PhoneSettings.SWITCH_TO_GLASSES -> {
                 useOnGlasses(context)
+                BandMoveNotice.toGlasses(context)
                 true
             }
             action == PhoneProfiles.DIAL_UP || action == PhoneProfiles.DIAL_DOWN ->

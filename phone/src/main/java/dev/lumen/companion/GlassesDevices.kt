@@ -53,6 +53,8 @@ object GlassesDevices {
             computerProfiles = computer.profiles.map { DeviceProfile(it.id, it.name, it.kind) },
             computerProfile = computer.active,
             since = since,
+            phase = if (onPhone) PhoneBand.phase.name.lowercase() else "",
+            computerConnected = onComputer && ComputerLink.connected,
         )
     }
 }
