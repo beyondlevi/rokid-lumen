@@ -721,4 +721,5 @@
     <string name="phone_write_no_keyboard">Ative o teclado Lumen handwriting nas configurações de teclado para escrever com a band</string>
     <string name="phone_write_no_touch">Escrever com um gesto precisa dos Gestos na tela ligados no Rokid Lumen</string>
     <string name="glasses_option_devices">Escolher aparelho da band</string>
+    <string name="band_sending">enviando</string>
 </resources>

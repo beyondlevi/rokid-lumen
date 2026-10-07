@@ -495,19 +495,29 @@ private fun GlassesSettingsTab(state: CompanionUiState, actions: CompanionAction
         )
     }
     val reset = schema.actions.firstOrNull { it.name == GLASSES_RESET_GESTURES }
-    schema.settings.map { it.section }.distinct().forEach { section ->
-        val visible = schema.settings.filter { it.section == section && it.isVisible(schema.settings) }
+    // A value set here shows at once, marked as on its way, until the glasses confirm it.
+    val settings = schema.settings.map { setting -> state.bandPending[setting.key]?.let { setting.copy(value = it) } ?: setting }
+    val sending = schema.settings.filter { setting -> state.bandPending[setting.key].let { it != null && it != setting.value } }.map { it.key }.toSet()
+    settings.map { it.section }.distinct().forEach { section ->
+        val visible = settings.filter { it.section == section && it.isVisible(settings) }
         if (visible.isEmpty()) return@forEach
         SectionTitle(BandLabels.section(section)?.let { stringResource(it) } ?: section)
         Group {
             visible.forEach { setting ->
                 val title = BandLabels.setting(setting.key)?.let { stringResource(it) } ?: setting.label
                 when (setting.kind) {
-                    Setting.Kind.TOGGLE -> SwitchRow(title, null, setting.checked, { actions.setBandSetting(setting.key, it.toString()) })
+                    Setting.Kind.TOGGLE -> SwitchRow(
+                        title, if (setting.key in sending) stringResource(R.string.band_sending) else null, setting.checked,
+                        { actions.setBandSetting(setting.key, it.toString()) },
+                    )
                     Setting.Kind.CHOICE -> ListRow(
                         title = title,
                         value = optionLabel(setting, setting.value),
-                        trailing = if (setting.value == ScreenPointer.TOGGLE) ({ Tag(stringResource(R.string.computer_tag_experimental)) }) else null,
+                        trailing = when {
+                            setting.key in sending -> ({ Tag(stringResource(R.string.band_sending)) })
+                            setting.value == ScreenPointer.TOGGLE -> ({ Tag(stringResource(R.string.computer_tag_experimental)) })
+                            else -> null
+                        },
                         onClick = { choosing = setting },
                     )
                     Setting.Kind.RANGE -> RangeRow(setting, title) { actions.setBandSetting(setting.key, it) }
@@ -520,7 +530,7 @@ private fun GlassesSettingsTab(state: CompanionUiState, actions: CompanionAction
                     Text(BandLabels.action(action.name)?.let { stringResource(it) } ?: action.label, color = Lumen.accent)
                 }
             }
-            if (schema.settings.any { it.section == GLASSES_GESTURES && it.value == ScreenPointer.TOGGLE }) {
+            if (settings.any { it.section == GLASSES_GESTURES && it.value == ScreenPointer.TOGGLE }) {
                 PointerCard(LumenIcons.glasses, stringResource(R.string.glasses_pointer_text))
             }
         }

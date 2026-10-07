@@ -75,6 +75,8 @@ data class CompanionUiState(
     val message: String? = null,
     val version: String = "",
     val bandSchema: SettingsEvent.Schema? = null,
+    /** Glasses settings set here and not confirmed by the glasses yet (Rokid's link can lag). */
+    val bandPending: Map<String, String> = emptyMap(),
     val bandStatus: BandStatus = BandStatus(),
     /** The band is used on this phone ([dev.lumen.companion.PhoneBand]). */
     val bandOnPhone: Boolean = false,

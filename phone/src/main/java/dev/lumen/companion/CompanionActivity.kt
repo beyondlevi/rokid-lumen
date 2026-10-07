@@ -146,6 +146,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
             message = message,
             version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty(),
             bandSchema = BandStore.schema,
+            bandPending = BandStore.pending,
             bandStatus = BandStore.status,
             bandOnPhone = CompanionPrefs.bandOnPhone(this),
             phoneBandStatus = BandStatus(
@@ -643,6 +644,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     }
 
     override fun setBandSetting(key: String, value: String) {
+        BandStore.setPending(key, value)
         CompanionService.requestSettings(SettingsOps.set(key, value))
     }
 
