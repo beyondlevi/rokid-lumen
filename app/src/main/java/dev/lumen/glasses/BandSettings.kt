@@ -89,7 +89,10 @@ object BandSettings {
             }
             SettingsOps.ACTION -> {
                 val name = request.optString("name")
-                val error = action(ctx, name)
+                // The phone took the band back when the glasses didn't answer in time: too late now.
+                val late = SettingsOps.isLate(request)
+                if (late) Log.d(TAG, "$name came too late: the phone kept the band")
+                val error = if (late) "too late" else action(ctx, name)
                 PhoneLink.send(Link.SETTINGS_EVENT, SettingsEvent.Result(error == null, name, error.orEmpty()).toJson(request))
             }
         }

@@ -582,8 +582,10 @@
     <string name="band_move_profile">Profile: %1$s</string>
     <string name="band_move_slow_here">The band hasn\'t connected yet</string>
     <string name="band_move_slow_here_text">The phone keeps trying. If it takes long, tap Reconnect in the app.</string>
-    <string name="band_move_slow_glasses">The glasses haven\'t taken the band yet</string>
-    <string name="band_move_slow_glasses_text">On the glasses: Controls, Band, Glasses.</string>
+    <string name="band_move_slow_glasses">The glasses haven\'t connected to the band yet</string>
+    <string name="band_move_slow_glasses_text">They keep trying.</string>
+    <string name="band_move_not_received">The glasses didn\'t get the request</string>
+    <string name="band_move_not_received_text">The band stays with the phone. On the glasses: Controls, Band, Glasses.</string>
     <string name="profile_in">In the %1$s profile</string>
     <string name="action_next_profile">Next profile</string>
     <string name="action_previous_profile">Previous profile</string>

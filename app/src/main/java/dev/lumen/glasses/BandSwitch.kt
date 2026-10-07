@@ -82,7 +82,9 @@ object BandSwitch {
         // The phone let the band go for the glasses (its Use the band on the glasses, or the
         // companion's switch): take it now rather than when Rokid's link delivers the request.
         if (now.where == BandDevices.GLASSES && GestureMappings.isBandOnPhone(context) && now.since > 0 &&
-            now.since > movedAt && now.since > (before?.since ?: 0L)
+            now.since > movedAt && now.since > (before?.since ?: 0L) &&
+            // Later than that, the phone has taken the band back (SettingsOps.HAND_OVER_MS).
+            System.currentTimeMillis() - now.since <= SettingsOps.HAND_OVER_MS
         ) {
             Log.d(TAG, "the phone let the band go for the glasses")
             toGlasses(context)

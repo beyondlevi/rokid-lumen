@@ -65,6 +65,15 @@ class SettingsTest {
     }
 
     @Test
+    fun `a hand-over that reaches the glasses late is ignored, an unstamped action never`() {
+        val handOver = SettingsOps.handOver(now = 50_000L)
+        assertEquals(SettingsOps.ACTION_TO_GLASSES, handOver.getString("name"))
+        assertFalse(SettingsOps.isLate(handOver, now = 50_000L + SettingsOps.HAND_OVER_MS))
+        assertTrue(SettingsOps.isLate(handOver, now = 50_001L + SettingsOps.HAND_OVER_MS))
+        assertFalse(SettingsOps.isLate(SettingsOps.action(SettingsOps.ACTION_TO_GLASSES), now = Long.MAX_VALUE))
+    }
+
+    @Test
     fun `visibility follows the other setting's value`() {
         assertTrue(app.isVisible(listOf(action, app)))
         assertFalse(app.isVisible(listOf(action.copy(value = "none"), app)))

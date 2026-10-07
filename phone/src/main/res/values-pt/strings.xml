@@ -573,8 +573,10 @@
     <string name="band_move_profile">Perfil: %1$s</string>
     <string name="band_move_slow_here">A band ainda não conectou</string>
     <string name="band_move_slow_here_text">O celular continua tentando. Se demorar, toque em Reconectar no app.</string>
-    <string name="band_move_slow_glasses">Os óculos ainda não pegaram a band</string>
-    <string name="band_move_slow_glasses_text">Nos óculos: Controles, Band, Óculos.</string>
+    <string name="band_move_slow_glasses">Os óculos ainda não conectaram à band</string>
+    <string name="band_move_slow_glasses_text">Eles continuam tentando.</string>
+    <string name="band_move_not_received">Os óculos não receberam o pedido</string>
+    <string name="band_move_not_received_text">A band continua com o celular. Nos óculos: Controles, Band, Óculos.</string>
     <string name="profile_in">No perfil %1$s</string>
     <string name="action_next_profile">Próximo perfil</string>
     <string name="action_previous_profile">Perfil anterior</string>

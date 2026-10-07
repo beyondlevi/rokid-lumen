@@ -110,6 +110,14 @@ object BandMoveNotice {
         }
     }
 
+    /** The glasses never answered the move to them: the band stays with the phone ([PhoneBand.useOnGlasses]). */
+    fun notReceived(context: Context) {
+        val app = context.applicationContext
+        this.app = app
+        end(cancel = false)
+        post(app.getString(R.string.band_move_not_received), app.getString(R.string.band_move_not_received_text), inProgress = false, keep = true)
+    }
+
     private fun progress(title: String, text: String) {
         if (slow) return
         post(title, text, inProgress = true)

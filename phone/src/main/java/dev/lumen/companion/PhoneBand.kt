@@ -86,13 +86,41 @@ object PhoneBand {
         start(context)
     }
 
-    /** The companion's "Use on the glasses": the phone lets go, then the glasses take it. */
+    /**
+     * The companion's "Use on the glasses": the phone lets go, then the glasses take it. Rokid's
+     * link can lose the request: if the glasses' status doesn't say they took the band within
+     * [SettingsOps.HAND_OVER_MS], the phone takes it back ([handOverUnanswered]).
+     */
     fun useOnGlasses(context: Context) {
-        leaveComputer(context)
-        CompanionPrefs.setBandOnPhone(context, false)
+        val app = context.applicationContext
+        val fromComputer = CompanionPrefs.bandOnComputer(app)
+        leaveComputer(app)
+        CompanionPrefs.setBandOnPhone(app, false)
         stop()
         glassesSaidPhone = true
-        CompanionService.requestSettings(SettingsOps.action(SettingsOps.ACTION_TO_GLASSES))
+        CompanionService.requestSettings(SettingsOps.handOver())
+        handOver = app to fromComputer
+        main.removeCallbacks(handOverCheck)
+        main.postDelayed(handOverCheck, SettingsOps.HAND_OVER_MS)
+    }
+
+    /** The phone let the band go for the glasses (and whether it was a computer's), until they answer. */
+    private var handOver: Pair<Context, Boolean>? = null
+    private val handOverCheck = Runnable { handOverUnanswered() }
+
+    /** The glasses never said they took the band: it comes back here, as it was, rather than stay loose. */
+    private fun handOverUnanswered() {
+        val (app, fromComputer) = handOver ?: return
+        handOver = null
+        // Moved since (the companion's switch), or a claim of its own: not ours to undo.
+        if (CompanionPrefs.bandOnPhone(app) || BandClaim.state is BandClaim.State.Running) return
+        Log.d(TAG, "the glasses didn't answer the hand-over: the band stays here")
+        CompanionPrefs.setBandOnPhone(app, true)
+        if (fromComputer) CompanionPrefs.setBandOnComputer(app, true)
+        start(app)
+        if (fromComputer) ComputerLink.start(app)
+        changed()
+        BandMoveNotice.notReceived(app)
     }
 
     /**
@@ -133,6 +161,11 @@ object PhoneBand {
      */
     fun onGlassesStatus(context: Context, glasses: BandStatus) {
         BandMoveNotice.onGlasses()
+        // They took the band: the hand-over is answered.
+        if (!glasses.onPhone && handOver != null) {
+            handOver = null
+            main.removeCallbacks(handOverCheck)
+        }
         val before = glassesSaidPhone
         glassesSaidPhone = glasses.onPhone
         if (before == glasses.onPhone) return
