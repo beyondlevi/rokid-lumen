@@ -108,6 +108,8 @@ another origin or inside a cross-origin iframe.
 - **Client-side routes** work: a path without a file extension gets `index.html`. A missing
   file with an extension is a 404.
 - **No pointer, no hover, no touch.** Don't rely on `:hover` or `click` coordinates.
+- **A 2D canvas loses its state** when GeckoView's GPU process restarts (the display slept):
+  set the transform and styles at the start of every frame, not once at load.
 - **Speech.** Where the engine has no `speechSynthesis` (the system WebView), the shim adds one
   on Android's TextToSpeech, with a single voice; its `pause()` and `resume()` do nothing.
   Feature-detect it like any other API.
