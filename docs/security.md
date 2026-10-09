@@ -107,7 +107,10 @@ ADB on those glasses. How to undo it: [getting-started.md](getting-started.md#un
   the WebView the main frame's address is checked, so a cross-origin iframe inside the app's
   own page still reaches the bridge.
 - **Navigation.** An offline app can't leave its own origin. An online app may go anywhere over
-  HTTPS, but other origins get nothing from the bridge.
+  HTTPS, and other origins get nothing from the bridge but typing (GeckoView): the page the app
+  shows can report a focused field and ask for the composer, and gets what the wearer types on
+  the phone's keyboard or in the composer. That's what a sign-in page on another site needs. It
+  gets no settings, no microphone, no speech, no installs, and can't hold Back.
 - **Settings and secrets.** `window.lumen.config` answers only a page on the app's origin, with
   only the keys its manifest declares. An update downloaded on the glasses from another origin
   than the installed app's forgets its secrets, since any package can claim a manifest `id`.

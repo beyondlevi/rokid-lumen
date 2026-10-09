@@ -31,7 +31,9 @@ import org.mozilla.geckoview.WebRequestError
  *
  * The bridge acts only for the app's own origin ([WebOrigin]): background.js tags every page
  * message with the tab and address of the page that sent it (which the page can't forge), and
- * a message from any other origin is ignored. What goes to the page goes to its tab only.
+ * a message from any other origin is ignored, except typing on the page an online app shows on
+ * another site (a sign-in page): its fields work with the phone's keyboard and the composer.
+ * What goes to the page goes to its tab only.
  */
 class GeckoWebEngine(
     activity: Activity,
@@ -80,7 +82,7 @@ class GeckoWebEngine(
 
             override fun onCanGoBack(s: GeckoSession, value: Boolean) {
                 canGoBack = value
-                post(JSONObject().put("type", "canGoBack").put("value", value))
+                post(JSONObject().put("type", "canGoBack").put("value", value), typing = true)
             }
 
             /** Top-level loads: an offline app stays on its origin (the rest opens nowhere), an online one on HTTPS. */
@@ -122,7 +124,7 @@ class GeckoWebEngine(
         // composer on it; the shim sends any other field (a password) back to the keyboard.
         session.textInput.setDelegate(object : GeckoSession.TextInputDelegate by keyboard {
             override fun showSoftInput(s: GeckoSession) {
-                if (!post(JSONObject().put("type", "keyboardWanted"))) keyboard.showSoftInput(s)
+                if (!post(JSONObject().put("type", "keyboardWanted"), typing = true)) keyboard.showSoftInput(s)
             }
         })
         // A TextureView, not the default SurfaceView: Gecko's surface otherwise covers the
@@ -204,24 +206,24 @@ class GeckoWebEngine(
     }
 
     override fun composerInput(text: String) {
-        post(JSONObject().put("type", "composerInput").put("text", text))
+        post(JSONObject().put("type", "composerInput").put("text", text), typing = true)
     }
 
     override fun composerClose() {
-        post(JSONObject().put("type", "composerClose").put("text", ""))
+        post(JSONObject().put("type", "composerClose").put("text", ""), typing = true)
     }
 
     override fun keyboardState(open: Boolean) {
         phoneKeyboard = open
-        post(JSONObject().put("type", "phoneKeyboard").put("value", open))
+        post(JSONObject().put("type", "phoneKeyboard").put("value", open), typing = true)
     }
 
     override fun keyboardInput(text: String) {
-        post(JSONObject().put("type", "keyboardInput").put("text", text))
+        post(JSONObject().put("type", "keyboardInput").put("text", text), typing = true)
     }
 
     override fun keyboardSync() {
-        post(JSONObject().put("type", "keyboardSync"))
+        post(JSONObject().put("type", "keyboardSync"), typing = true)
     }
 
     override fun speechEvent(id: String, type: String, code: String?) {
@@ -269,13 +271,14 @@ class GeckoWebEngine(
 
     /**
      * A page's message, relayed by background.js with its sender's `tabId` and `sender` (the
-     * page's address, set there, not by the page). Only the app's own origin is heard.
+     * page's address, set there, not by the page). The app's own origin is heard, and typing
+     * from another site's page an online app shows ([WebOrigin.hears]).
      */
     private fun onHostMessage(message: Any) {
         val json = message as? JSONObject ?: return
         val type = json.optString("type")
         val sender = json.optString("sender")
-        if (!WebOrigin.matches(sender, appOrigin) || !onAppPage()) {
+        if (!WebOrigin.hears(type, sender, pageUrl, app)) {
             Log.w(TAG, "Page message $type ignored from ${WebOrigin.of(sender).ifEmpty { "a page off any origin" }} (the app is $appOrigin)")
             return
         }
@@ -283,8 +286,8 @@ class GeckoWebEngine(
         when (type) {
             // A page's content script is ready: it hasn't heard canGoBack yet.
             "hello" -> {
-                post(JSONObject().put("type", "canGoBack").put("value", canGoBack))
-                post(JSONObject().put("type", "phoneKeyboard").put("value", phoneKeyboard))
+                post(JSONObject().put("type", "canGoBack").put("value", canGoBack), typing = true)
+                post(JSONObject().put("type", "phoneKeyboard").put("value", phoneKeyboard), typing = true)
             }
             "backResult" -> if (!json.optBoolean("handled")) host.onBackUnhandled()
             "openComposer" -> host.onOpenComposer(json.optString("value"), json.optBoolean("multiline"))
@@ -313,11 +316,15 @@ class GeckoWebEngine(
      */
     private fun onAppPage(): Boolean = WebOrigin.of(pageUrl).let { it.isEmpty() || it == appOrigin }
 
-    /** To this session's page, when it's the app's own and has spoken (so its tab is known). */
-    private fun post(message: JSONObject): Boolean {
+    /**
+     * To this session's page, when it's the app's own and has spoken (so its tab is known). With
+     * [typing], also to another site's page an online app shows ([WebOrigin.typingPage]): what
+     * the wearer types there, and the state the page's fields need.
+     */
+    private fun post(message: JSONObject, typing: Boolean = false): Boolean {
         val current = HostLink.port ?: return false
         val tab = tabId ?: return false
-        if (!onAppPage()) return false
+        if (if (typing) !WebOrigin.typingPage(pageUrl, app) else !onAppPage()) return false
         current.postMessage(message.put("tabId", tab))
         return true
     }

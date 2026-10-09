@@ -154,7 +154,10 @@ stopped hearing from the phone).
 
 **The host bridge answers the app's own origin only.** An offline app's origin is its loopback
 server (`http://127.0.0.1:<port>`), an online app's is the origin of its URL. A page on any
-other origin gets nothing: no settings, no install, no speech, no composer, no audio.
+other origin gets no settings, no install, no speech, no audio and no say on Back. One
+exception, on GeckoView: the HTTPS page an online app shows on another site can be typed into
+(the phone's keyboard, and the composer on Enter), because signing in often happens there (a
+Google sign-in page in a YouTube app).
 
 ## The manifest
 
@@ -283,7 +286,8 @@ adb shell am start -n dev.lumen.glasses/.InstallConfirmActivity \
 ```
 
 An online app may browse anywhere over HTTPS, but only pages on its own origin get the host
-bridge, and Back skips the others. It reaches the internet through a saved Wi-Fi or the phone
+bridge, and Back skips the others; the others' text fields still work with the phone's keyboard
+and the composer. It reaches the internet through a saved Wi-Fi or the phone
 (see [features.md](features.md#internet-through-the-phone)), so it opens a few seconds later
 when the glasses have to join the phone's hotspot.
 
@@ -360,8 +364,8 @@ reaction, the chat, a dictated reply. Recorded with `adb shell screenrecord`, in
   refused) and sends `Cross-Origin-Resource-Policy: same-origin`, `X-Frame-Options: SAMEORIGIN`
   and `X-Content-Type-Options: nosniff`.
 - On GeckoView each app has its own session context; on the WebView cookies are shared.
-- The host bridge answers the app's own origin only, and the settings go only to a page on
-  that origin.
+- The host bridge answers the app's own origin only (another site's HTTPS page in an online
+  app can only be typed into), and the settings go only to a page on that origin.
 - Installs from outside the phone are confirmed on the glasses.
 
 The whole model and its open issues: [security.md](security.md).

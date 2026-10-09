@@ -18,6 +18,12 @@
 - **Write** on the phone: a gesture switches to the Lumen handwriting keyboard on the focused
   field and the band writes there; your keyboard comes back when the writing ends.
 
+### Web apps
+
+- **Sign in on another site's page**: an online app's page on another site (the Google sign-in
+  of a YouTube app) now takes the phone's keyboard and the composer in its text fields. It still
+  gets nothing else from the host (settings, microphone, speech, installs, Back).
+
 ## [0.2.0-beta.18]
 
 ### Companion
