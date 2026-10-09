@@ -10,13 +10,18 @@ import dev.lumen.protocol.GridOps
 /**
  * The glasses' apps grid as they last described it ([GridEvent]), with the icons received so
  * far. The glasses own the grid: changes go to them ([GridOps]) and come back as a new state.
+ * Until they do, [items] and [available] show the changes on their way ([GridRequests]) as made,
+ * so the screen answers at once whatever Rokid's link does with the message.
  */
 object GridCache {
-    @Volatile var items: List<GridItem> = emptyList()
-        private set
+    @Volatile private var stateItems: List<GridItem> = emptyList()
 
-    @Volatile var available: List<GridItem> = emptyList()
-        private set
+    @Volatile private var stateAvailable: List<GridItem> = emptyList()
+
+    /** The grid with the changes still on their way applied. */
+    val items: List<GridItem> get() = view().first
+
+    val available: List<GridItem> get() = view().second
 
     @Volatile var known = false
         private set
@@ -31,14 +36,15 @@ object GridCache {
     val listeners = mutableSetOf<() -> Unit>()
 
     fun onEvent(event: GridEvent) {
+        GridRequests.onEvent(event)
         when (event) {
             is GridEvent.State -> {
                 // An icon that changed on the glasses (an update, a page's new favicon) is asked for again.
                 (event.items + event.available).forEach { item ->
                     if (iconStamps.put(item.id, item.iconStamp).let { it != null && it != item.iconStamp }) icons.remove(item.id)
                 }
-                items = event.items
-                available = event.available
+                stateItems = event.items
+                stateAvailable = event.available
                 known = true
             }
             is GridEvent.Result -> if (!PackageShare.onResult(event)) lastError = event.takeIf { !it.ok }
@@ -49,6 +55,17 @@ object GridCache {
         }
         listeners.toList().forEach { it() }
     }
+
+    /** Items with a change on its way to the glasses. */
+    fun sending(): Set<String> = GridRequests.pending.values.map { it.item }.filter { it.isNotEmpty() }.toSet()
+
+    /** Configuration fields with a value on its way, as `<item id>/<key>`. */
+    fun sendingFields(): Set<String> = GridRequests.pending.values.filter { it.op == GridOps.CONFIG }
+        .map { "${it.item}/${it.json.optString("key")}" }.toSet()
+
+    /** The last state with every change still on its way applied, oldest first. */
+    private fun view(): Pair<List<GridItem>, List<GridItem>> =
+        GridEvent.State(stateItems, stateAvailable).with(GridRequests.pending.values.map { it.json }).let { it.items to it.available }
 
     /** Web and native items whose icon hasn't arrived: ask the glasses for them. */
     fun missingIcons(): List<String> = (items + available)

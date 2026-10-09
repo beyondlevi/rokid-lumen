@@ -39,6 +39,7 @@ import dev.lumen.companion.speech.SpeechSettings
 import dev.lumen.companion.ui.LumenTheme
 import dev.lumen.protocol.GridOps
 import dev.lumen.protocol.SettingsOps
+import org.json.JSONObject
 
 /**
  * Authorizes this app with Hi Rokid (the link to the glasses and their microphone), prepares
@@ -173,6 +174,10 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
             gridKnown = GridCache.known,
             gridIcons = HashMap(GridCache.icons),
             gridError = GridCache.lastError,
+            gridSending = GridCache.sending(),
+            gridSendingFields = GridCache.sendingFields(),
+            gridSlow = GridRequests.slow(),
+            gridFailed = GridRequests.failed?.let { gridFailure(it) },
             packageTransfer = PackageShare.transfer,
             glassesDebug = BandStore.debug,
             glassesDebugPending = GlassesDebug.pending,
@@ -759,6 +764,15 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
 
     override fun deleteWebApp(id: String) {
         CompanionService.requestGrid(GridOps.remove(id))
+    }
+
+    override fun dismissGridFailure() = GridRequests.dismissFailure()
+
+    /** "The glasses didn't confirm the change to Reddit", from the request they never answered. */
+    private fun gridFailure(request: JSONObject): String {
+        val item = GridOps.item(request)
+        val name = (GridCache.items + GridCache.available).firstOrNull { it.id == item }?.name
+        return if (name != null) getString(R.string.apps_not_confirmed, name) else getString(R.string.apps_not_confirmed_grid)
     }
 
     override fun renameWebApp(id: String, name: String) {

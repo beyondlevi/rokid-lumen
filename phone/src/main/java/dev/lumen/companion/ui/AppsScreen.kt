@@ -93,6 +93,7 @@ internal fun AppsScreen(
     icons: Map<String, Bitmap>,
     error: GridEvent.Result?,
     transfer: PackageShare.Transfer?,
+    sync: GridSync,
     actions: CompanionActions,
 ) {
     var selected by remember { mutableStateOf<String?>(null) }
@@ -107,6 +108,8 @@ internal fun AppsScreen(
         Column(verticalArrangement = Arrangement.spacedBy(Lumen.spacingLarge)) {
             AppsHeader(items.size, available.size, onAdd = { dialog = it }, onAddFile = actions::pickPackageFile)
             transfer?.let { TransferCard(it, onDismiss = actions::dismissPackageTransfer) }
+            if (sync.slow) SyncCard()
+            sync.failed?.let { FailureCard(it, onDismiss = actions::dismissGridFailure) }
             if (!known) {
                 Card {
                     Text(stringResource(R.string.band_waiting), style = MaterialTheme.typography.titleMedium)
@@ -125,7 +128,7 @@ internal fun AppsScreen(
             val current = items.firstOrNull { it.id == selected }
             val onDetail: @Composable (GridItem) -> Unit = { item ->
                 AppDetail(
-                    item, icons[item.id], actions,
+                    item, icons[item.id], actions, sync,
                     onClose = if (wide) null else ({ selected = null }),
                     onEdit = { editing = item to it },
                     onDelete = { confirmDelete = item },
@@ -140,7 +143,7 @@ internal fun AppsScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingLarge), verticalAlignment = Alignment.Top) {
                     Column(Modifier.widthIn(max = LIST_MAX).weight(1f), verticalArrangement = Arrangement.spacedBy(Lumen.spacingLarge)) {
                         GridPreview(items, icons, selected)
-                        GridList(items, icons, selected, actions) { selected = it }
+                        GridList(items, icons, selected, sync.sending, actions) { selected = it }
                         AvailableList(available, icons, actions)
                     }
                     Column(
@@ -153,7 +156,7 @@ internal fun AppsScreen(
                 }
             } else {
                 GridPreview(items, icons, selected)
-                GridList(items, icons, selected, actions) { selected = it }
+                GridList(items, icons, selected, sync.sending, actions) { selected = it }
                 AvailableList(available, icons, actions)
                 if (current != null) DetailSheet(onDismiss = { selected = null }) { onDetail(current) }
             }
@@ -332,7 +335,7 @@ private fun metaDot(item: GridItem): Color? = when {
  * glasses (their answer replaces it).
  */
 @Composable
-private fun GridList(items: List<GridItem>, icons: Map<String, Bitmap>, selected: String?, actions: CompanionActions, onSelect: (String) -> Unit) {
+private fun GridList(items: List<GridItem>, icons: Map<String, Bitmap>, selected: String?, sending: Set<String>, actions: CompanionActions, onSelect: (String) -> Unit) {
     var order by remember(items) { mutableStateOf(items) }
     var dragging by remember { mutableStateOf<String?>(null) }
     var offset by remember { mutableFloatStateOf(0f) }
@@ -407,7 +410,7 @@ private fun GridList(items: List<GridItem>, icons: Map<String, Bitmap>, selected
                     )
                 }
                 AppRow(
-                    item, icons[item.id], selected = item.id == selected, lifted = lifted,
+                    item, icons[item.id], selected = item.id == selected, lifted = lifted, sending = item.id in sending,
                     handle = handle, hold = hold,
                     modifier = Modifier
                         .zIndex(if (lifted) 1f else 0f)
@@ -430,6 +433,7 @@ private fun AppRow(
     icon: Bitmap?,
     selected: Boolean,
     lifted: Boolean,
+    sending: Boolean,
     handle: Modifier,
     hold: Modifier,
     modifier: Modifier = Modifier,
@@ -467,8 +471,52 @@ private fun AppRow(
                 Text(metaText(item), style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        if (item.needsSetup) SetupBadge()
+        if (sending) Tag(stringResource(R.string.band_sending)) else if (item.needsSetup) SetupBadge()
         Icon(LumenIcons.chevron, contentDescription = null, modifier = Modifier.size(18.dp), tint = Lumen.textPlaceholder)
+    }
+}
+
+/** What the screen shows of the changes on their way to the glasses ([dev.lumen.companion.GridRequests]). */
+internal data class GridSync(
+    val sending: Set<String> = emptySet(),
+    val sendingFields: Set<String> = emptySet(),
+    val slow: Boolean = false,
+    val failed: String? = null,
+)
+
+/** A change has been on its way for a while: Lumen keeps sending it. */
+@Composable
+private fun SyncCard() {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Lumen.radiusRow)).background(Lumen.surface)
+            .padding(horizontal = 14.dp, vertical = Lumen.spacingSmMed),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed),
+    ) {
+        androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp), color = Lumen.accent, strokeWidth = 2.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(stringResource(R.string.apps_sending), style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.apps_sending_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
+        }
+    }
+}
+
+/** The glasses never confirmed a change: it's undone on the screen, and can be made again. */
+@Composable
+private fun FailureCard(text: String, onDismiss: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Lumen.radiusRow)).background(NEGATIVE_BACKGROUND)
+            .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed),
+    ) {
+        Icon(LumenIcons.warning, contentDescription = null, tint = Lumen.negative, modifier = Modifier.size(18.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = Lumen.negative, modifier = Modifier.weight(1f).padding(vertical = Lumen.spacingSmall))
+        val close = stringResource(R.string.apps_close)
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onDismiss).semantics { contentDescription = close },
+            contentAlignment = Alignment.Center,
+        ) { Icon(LumenIcons.close, contentDescription = null, tint = Lumen.textPrimary, modifier = Modifier.size(18.dp)) }
     }
 }
 
@@ -544,6 +592,7 @@ private fun AppDetail(
     item: GridItem,
     icon: Bitmap?,
     actions: CompanionActions,
+    sync: GridSync,
     onClose: (() -> Unit)?,
     onEdit: (AppConfigField) -> Unit,
     onDelete: () -> Unit,
@@ -562,6 +611,7 @@ private fun AppDetail(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 metaDot(item)?.let { Box(Modifier.size(6.dp).clip(CircleShape).background(it)) }
                 Text(metaText(item), style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
+                if (item.id in sync.sending) Tag(stringResource(R.string.band_sending))
             }
         }
         if (onClose != null) {
@@ -616,6 +666,7 @@ private fun AppDetail(
                             Text(field.label, style = MaterialTheme.typography.titleMedium)
                             Text(value, style = MaterialTheme.typography.bodySmall, color = if (!field.missing) Lumen.textSecondary else WARNING_TEXT, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
+                        if ("${item.id}/${field.key}" in sync.sendingFields) Tag(stringResource(R.string.band_sending))
                         Icon(LumenIcons.chevron, contentDescription = null, modifier = Modifier.size(18.dp), tint = Lumen.textPlaceholder)
                     }
                 }

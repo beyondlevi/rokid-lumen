@@ -211,8 +211,10 @@ class CompanionService : Service() {
                     scheduleSync()
                     main.postDelayed({
                         sendSettings(SettingsOps.describe())
-                        sendGrid(GridOps.describe())
-                    }, 2_000)
+                        // Changes still waiting for the glasses go again, then the grid is asked for.
+                        GridRequests.flush()
+                        GridRequests.send(GridOps.describe())
+                    }, 1_000)
                 }
                 override fun onSessionStart(reason: CxrDefs.CXRSessionReason) = report(LinkState.SESSION_ACTIVE, reason.toString())
                 override fun onSessionPause(reason: CxrDefs.CXRSessionReason) = report(LinkState.SESSION_PAUSED, reason.toString())
@@ -488,13 +490,15 @@ class CompanionService : Service() {
 
     /** Resend the notifications, once, shortly after the link (or the glasses app) asks. */
     private fun scheduleSync() {
+        // Rokid's link delivers in order, slowly: the notifications (one message each, dozens)
+        // go after the small ones (the describes at 1 s, the battery and devices at 2 s).
         main.removeCallbacks(sync)
-        main.postDelayed(sync, 1_500)
+        main.postDelayed(sync, 3_000)
         // The glasses (re)started or the session came up: they want the phone's battery too.
         main.postDelayed({
             sendBattery(force = true)
             sendDevices(force = true)
-        }, 2_500)
+        }, 2_000)
     }
 
     // ---- The phone's battery, for the glasses' Controls tab ----
@@ -798,8 +802,18 @@ class CompanionService : Service() {
             return true
         }
 
-        /** A grid request for the glasses ([GridOps]); false while the link is down. */
+        /**
+         * A grid request for the glasses ([GridOps]): sent now and again until they answer it
+         * ([GridRequests]), also once the link comes back. False with the service down.
+         */
         fun requestGrid(json: JSONObject): Boolean {
+            val service = instance ?: return false
+            service.main.post { GridRequests.send(json) }
+            return true
+        }
+
+        /** Sends a grid request once, now; false while the link is down. */
+        fun transmitGrid(json: JSONObject): Boolean {
             val service = instance ?: return false
             if (service.link == null) return false
             service.main.post { service.sendGrid(json) }

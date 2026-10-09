@@ -33,6 +33,20 @@ object GridApi {
     private val io = Executors.newSingleThreadExecutor { r -> Thread(r, "nb-grid").apply { isDaemon = true } }
     private var context: Context? = null
 
+    /**
+     * The answers to requests already done, by request id. The phone sends a request again until
+     * its answer arrives (Rokid's link loses and delays messages): a repeat gets the same answer
+     * instead of a second run (a second copy, a "not a web app" for a second remove).
+     */
+    private val answered = object : LinkedHashMap<Long, JSONObject>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, JSONObject>?) = size > ANSWERS_KEPT
+    }
+
+    /** Requests still running (a package downloading): a repeat waits for the first one's answer. */
+    private val running = HashSet<Long>()
+
+    private const val ANSWERS_KEPT = 64
+
     @JvmStatic
     fun start(context: Context) {
         this.context = context.applicationContext
@@ -41,7 +55,20 @@ object GridApi {
     /** A request from the phone. Main thread. */
     fun onPhoneRequest(request: JSONObject) {
         val ctx = context ?: return
-        when (request.optString("op")) {
+        val op = request.optString("op")
+        val id = GridOps.requestId(request)
+        Log.d(TAG, "← $op $id")
+        if (id != 0L && op != GridOps.DESCRIBE && op != GridOps.ICONS) {
+            answered[id]?.let { answer ->
+                Log.d(TAG, "$op $id again: the same answer")
+                send(answer)
+                send(state(ctx).toJson())
+                return
+            }
+            if (id in running) return
+            running += id
+        }
+        when (op) {
             GridOps.DESCRIBE -> send(state(ctx).toJson(request))
             GridOps.SET -> {
                 GridStore.set(ctx, GridOps.strings(request, "order"), GridOps.strings(request, "hidden"))
@@ -104,7 +131,12 @@ object GridApi {
     }
 
     private fun changed(ctx: Context, request: JSONObject, subject: String, error: String?) {
-        send(GridEvent.Result(error == null, subject, error.orEmpty()).toJson(request))
+        val answer = GridEvent.Result(error == null, subject, error.orEmpty()).toJson(request)
+        GridOps.requestId(request).takeIf { it != 0L }?.let {
+            running -= it
+            answered[it] = answer
+        }
+        send(answer)
         send(state(ctx).toJson())
         GridStore.notifyChanged()
     }
@@ -159,6 +191,8 @@ object GridApi {
         val token = request.optString("token")
         if (token.isEmpty() || !token.all { it.isLetterOrDigit() }) return changed(ctx, request, token, "invalid token")
         if (handedOver.containsKey(token)) {
+            // The same package asked for again under another id: the first one answers.
+            running -= GridOps.requestId(request)
             handedOver[token]?.let { error -> send(GridEvent.Result(error.isEmpty(), token, error).toJson(request)) }
             return
         }

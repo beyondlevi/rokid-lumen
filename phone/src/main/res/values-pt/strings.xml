@@ -253,6 +253,10 @@
     <string name="apps_engine">Motor</string>
     <string name="apps_engine_system">WebView do sistema</string>
     <string name="apps_take_off">Tirar da grade</string>
+    <string name="apps_sending">Enviando aos óculos…</string>
+    <string name="apps_sending_hint">O canal da Rokid com os óculos está lento agora. O Lumen continua tentando, e a mudança já aparece aqui.</string>
+    <string name="apps_not_confirmed">Os óculos não confirmaram a mudança em %1$s. Tente de novo.</string>
+    <string name="apps_not_confirmed_grid">Os óculos não confirmaram a mudança na grade. Tente de novo.</string>
     <string name="apps_delete">Apagar o app</string>
     <string name="apps_delete_title">Apagar %1$s?</string>
     <string name="apps_delete_text">Ele sai dos óculos, com o pacote offline se tiver.</string>

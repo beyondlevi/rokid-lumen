@@ -102,6 +102,13 @@ data class CompanionUiState(
     val gridKnown: Boolean = false,
     val gridIcons: Map<String, android.graphics.Bitmap> = emptyMap(),
     val gridError: GridEvent.Result? = null,
+    /** Items and configuration fields (`<item id>/<key>`) with a change on its way to the glasses. */
+    val gridSending: Set<String> = emptySet(),
+    val gridSendingFields: Set<String> = emptySet(),
+    /** A change has been on its way for a while (Rokid's link is slow). */
+    val gridSlow: Boolean = false,
+    /** A change the glasses never confirmed, said for the screen. */
+    val gridFailed: String? = null,
     /** The offline package being handed over from this phone, or the last one's outcome. */
     val packageTransfer: dev.lumen.companion.PackageShare.Transfer? = null,
     /** The glasses' wireless debugging, and the value asked for while they haven't confirmed it. */
@@ -257,6 +264,9 @@ interface CompanionActions {
     /** One of a web app's configuration values; empty clears it. */
     fun setGridConfig(id: String, key: String, value: String)
     fun deleteWebApp(id: String)
+
+    /** Hides the "the glasses didn't confirm" notice. */
+    fun dismissGridFailure()
     /** Gives a web app a name that updates keep. */
     fun renameWebApp(id: String, name: String)
     /** Installs a web app a second time under [name] (its own data and settings). */
@@ -366,7 +376,10 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: 
                 )
                 else -> when (tab) {
                 Tab.HOME -> HomeScreen(state, actions, onKeyboard = { page = PAGE_KEYBOARD }, onSetup = { page = PAGE_SETUP }) { page = PAGE_NOTES }
-                Tab.APPS -> AppsScreen(state.gridItems, state.gridAvailable, state.gridKnown, state.gridIcons, state.gridError, state.packageTransfer, actions)
+                Tab.APPS -> AppsScreen(
+                    state.gridItems, state.gridAvailable, state.gridKnown, state.gridIcons, state.gridError, state.packageTransfer,
+                    GridSync(state.gridSending, state.gridSendingFields, state.gridSlow, state.gridFailed), actions,
+                )
                 Tab.BAND -> BandScreen(
                     state, actions,
                     onProfile = { page = "$PAGE_PROFILE:$it" },

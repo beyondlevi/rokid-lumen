@@ -260,6 +260,10 @@
     <string name="apps_engine">Engine</string>
     <string name="apps_engine_system">System WebView</string>
     <string name="apps_take_off">Take off the grid</string>
+    <string name="apps_sending">Sending to the glasses…</string>
+    <string name="apps_sending_hint">Rokid\'s link to the glasses is slow right now. Lumen keeps trying, and the change shows here already.</string>
+    <string name="apps_not_confirmed">The glasses didn\'t confirm the change to %1$s. Try again.</string>
+    <string name="apps_not_confirmed_grid">The glasses didn\'t confirm the change to the grid. Try again.</string>
     <string name="apps_delete">Delete the app</string>
     <string name="apps_delete_title">Delete %1$s?</string>
     <string name="apps_delete_text">It leaves the glasses, with its offline package if it has one.</string>
