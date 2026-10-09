@@ -121,6 +121,9 @@ them the same way.
 | --- | --- | --- | --- |
 | **Goat Climb** | A mountain goat leaps from ledge to ledge: swipe left, up or right to jump, and climb through five phases that keep getting harder | [beyondlevi/lumen-goat-climb](https://github.com/beyondlevi/lumen-goat-climb) | MIT |
 | **2048** | The sliding-tiles classic: swipe to slide the tiles, merge equal ones and reach 2048; undo the last move, and the game waits, saved, for the next time | [beyondlevi/lumen-2048](https://github.com/beyondlevi/lumen-2048) | MIT |
+| **Four in a Row** | The classic against the computer: swipe to aim, swipe down to drop; three levels and a tally kept on the glasses | [beyondlevi/lumen-four-in-a-row](https://github.com/beyondlevi/lumen-four-in-a-row) | MIT |
+| **Goat Run** | An endless three-lane runner: swipe to change lanes, up to jump, down to slide, through zones that keep getting faster | [beyondlevi/lumen-goat-run](https://github.com/beyondlevi/lumen-goat-run) | MIT |
+| **Goat Crossing** | Hop across roads, rivers and rails, one swipe per hop, before the eagle catches up | [beyondlevi/lumen-goat-crossing](https://github.com/beyondlevi/lumen-goat-crossing) | MIT |
 
 ## Install
 
