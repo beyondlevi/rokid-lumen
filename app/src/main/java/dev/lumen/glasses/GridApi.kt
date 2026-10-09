@@ -130,6 +130,12 @@ object GridApi {
         send(state(ctx).toJson())
     }
 
+    /** [pushState] from any thread. */
+    @JvmStatic
+    fun pushStateSoon() {
+        main.post { pushState() }
+    }
+
     private fun changed(ctx: Context, request: JSONObject, subject: String, error: String?) {
         val answer = GridEvent.Result(error == null, subject, error.orEmpty()).toJson(request)
         GridOps.requestId(request).takeIf { it != 0L }?.let {

@@ -285,11 +285,13 @@ public final class MainActivity extends Activity
                             getString(R.string.web_engine_detail, app.getName()), v -> {
                         WebAppLibrary.setEngine(this, app.getId(), app.getEngine() == WebEngineKind.GECKO
                                 ? WebEngineKind.SYSTEM : WebEngineKind.GECKO);
+                        GridApi.pushState();
                         render();
                     });
                     action(getString(R.string.web_remove, app.getName()),
                             getString(app.getOffline() ? R.string.web_remove_offline : R.string.web_remove_online), v -> {
                         WebAppLibrary.remove(this, app.getId());
+                        GridApi.pushState();
                         render();
                     });
                 }

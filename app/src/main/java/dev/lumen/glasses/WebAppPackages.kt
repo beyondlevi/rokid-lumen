@@ -99,12 +99,15 @@ object WebAppPackages {
     fun importFromDropFolder(context: Context): List<String> {
         val folder = dropFolder(context) ?: return emptyList()
         val files = folder.listFiles { f -> f.isFile && f.name.endsWith(SUFFIX) }.orEmpty().sortedBy { it.name }
-        return files.map { file ->
+        val lines = files.map { file ->
             val line = runCatching { file.inputStream().use { install(context, it, file.name) } }
                 .fold({ context.getString(R.string.launcher_installed, it.name) }, { context.getString(R.string.package_line, file.name, describe(context, it)) })
             file.delete()
             line
         }
+        // The phone's Apps tab lists the new app now, not at its next look at the grid.
+        if (files.isNotEmpty()) GridApi.pushStateSoon()
+        return lines
     }
 
     /**
