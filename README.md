@@ -120,6 +120,7 @@ them the same way.
 | Game | How it plays | Source | License |
 | --- | --- | --- | --- |
 | **Goat Climb** | A mountain goat leaps from ledge to ledge: swipe left, up or right to jump, and climb through five phases that keep getting harder | [beyondlevi/lumen-goat-climb](https://github.com/beyondlevi/lumen-goat-climb) | MIT |
+| **2048** | The sliding-tiles classic: swipe to slide the tiles, merge equal ones and reach 2048; undo the last move, and the game waits, saved, for the next time | [beyondlevi/lumen-2048](https://github.com/beyondlevi/lumen-2048) | MIT |
 
 ## Install
 
