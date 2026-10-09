@@ -480,6 +480,8 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
 
     @Override
     public void onTextFocus(String value, String type, boolean multiline, String label, String reason) {
+        // The kind of field only: never its value (a password, an address).
+        Log.d(TAG, "Text field focused (" + type + ", " + reason + ")");
         PhoneKeyboard.focus(this, appName, label, type, multiline, value, reason);
     }
 

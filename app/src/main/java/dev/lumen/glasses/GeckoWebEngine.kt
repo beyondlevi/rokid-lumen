@@ -286,6 +286,7 @@ class GeckoWebEngine(
         when (type) {
             // A page's content script is ready: it hasn't heard canGoBack yet.
             "hello" -> {
+                Log.d(TAG, "Page ready on ${WebOrigin.of(sender).ifEmpty { "no origin" }}")
                 post(JSONObject().put("type", "canGoBack").put("value", canGoBack), typing = true)
                 post(JSONObject().put("type", "phoneKeyboard").put("value", phoneKeyboard), typing = true)
             }
