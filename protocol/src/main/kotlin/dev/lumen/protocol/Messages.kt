@@ -1,5 +1,6 @@
 package dev.lumen.protocol
 
+import org.json.JSONArray
 import org.json.JSONObject
 
 /** glasses → phone, on [Link.DICTATION]. */
@@ -38,13 +39,22 @@ data class DictationEvent(val type: String, val text: String = "") {
  * start and on every change, or notifications dismissed on the glasses ({action: dismiss, keys}),
  * which the phone clears from its shade too (their removal comes back as usual), or a reply
  * ({action: reply, key, text}) the phone sends through the notification's own reply action
- * (answered with [NotifyEvent.replied]).
+ * (answered with [NotifyEvent.replied]), or one of a notification's pictures ({action: picture,
+ * id, key, index, at}: [PictureRequest], answered on [Link.PICTURE_EVENT], see [PictureOps]).
  */
 object NotifyCommand {
     const val SYNC = "sync"
     const val SNOOZE = "snooze"
     const val DISMISS = "dismiss"
     const val REPLY = "reply"
+    const val PICTURE = PictureOps.PICTURE
+
+    @JvmStatic
+    fun picture(id: String, key: String, index: Int, at: Long): JSONObject = PictureRequest(id, key, index, at).toJson()
+
+    /** The [picture] request in [json], or null for another action. */
+    @JvmStatic
+    fun pictureOf(json: JSONObject): PictureRequest? = PictureRequest.from(json)
 
     @JvmStatic
     fun reply(key: String, text: String): JSONObject = Link.message().put("action", REPLY).put("key", key).put("text", text)
@@ -87,9 +97,10 @@ object NotifyCommand {
  * phone → glasses, on [Link.NOTIFY_EVENT].
  * post {key, app, pkg, title, text, when, redacted, live, alert, icon (base64 PNG, optional),
  * reply (it can be answered from the glasses), shortcut (the conversation's shortcut id, "" if
- * none)}; remove {key}; reset {} (a full sync follows as posts with alert false); snooze {on}
- * (start or end the banners' snooze; the glasses answer with [NotifyCommand.snooze]); replied
- * {key, ok} (how a [NotifyCommand.reply] went).
+ * none), pictures (optional, [putPictures]: what it shows, the bytes come on demand)}; remove
+ * {key}; reset {} (a full sync follows as posts with alert false); snooze {on} (start or end the
+ * banners' snooze; the glasses answer with [NotifyCommand.snooze]); replied {key, ok} (how a
+ * [NotifyCommand.reply] went).
  */
 object NotifyEvent {
     const val POST = "post"
@@ -113,6 +124,25 @@ object NotifyEvent {
     /** The post's fields are filled by the caller (the icon is Android-only). */
     @JvmStatic
     fun post(key: String): JSONObject = Link.message().put("type", POST).put("key", key)
+
+    /**
+     * A post's pictures, newest last: the newest [PictureOps.MAX_PICTURES], captions cut to
+     * [PictureOps.MAX_CAPTION]. Nothing is added for none.
+     */
+    @JvmStatic
+    fun putPictures(post: JSONObject, pictures: List<NotificationPicture>): JSONObject {
+        if (pictures.isEmpty()) return post
+        val array = JSONArray()
+        pictures.takeLast(PictureOps.MAX_PICTURES).forEach { array.put(it.copy(caption = it.caption.take(PictureOps.MAX_CAPTION)).toJson()) }
+        return post.put("pictures", array)
+    }
+
+    /** The pictures a post names, oldest first; none for a post without them (an older companion). */
+    @JvmStatic
+    fun picturesOf(post: JSONObject): List<NotificationPicture> {
+        val array = post.optJSONArray("pictures") ?: return emptyList()
+        return (0 until array.length()).mapNotNull { NotificationPicture.from(array.optJSONObject(it)) }.take(PictureOps.MAX_PICTURES)
+    }
 }
 
 /** glasses → phone, on [Link.NET]: hold (and renew) or release the phone's internet. */
