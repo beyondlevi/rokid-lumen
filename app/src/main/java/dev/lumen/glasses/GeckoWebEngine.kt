@@ -486,6 +486,12 @@ class GeckoWebEngine(
             "image.mem.surfacecache.max_size_kb" to 65536,
             "media.mediasource.eviction_threshold.video" to 25 * 1024 * 1024,
             "media.mediasource.eviction_threshold.audio" to 3 * 1024 * 1024,
+            // Gecko builds its accessibility trees because Android reports an accessibility
+            // service on (Lumen's own, for the band), but nothing reads a page through them:
+            // the band reaches pages as keys. They cost memory on a big page, and tearing one
+            // down when a page's process died crashed the parent process (measured: SIGSEGV in
+            // a11y::SessionAccessibility::GetInstanceFor from DocAccessibleParent::Destroy).
+            "accessibility.force_disabled" to 1,
         )
 
         /** Writes [PREFS] as GeckoView's config file (YAML, `prefs:`) and returns its path. */
