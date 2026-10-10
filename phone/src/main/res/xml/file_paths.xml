@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- What the companion shares: the logs zip (LogShare), nothing else. -->
+<!-- What the companion shares: the logs zip (LogShare) and the test notification's picture
+     (TestReplyReceiver), nothing else. -->
 <paths>
     <cache-path name="logs" path="logs/" />
+    <cache-path name="test" path="test/" />
 </paths>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The test notification's chat: who sends it, who you are, and its photo's caption. -->
+    <string name="notifications_test_sender" translatable="false">Lumen</string>
+    <string name="notifications_test_you">You</string>
+    <string name="notifications_test_picture">A test picture: does it show on the glasses?</string>
+</resources>
