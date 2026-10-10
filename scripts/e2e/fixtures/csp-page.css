@@ -1,0 +1,5 @@
+body { margin: 0; background: #000; color: #fff; font: 16px sans-serif; }
+button { display: block; margin: 120px 40px 0; width: 200px; height: 60px; }
+#next { margin-top: 20px; }
+/* A hostile page: Lumen's overlays must keep their look. */
+div { padding: 50px !important; border: 5px dotted red !important; background: red !important; }

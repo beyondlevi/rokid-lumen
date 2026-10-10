@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Band handlers</title>
+<style>
+  body { margin: 0; background: #000; color: #fff; font: 16px sans-serif; }
+  button, input { display: block; margin: 20px; width: 200px; height: 40px; }
+</style>
+<button id="one">One</button>
+<button id="two">Two</button>
+<input id="field" type="text" placeholder="Field">
+<script>
+  window.pageKeys = [];
+  window.addEventListener('keydown', function (event) { pageKeys.push('window ' + event.key); }, true);
+  document.addEventListener('keydown', function (event) { pageKeys.push('document ' + event.key); });
+  document.addEventListener('keyup', function (event) { pageKeys.push('keyup ' + event.key); });
+</script>

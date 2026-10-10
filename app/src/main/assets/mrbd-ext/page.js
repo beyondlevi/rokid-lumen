@@ -22,6 +22,7 @@
     if (data.type === 'config' && window.__lumenConfig) window.__lumenConfig(data.id, data.values);
     if (data.type === 'configChanged' && window.__lumenConfigChanged) window.__lumenConfigChanged(data.values);
     if (data.type === 'audio' && window.__lumenAudio) window.__lumenAudio(data.event);
+    if (data.type === 'bandNavigation' && window.__lumenBandNavigation) window.__lumenBandNavigation(data.value);
   });
   window.MrbdHost = {
     canGoBack: function () { return back; },
@@ -568,9 +569,657 @@
     if (host && host.textFocus) reportField('sync');
   };
 
+  // Rokid Lumen's band API, for site scripts (an online app package's lumen_scripts) and any
+  // page: lumen.band.on() takes the band's keys and Back before the page, lumen.highlight() and
+  // lumen.toast() draw Lumen's own ring and pill, lumen.click() taps an element, and lumen.nav
+  // is the generic band navigation of online apps (a ring moved between a site's links and
+  // buttons). It exists without the host bridge too; Back then does nothing.
+  // See docs/site-scripts.md.
+  var lumen = window.lumen || (window.lumen = {});
+  var BAND_KEYS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'enter' };
+  var bandHandlers = [];
+  var bandKeysTaken = {};
+
+  // Only the band's own presses: trusted (a page can't drive Lumen with synthetic keys) and
+  // unmodified (a phone or computer keyboard's shortcuts stay the page's).
+  function bandKey(event) {
+    var key = BAND_KEYS[event.key];
+    if (!key || !event.isTrusted || event.isComposing) return null;
+    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return null;
+    return key;
+  }
+  // The latest handler first. One that throws counts as not handled: a site script's bug
+  // mustn't take the band away from the page.
+  function askBand(key, event) {
+    var handlers = bandHandlers.slice();
+    for (var i = handlers.length - 1; i >= 0; i--) {
+      try {
+        // Exactly true: an async handler's promise would otherwise take every key.
+        if (handlers[i].fn(key, event) === true) return true;
+      } catch (e) {
+        console.warn('[Lumen] band handler failed on ' + key + ':', e);
+      }
+    }
+    return false;
+  }
+  function deepActive() {
+    var el = document.activeElement;
+    while (el && el.shadowRoot && el.shadowRoot.activeElement) el = el.shadowRoot.activeElement;
+    return el;
+  }
+  lumen.band = {
+    on: function (handler) {
+      if (typeof handler !== 'function') return function () {};
+      var entry = { fn: handler };
+      bandHandlers.push(entry);
+      return function () {
+        var i = bandHandlers.indexOf(entry);
+        if (i >= 0) bandHandlers.splice(i, 1);
+      };
+    }
+  };
+  // At document_start, so before any listener of the page's.
+  window.addEventListener('keydown', function (event) {
+    var key = bandKey(event);
+    if (!key) return;
+    // The navigation runs after every window listener of the page's, even one added after it
+    // (a game listening on window): a listener added during the capture phase runs last in
+    // this same event's bubble phase.
+    window.removeEventListener('keydown', navKeydown);
+    window.addEventListener('keydown', navKeydown);
+    if (!bandHandlers.length) return;
+    // Enter on a text field is the composer's.
+    if (key === 'enter' && isKeyboardField(deepActive())) return;
+    if (!askBand(key, event)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    bandKeysTaken[event.key] = true;
+  }, true);
+  window.addEventListener('keyup', function (event) {
+    if (!bandKeysTaken[event.key]) return;
+    delete bandKeysTaken[event.key];
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+
+  // Lumen's overlays, styled through the CSSOM only (Instagram and YouTube allow no inline style
+  // or markup: strict CSP and Trusted Types), each property !important against the page's CSS.
+  var TOP_LAYER = '2147483647';
+  function css(el, props) {
+    for (var name in props) el.style.setProperty(name, props[name], 'important');
+  }
+  function attach(el) {
+    var root = document.documentElement;
+    if (root && el.parentNode !== root) root.appendChild(el);
+  }
+
+  // The highlight: a ring 4 px outside the element, nothing filled (the HUD is additive), with a
+  // black halo that keeps it readable over a bright page. One fixed overlay that follows the
+  // element every frame while shown, and clears itself when the element goes.
+  var RING_OUT = 7; // the 4 px gap and the 3 px border
+  var ring = null;
+  var current = null; // { el: what Enter clicks, box: what the ring goes around }
+  var ringPlaced = '';
+  var following = false;
+  function ensureRing() {
+    if (!ring) {
+      ring = document.createElement('div');
+      ring.setAttribute('data-lumen', 'highlight');
+      ring.setAttribute('aria-hidden', 'true');
+      css(ring, {
+        'position': 'fixed', 'display': 'none', 'left': '0px', 'top': '0px', 'width': '0px', 'height': '0px',
+        'margin': '0', 'padding': '0', 'box-sizing': 'border-box', 'background': 'transparent',
+        'border': '3px solid rgba(255, 255, 255, 0.86)', 'border-radius': '16px',
+        'box-shadow': '0 0 0 4px #000', 'outline': 'none', 'pointer-events': 'none',
+        'z-index': TOP_LAYER, 'transform': 'none', 'opacity': '1', 'visibility': 'visible'
+      });
+    }
+    attach(ring);
+    return ring;
+  }
+  function viewRect() { return { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight }; }
+  // The containers that clip an element (a scrolling list, a carousel), nearest first.
+  function clipsOf(el) {
+    var clips = [];
+    for (var p = el.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+      var style = getComputedStyle(p);
+      if ((style.overflowX !== 'visible' || style.overflowY !== 'visible') &&
+          style.display !== 'inline' && style.display !== 'contents') clips.push(p);
+      if (style.position === 'fixed') break;
+    }
+    return clips;
+  }
+  // The part of the screen where an element inside `clips` can show.
+  function viewOf(clips) {
+    var v = viewRect();
+    for (var i = 0; i < clips.length; i++) {
+      var c = clips[i].getBoundingClientRect();
+      var left = c.left + clips[i].clientLeft;
+      var top = c.top + clips[i].clientTop;
+      v = {
+        left: Math.max(v.left, left), top: Math.max(v.top, top),
+        right: Math.min(v.right, left + clips[i].clientWidth), bottom: Math.min(v.bottom, top + clips[i].clientHeight)
+      };
+    }
+    return v;
+  }
+  function placeRing(r, v) {
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+    var geometry = 'none';
+    // Scrolled away (off screen, or out of its list) it waits, hidden; partly shown it rings the
+    // part that shows, kept on screen so a full-width card still shows its sides.
+    var shown = { left: Math.max(r.left, v.left), top: Math.max(r.top, v.top), right: Math.min(r.right, v.right), bottom: Math.min(r.bottom, v.bottom) };
+    if (shown.right > shown.left && shown.bottom > shown.top) {
+      var left = Math.round(Math.max(0, shown.left - RING_OUT));
+      var top = Math.round(Math.max(0, shown.top - RING_OUT));
+      var right = Math.round(Math.min(vw, shown.right + RING_OUT));
+      var bottom = Math.round(Math.min(vh, shown.bottom + RING_OUT));
+      geometry = left + ',' + top + ',' + (right - left) + ',' + (bottom - top);
+    }
+    // A still page costs no style writes.
+    if (geometry === ringPlaced) return;
+    ringPlaced = geometry;
+    if (geometry === 'none') return css(ring, { 'display': 'none' });
+    var p = geometry.split(',');
+    css(ring, { 'display': 'block', 'left': p[0] + 'px', 'top': p[1] + 'px', 'width': p[2] + 'px', 'height': p[3] + 'px' });
+  }
+  function hiddenByStyle(el) {
+    if (el.checkVisibility) return !el.checkVisibility({ visibilityProperty: true, checkVisibilityCSS: true });
+    return getComputedStyle(el).visibility !== 'visible';
+  }
+  // Still in the page and laid out (not display:none, not collapsed, not visibility:hidden).
+  function stillShown(el) {
+    if (!el.isConnected) return false;
+    var r = el.getBoundingClientRect();
+    if (!r.width && !r.height) return false;
+    return !hiddenByStyle(el);
+  }
+  function follow() {
+    if (current && !(stillShown(current.el) && (current.box === current.el || stillShown(current.box)))) {
+      setHighlight(null);
+    }
+    if (!current) {
+      following = false;
+      return;
+    }
+    attach(ring);
+    placeRing(current.box.getBoundingClientRect(), viewOf(current.clips));
+    requestAnimationFrame(follow);
+  }
+  function setHighlight(el, box) {
+    box = box || el;
+    current = el ? { el: el, box: box, clips: clipsOf(box) } : null;
+    ringPlaced = '';
+    if (!current) {
+      if (ring) css(ring, { 'display': 'none' });
+      return;
+    }
+    ensureRing();
+    placeRing(current.box.getBoundingClientRect(), viewOf(current.clips));
+    if (!following) {
+      following = true;
+      requestAnimationFrame(follow);
+    }
+  }
+  // A highlighted text field has the focus, so Enter reaches the composer; leaving a field
+  // blurs it, so Enter (and the composer) don't stay on a field the ring has left.
+  function focusForHighlight(el) {
+    var active = deepActive();
+    if (isTextField(el)) {
+      if (active !== el) {
+        try { el.focus({ preventScroll: true }); } catch (e) {}
+      }
+    } else if (active && active !== el && isKeyboardField(active)) {
+      active.blur();
+    }
+  }
+  lumen.highlight = function (el) {
+    if (!el || el.nodeType !== 1) return setHighlight(null);
+    setHighlight(el, el);
+    focusForHighlight(el);
+  };
+  lumen.highlighted = function () {
+    if (current && !current.el.isConnected) setHighlight(null);
+    return current ? current.el : null;
+  };
+
+  // The toast: a pill at the top centre (or the middle, for a "+10 s" chip), replaced by the next.
+  var SVG = 'http://www.w3.org/2000/svg';
+  var ICONS = {
+    'heart': ['M12 20s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 10c0 5.65-7 10-7 10z'],
+    'heart-filled': ['M12 20s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 10c0 5.65-7 10-7 10z'],
+    'forward': ['M20 12a8 8 0 1 1-2.34-5.66', 'M20 4v5h-5'],
+    'back': ['M4 12a8 8 0 1 0 2.34-5.66', 'M4 4v5h5']
+  };
+  var toastEl = null;
+  var toastTimer = 0;
+  function toastIcon(name, size) {
+    var svg = document.createElementNS(SVG, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', String(size));
+    svg.setAttribute('height', String(size));
+    svg.setAttribute('aria-hidden', 'true');
+    css(svg, { 'flex': 'none', 'display': 'block', 'width': size + 'px', 'height': size + 'px' });
+    ICONS[name].forEach(function (d) {
+      var path = document.createElementNS(SVG, 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('fill', name === 'heart-filled' ? '#fff' : 'none');
+      path.setAttribute('stroke', '#fff');
+      path.setAttribute('stroke-width', '2.2');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+      svg.appendChild(path);
+    });
+    return svg;
+  }
+  lumen.toast = function (text, options) {
+    options = options || {};
+    clearTimeout(toastTimer);
+    if (toastEl && toastEl.parentNode) toastEl.parentNode.removeChild(toastEl);
+    toastEl = null;
+    // An empty text just takes the current toast away.
+    if (text == null || text === '') return;
+    var center = options.center === true;
+    var el = document.createElement('div');
+    el.setAttribute('data-lumen', 'toast');
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    css(el, {
+      'position': 'fixed', 'left': '50%', 'top': center ? '50%' : '24px',
+      'transform': center ? 'translate(-50%, -50%)' : 'translateX(-50%)',
+      'display': 'flex', 'align-items': 'center', 'gap': '10px', 'box-sizing': 'border-box',
+      'height': center ? '64px' : '48px', 'max-width': 'calc(100vw - 32px)', 'margin': '0', 'padding': '0 22px',
+      'background': '#000', 'border': '2px solid rgba(255, 255, 255, 0.43)', 'border-radius': '9999px',
+      'color': '#fff', 'font-family': 'Roboto, "Noto Sans", system-ui, sans-serif',
+      'font-size': center ? '28px' : '22px', 'font-weight': '500', 'font-style': 'normal',
+      'line-height': '1', 'letter-spacing': 'normal', 'text-transform': 'none', 'white-space': 'nowrap',
+      'overflow': 'hidden', 'pointer-events': 'none', 'z-index': TOP_LAYER, 'opacity': '1', 'visibility': 'visible'
+    });
+    if (ICONS[options.icon]) el.appendChild(toastIcon(options.icon, center ? 30 : 24));
+    var label = document.createElement('span');
+    label.textContent = String(text);
+    css(label, { 'overflow': 'hidden', 'text-overflow': 'ellipsis', 'color': '#fff', 'font': 'inherit' });
+    el.appendChild(label);
+    attach(el);
+    toastEl = el;
+    var ms = +options.ms > 0 ? +options.ms : 1500;
+    toastTimer = setTimeout(function () {
+      if (el.parentNode) el.parentNode.removeChild(el);
+      if (toastEl === el) toastEl = null;
+    }, ms);
+  };
+
+  // A tap at the element's centre, as the page's own handlers expect one: pointer and mouse
+  // events, then click, on what is at that point (a card's inner link navigates).
+  function focusable(el) { return el.tabIndex >= 0 && !el.disabled; }
+  lumen.click = function (el) {
+    if (!el || el.nodeType !== 1 || !el.isConnected) return false;
+    if (focusable(el)) {
+      try { el.focus({ preventScroll: true }); } catch (e) {}
+    }
+    var r = el.getBoundingClientRect();
+    var x = r.left + r.width / 2;
+    var y = r.top + r.height / 2;
+    var hit = x >= 0 && y >= 0 && x < window.innerWidth && y < window.innerHeight ? document.elementFromPoint(x, y) : null;
+    var target = hit && (hit === el || el.contains(hit)) ? hit : el;
+    function init(buttons) {
+      return {
+        bubbles: true, cancelable: true, composed: true, view: window, detail: 1,
+        clientX: x, clientY: y, screenX: x, screenY: y, button: 0, buttons: buttons,
+        pointerId: 1, pointerType: 'mouse', isPrimary: true, width: 1, height: 1
+      };
+    }
+    var Pointer = window.PointerEvent;
+    if (Pointer) target.dispatchEvent(new Pointer('pointerdown', init(1)));
+    target.dispatchEvent(new MouseEvent('mousedown', init(1)));
+    if (Pointer) target.dispatchEvent(new Pointer('pointerup', init(0)));
+    target.dispatchEvent(new MouseEvent('mouseup', init(0)));
+    target.dispatchEvent(new MouseEvent('click', init(0)));
+    return true;
+  };
+
+  // The generic band navigation (online apps): the arrows move the ring to the nearest visible
+  // link or button that way (spatial navigation), Enter clicks it. Only for keys the page left
+  // alone, so a site or a game that handles the arrows keeps them.
+  var CLICKABLE = 'a[href], button, input:not([type="hidden"]), select, textarea, summary, ' +
+    '[role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="option"], ' +
+    '[role="checkbox"], [role="switch"], [role="radio"], [tabindex]:not([tabindex="-1"]), ' +
+    '[contenteditable=""], [contenteditable="true"], [onclick]';
+  var MIN_SIZE = 8;
+  // Style and hit tests per key press, at most: a feed's page holds thousands of clickables.
+  var MAX_CHECKED = 400;
+  // Kept clear of the page's edges when the ring moves (a site's top bar and bottom tabs).
+  var EDGE = 64;
+  var navAnnounced = false;
+
+  function area(r) { return Math.max(0, r.right - r.left) * Math.max(0, r.bottom - r.top); }
+  function within(inner, outer) {
+    return inner.left >= outer.left - 1 && inner.top >= outer.top - 1 &&
+      inner.right <= outer.right + 1 && inner.bottom <= outer.bottom + 1;
+  }
+  function crosses(r, v) { return r.right > v.left && r.left < v.right && r.bottom > v.top && r.top < v.bottom; }
+  function styleShown(el) {
+    if (el.checkVisibility) {
+      return el.checkVisibility({ opacityProperty: true, visibilityProperty: true, checkOpacity: true, checkVisibilityCSS: true });
+    }
+    var style = getComputedStyle(el);
+    return style.visibility === 'visible' && style.opacity !== '0';
+  }
+  // What a tap on the element would hit is the element (or inside it): not under a dialog, a
+  // sticky bar or another layer. A wrapped link's box centre may fall between its lines, so its
+  // first line and a corner are tried too.
+  function onTop(el, r, v) {
+    var left = Math.max(r.left, v.left);
+    var right = Math.min(r.right, v.right);
+    var top = Math.max(r.top, v.top);
+    var bottom = Math.min(r.bottom, v.bottom);
+    var points = [[(left + right) / 2, (top + bottom) / 2]];
+    var line = el.getClientRects()[0];
+    if (line && crosses(line, v)) {
+      points.push([(Math.max(line.left, left) + Math.min(line.right, right)) / 2, (Math.max(line.top, top) + Math.min(line.bottom, bottom)) / 2]);
+    }
+    points.push([left + Math.min(6, (right - left) / 2), top + Math.min(6, (bottom - top) / 2)]);
+    for (var i = 0; i < points.length; i++) {
+      var hit = document.elementFromPoint(points[i][0], points[i][1]);
+      if (hit && (hit === el || el.contains(hit))) return true;
+    }
+    return false;
+  }
+  function visibleClickables(nodes) {
+    var v = viewRect();
+    // Links a screen above or below too, so a card half on screen is grouped whole (below).
+    var band = { left: -Infinity, right: Infinity, top: -v.bottom, bottom: 2 * v.bottom };
+    var found = [];
+    var links = [];
+    var checked = 0;
+    for (var i = 0; i < nodes.length && checked < MAX_CHECKED; i++) {
+      var el = nodes[i];
+      if (el.disabled) continue;
+      var r = el.getBoundingClientRect();
+      if (el.tagName === 'A' && r.width && r.height && crosses(r, band)) links.push({ el: el, rect: r });
+      if (r.width < MIN_SIZE || r.height < MIN_SIZE || !crosses(r, v)) continue;
+      checked++;
+      if (!styleShown(el) || !onTop(el, r, v)) continue;
+      var box = el;
+      // An inline link around a picture measures only its line: the ring goes around the picture.
+      var media = el.tagName === 'A' ? el.querySelector('img, picture, video, svg, canvas') : null;
+      var mr = media && media.getBoundingClientRect();
+      if (mr && area(mr) > area(r)) {
+        box = media;
+        r = mr;
+      }
+      found.push({ el: el, box: box, rect: r });
+    }
+    return merge(found, links);
+  }
+  // One stop per thing: links to the same address close together (a video's thumbnail and its
+  // title) become one, ringed as the card that holds them; a clickable inside another of nearly
+  // the same size gives way to the outer one.
+  function merge(found, links) {
+    var byEl = new Map();
+    found.forEach(function (c) { byEl.set(c.el, c); });
+    var byHref = new Map();
+    links.forEach(function (link) {
+      var href = link.el.href;
+      if (!href || href.indexOf('#') >= 0 || /^javascript:/i.test(href)) return;
+      if (!byHref.has(href)) byHref.set(href, []);
+      byHref.get(href).push(link);
+    });
+    var dropped = new Set();
+    byHref.forEach(function (members) {
+      var shown = members.filter(function (m) { return byEl.has(m.el); });
+      if (members.length < 2 || !shown.length) return;
+      // One off screen counts when it's rendered: a closed menu's link to the same page doesn't.
+      members = members.filter(function (m) { return byEl.has(m.el) || styleShown(m.el); });
+      if (members.length < 2) return;
+      var card = members[0].el.parentElement;
+      for (var depth = 0; card && depth < 6; depth++, card = card.parentElement) {
+        if (card === document.body || card === document.documentElement) return;
+        if (members.every(function (m) { return card.contains(m.el); })) break;
+      }
+      if (!card || depth >= 6) return;
+      var cardRect = card.getBoundingClientRect();
+      var union = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
+      members.forEach(function (m) {
+        union.left = Math.min(union.left, m.rect.left);
+        union.top = Math.min(union.top, m.rect.top);
+        union.right = Math.max(union.right, m.rect.right);
+        union.bottom = Math.max(union.bottom, m.rect.bottom);
+      });
+      // The card must be mostly those links, not a whole section that happens to hold them.
+      if (area(union) < 0.6 * area(cardRect)) return;
+      // Enter clicks the biggest of those on screen (the thumbnail, else the title).
+      var main = shown.reduce(function (a, b) { return area(b.rect) > area(a.rect) ? b : a; });
+      var keep = byEl.get(main.el);
+      shown.forEach(function (m) {
+        var c = byEl.get(m.el);
+        if (c !== keep) dropped.add(c);
+      });
+      keep.box = card;
+      keep.rect = cardRect;
+    });
+    return found.filter(function (c) {
+      if (dropped.has(c)) return false;
+      var a = c.el.parentElement;
+      for (var depth = 0; a && depth < 6; depth++, a = a.parentElement) {
+        var outer = byEl.get(a);
+        if (outer && !dropped.has(outer) && within(c.rect, outer.rect) && area(c.rect) >= 0.8 * area(outer.rect)) return false;
+      }
+      return true;
+    });
+  }
+  function isPageScroller(el) {
+    return el === document.scrollingElement || el === document.documentElement || el === document.body;
+  }
+  // The nearest container that scrolls `el` on that axis, the page's scroller at the end; null
+  // for an element in a fixed or sticky bar (nothing scrolls it).
+  function scrollerOf(el, vertical) {
+    for (var p = el; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+      var style = getComputedStyle(p);
+      if (style.position === 'fixed' || style.position === 'sticky') return null;
+      if (p === el) continue;
+      var overflow = vertical ? style.overflowY : style.overflowX;
+      if ((overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay') &&
+          (vertical ? p.scrollHeight > p.clientHeight + 1 : p.scrollWidth > p.clientWidth + 1)) return p;
+    }
+    return document.scrollingElement || document.documentElement;
+  }
+  function scrollPos(scroller, vertical) { return vertical ? scroller.scrollTop : scroller.scrollLeft; }
+  // Instantly (a smooth scroll would still be moving when the next candidates are measured).
+  function scrollAlong(scroller, vertical, delta) {
+    var before = scrollPos(scroller, vertical);
+    var target = isPageScroller(scroller) ? window : scroller;
+    try {
+      target.scrollBy({ top: vertical ? delta : 0, left: vertical ? 0 : delta, behavior: 'instant' });
+    } catch (e) {
+      if (vertical) scroller.scrollTop += delta;
+      else scroller.scrollLeft += delta;
+    }
+    return scrollPos(scroller, vertical) !== before;
+  }
+  // About a screenful (70 %) of the container that way; whether it moved.
+  function scrollStep(scroller, dir) {
+    var vertical = dir === 'up' || dir === 'down';
+    var page = isPageScroller(scroller);
+    var size = vertical ? (page ? window.innerHeight : scroller.clientHeight) : (page ? window.innerWidth : scroller.clientWidth);
+    return scrollAlong(scroller, vertical, Math.round(size * 0.7) * (dir === 'up' || dir === 'left' ? -1 : 1));
+  }
+  // Keeps the ringed element in view: the nearest edge into the container, clear of the page's
+  // bars; an element taller than the view shows its top.
+  function reveal(el) {
+    [true, false].forEach(function (vertical) {
+      for (var scroller = scrollerOf(el, vertical), guard = 0; scroller && guard < 8; guard++) {
+        var page = isPageScroller(scroller);
+        var r = el.getBoundingClientRect();
+        var low;
+        var high;
+        var size = vertical ? window.innerHeight : window.innerWidth;
+        if (page) {
+          low = vertical ? EDGE : 8;
+          high = size - low;
+        } else {
+          var c = scroller.getBoundingClientRect();
+          low = Math.max(vertical ? c.top : c.left, 0) + 8;
+          high = Math.min(vertical ? c.bottom : c.right, size) - 8;
+        }
+        var start = vertical ? r.top : r.left;
+        var end = vertical ? r.bottom : r.right;
+        var delta = 0;
+        if (start < low) delta = start - low;
+        else if (end > high) delta = Math.min(end - high, start - low);
+        if (delta) scrollAlong(scroller, vertical, Math.round(delta));
+        if (page) break;
+        scroller = scrollerOf(scroller, vertical);
+      }
+    });
+  }
+  // Where a move starts: the ringed element, or the edge of its view (the screen, its list) that
+  // it went past.
+  function origin(rect, v) {
+    var r = { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+    if (r.bottom <= v.top) r.top = r.bottom = v.top;
+    else if (r.top >= v.bottom) r.top = r.bottom = v.bottom;
+    if (r.right <= v.left) r.left = r.right = v.left;
+    else if (r.left >= v.right) r.left = r.right = v.right;
+    return r;
+  }
+  // The candidates that way, best first: the near edge past the current's centre; scored by the
+  // gap along the move plus twice the gap across it (overlapping = 0), then the centres' offset.
+  function ranked(dir, candidates, from, scope) {
+    var vertical = dir === 'up' || dir === 'down';
+    var o = origin(from.box.getBoundingClientRect(), viewOf(from.clips));
+    var cx = (o.left + o.right) / 2;
+    var cy = (o.top + o.bottom) / 2;
+    var list = [];
+    candidates.forEach(function (c) {
+      var r = c.rect;
+      if (c.el === from.el || c.box === from.box || (scope && !scope.contains(c.el))) return;
+      // The current's own parts, and what holds it, aren't somewhere else.
+      if (within(r, o) || within(o, r)) return;
+      var along;
+      if (dir === 'down') { if (!(r.top > cy)) return; along = r.top - o.bottom; }
+      else if (dir === 'up') { if (!(r.bottom < cy)) return; along = o.top - r.bottom; }
+      else if (dir === 'right') { if (!(r.left > cx)) return; along = r.left - o.right; }
+      else { if (!(r.right < cx)) return; along = o.left - r.right; }
+      var across = vertical ? Math.max(0, r.left - o.right, o.left - r.right) : Math.max(0, r.top - o.bottom, o.top - r.bottom);
+      var offset = vertical ? Math.abs((r.left + r.right) / 2 - cx) : Math.abs((r.top + r.bottom) / 2 - cy);
+      list.push({ c: c, score: Math.max(0, along) + 2 * across, offset: offset });
+    });
+    list.sort(function (a, b) { return a.score - b.score || a.offset - b.offset; });
+    return list.map(function (x) { return x.c; });
+  }
+  // The best one that isn't in a fixed or sticky bar (a site's top bar, its bottom tabs): while
+  // the content can still scroll that way, the content comes first.
+  function bestInContent(list, vertical) {
+    for (var i = 0; i < list.length; i++) {
+      if (scrollerOf(list[i].box, vertical)) return list[i];
+    }
+    return null;
+  }
+  // No ring yet: the first fully visible candidate in reading order (top, then left).
+  function first(candidates) {
+    var v = viewRect();
+    var whole = candidates.filter(function (c) { return within(c.rect, v); });
+    var pool = whole.length ? whole : candidates;
+    var pick = null;
+    pool.forEach(function (c) {
+      if (!pick) { pick = c; return; }
+      var dy = c.rect.top - pick.rect.top;
+      if (dy < -4 || (Math.abs(dy) <= 4 && c.rect.left < pick.rect.left)) pick = c;
+    });
+    return pick;
+  }
+  function navTo(c) {
+    setHighlight(c.el, c.box);
+    focusForHighlight(c.el);
+    reveal(c.box);
+  }
+  function navMove(dir) {
+    if (['up', 'down', 'left', 'right'].indexOf(dir) < 0) return false;
+    var vertical = dir === 'up' || dir === 'down';
+    var nodes = document.querySelectorAll(CLICKABLE);
+    var candidates = visibleClickables(nodes);
+    var from = current;
+    if (from && !(stillShown(from.el) && stillShown(from.box))) {
+      setHighlight(null);
+      from = null;
+    }
+    if (!from) {
+      var start = first(candidates);
+      if (!start && scrollStep(document.scrollingElement || document.documentElement, dir)) {
+        start = first(visibleClickables(nodes));
+        if (!start) return true;
+      }
+      if (start) navTo(start);
+      return !!start;
+    }
+    // In the content: the nearest that way inside the current's scrolling container; with none,
+    // that container scrolls (then the next one out, the page last), and the nearest candidate
+    // that came into view is next. From a fixed bar (no scroller), or once nothing scrolls that
+    // way any more, the nearest of all, a bar's item included.
+    var scroller = scrollerOf(from.box, vertical);
+    for (var guard = 0; scroller && guard < 8; guard++) {
+      var page = isPageScroller(scroller);
+      var scope = page ? null : scroller;
+      var pick = bestInContent(ranked(dir, candidates, from, scope), vertical);
+      if (pick) {
+        navTo(pick);
+        return true;
+      }
+      if (scrollStep(scroller, dir)) {
+        pick = bestInContent(ranked(dir, visibleClickables(nodes), from, scope), vertical);
+        if (pick) navTo(pick);
+        return true;
+      }
+      scroller = page ? null : scrollerOf(scroller, vertical);
+    }
+    var any = ranked(dir, candidates, from, null)[0];
+    if (any) navTo(any);
+    return !!any;
+  }
+  function navKeydown(event) {
+    if (!lumen.nav.enabled || event.defaultPrevented) return;
+    var key = bandKey(event);
+    if (!key) return;
+    if (key !== 'enter') {
+      event.preventDefault();
+      navMove(key);
+      return;
+    }
+    // Enter on a field is the composer's (or, with the phone's keyboard, the page's).
+    if (isKeyboardField(deepActive())) return;
+    var el = lumen.highlighted();
+    if (!el) return;
+    event.preventDefault();
+    if (isTextField(el)) focusForHighlight(el);
+    else lumen.click(el);
+  }
+  window.addEventListener('keydown', navKeydown);
+  lumen.nav = {
+    enabled: false,
+    move: function (direction) { return navMove(String(direction)); },
+    clear: function () { setHighlight(null); }
+  };
+  // The host turns it on for an online app's pages (page-bridge.js: `bandNavigation`).
+  window.__lumenBandNavigation = function (value) {
+    lumen.nav.enabled = !!value;
+    if (!lumen.nav.enabled) return setHighlight(null);
+    if (!navAnnounced) {
+      navAnnounced = true;
+      console.info('[Lumen] Band navigation on');
+    }
+  };
+  window.addEventListener('pagehide', function () { setHighlight(null); });
+
   // Back, as MRBD's shell does it: the page gets Escape first; if it neither handles it nor
-  // navigates, the host goes back in history, or closes the app when there is none.
+  // navigates, the host goes back in history, or closes the app when there is none. A band
+  // handler (lumen.band.on) that takes 'back' comes before all that.
   window.__mrbdBack = function () {
+    if (askBand('back')) {
+      if (host) host.backResult(true);
+      return;
+    }
     var target = document.activeElement || document.body || document.documentElement;
     var before = location.href;
     var init = { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true, cancelable: true };
