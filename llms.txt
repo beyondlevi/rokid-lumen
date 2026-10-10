@@ -11,7 +11,9 @@
 Web apps get a 600x600 CSS pixel viewport, arrow keys and Enter from the band, and Escape for
 Back. The host adds `window.lumen.config` (settings declared in the manifest's `lumen_config`
 and set from the phone), `navigator.install`, and fills in `navigation.canGoBack` and
-`speechSynthesis` where the engine lacks them.
+`speechSynthesis` where the engine lacks them. Online app packages (a `.mrbd.zip` without
+index.html, an https `start_url`) bring site scripts (`lumen_scripts`) run in the pages of the
+sites they name, and a gesture card (`lumen_gestures`).
 
 ## Docs
 
@@ -23,6 +25,8 @@ and set from the phone), `navigator.install`, and fills in `navigation.canGoBack
 - [Building apps](docs/building-apps.md): the developer guide for Lumen web apps: input model,
   Back, the composer, the host APIs, the manifest fields, packaging and installing, engines,
   testing on the glasses
+- [Site scripts](docs/site-scripts.md): the generic band navigation on online apps' sites and
+  `window.lumen.band`, `highlight`, `toast`, `click`, `nav` for online app packages' site scripts
 - [Security](docs/security.md): the security model and the known open issues
 
 ## Agents

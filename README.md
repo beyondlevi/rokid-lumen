@@ -62,11 +62,18 @@ demo mode and simulated notifications.
 - **Home with three tabs.** Notifications (the phone's notification inbox), Apps (the web
   apps and any native apps you add, three across in rows that scroll, the glasses' settings
   last, the focused app's icon bigger; you arrange them from the phone) and Controls (the
-  glasses', band's and phone's batteries, volume, brightness, do not disturb, the Rokid's camera, gallery, music and settings, and the way back
+  glasses', band's and phone's batteries, where the band is and a chooser to move it, volume,
+  brightness, do not disturb, the Rokid's camera, gallery, music and settings, and the way back
   to the Rokid launcher).
 - **Web apps.** Offline `.mrbd.zip` packages, served from a loopback server, and online HTTPS
   apps. Each app has its own origin and, on GeckoView, its own cookies and storage. Apps can
   declare settings (a server URL, an API key) that you fill in from the phone.
+- **Any site with the band.** On an online app's site the swipes move a highlight between what
+  can be clicked and the index tap opens it, no Air Mouse needed. An online app can also come
+  as a package with **site scripts** that fit a site to the glasses and the band (Instagram's
+  Reels, YouTube's player) and keeps the sign-ins of the app it replaces. Pages are dark, videos
+  no bigger than the display, and a page too heavy for the glasses goes without taking Lumen
+  with it.
 - **Notifications.** A banner over any app and an inbox grouped by app. Dismiss on the glasses
   (it clears on the phone too), snooze the banners for 15 minutes, hide the text.
 - **Dictation and handwriting.** Enter on a text field opens a composer: dictate, or write with
@@ -161,6 +168,8 @@ kinesis and air-gestures do on a computer, or import a key you already have. Det
 - [Features](docs/features.md): gestures, the grid, notifications, internet, dictation, the
   companion.
 - [Building apps](docs/building-apps.md): the developer guide for Lumen web apps.
+- [Site scripts](docs/site-scripts.md): the band navigation on any site and the page API for
+  online app packages' scripts.
 - [Security](docs/security.md): the security model and the known open issues.
 - [Roadmap](ROADMAP.md), [Changelog](CHANGELOG.md), [Contributing](CONTRIBUTING.md).
 - [skills/lumen-app/SKILL.md](skills/lumen-app/SKILL.md): a skill for coding agents that build

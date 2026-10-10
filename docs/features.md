@@ -172,6 +172,12 @@ Right of Apps (right from the last app, or the tabs), the toolkit's control tile
   setting: the self-arm's shell grants Lumen the right to write it the first time; without the
   self-arm the Rokid's brightness screen opens instead.
 - **Do not disturb**: the banners' snooze (15 minutes), lit while it's on.
+- **Band**: where the band is (the glasses, the phone or a computer), with its battery or the
+  profile in use. It opens the band's device chooser: the glasses, the phone and the computers
+  the phone has been a keyboard for, then that device's profile. Choosing the band's device is
+  also a glasses action (the index double tap's by default). Each step of a move, and each pause
+  or resume, shows as a toast at the top (Meta's style); on the phone, as a notification. A
+  hand-over to the glasses that gets no answer brings the band back where it was.
 - **Rokid settings**, and last, full width, **Rokid launcher**: the only way out of Lumen. Back
   (the band's middle tap, the touchpad's) never leaves the home: at its top level it goes to the
   tabs.

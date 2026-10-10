@@ -13,10 +13,20 @@
 - **Pause or resume the band** is an action: the middle hold's by default, any gesture's when
   mapped, and the only one that works while paused. A mapping without it doesn't stay paused.
 
+### Glasses
+
+- **Move the band from the glasses**: a Band tile in Controls shows where the band is and opens
+  the device chooser (the glasses, the phone, the computers), then that device's profile; it is
+  also an action, the index double tap's by default. Each step shows as a toast in Meta's style,
+  and a hand-over that gets no answer brings the band back.
+- A value changed in the Glasses settings from the phone shows at once, as sending.
+
 ### Companion
 
 - **Write** on the phone: a gesture switches to the Lumen handwriting keyboard on the focused
   field and the band writes there; your keyboard comes back when the writing ends.
+- **Apps tab**: changes show at once and reach the glasses even when Rokid's link is slow (a
+  package dropped in or an app changed on the glasses reaches the phone too).
 
 ### Web apps
 
