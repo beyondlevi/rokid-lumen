@@ -72,7 +72,9 @@ data class InstallPreview(
             // An online app always uses the internet.
             internet = staged.online || staged.internet,
             settings = staged.configFields.map { it.label.ifEmpty { it.key } },
-            updates = WebAppLibrary.find(context, staged.id)?.name,
+            // An online package also updates the app added by address for its site (it takes it over).
+            updates = WebAppLibrary.find(context, staged.id)?.name
+                ?: if (staged.online) WebAppPackages.adoptable(WebAppLibrary.all(context), staged.startUrl, staged.scriptHosts, staged.id)?.name else null,
             clearsSecrets = WebAppPackages.clearsSecrets(context, staged),
             scriptHosts = staged.scriptHosts,
         )

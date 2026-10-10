@@ -28,6 +28,12 @@
   again, and after a second time within two minutes shows a notice (index tap: try again).
   Gecko keeps less for later (no spare process, no pages kept for Back, smaller caches) and
   builds no accessibility trees, whose teardown crashed Lumen when a page's process died.
+  Apps left open behind another screen are closed when memory runs low or the page in front
+  runs out of it (a hidden YouTube held 175 MB next to Instagram's Reels); opened again, they
+  load again, still signed in.
+  Gecko is asked to free memory as soon as the glasses run low (it otherwise heard only when
+  Android trimmed, after the page was already gone), and its crash helper process (40-70 MB,
+  for crash reports Lumen never sends) no longer runs.
 - **Video fits the display**: Instagram's videos play at 480 pixels on the short side at most,
   in H.264 when offered, and players asking about bigger sizes or more than 30 fps hear no.
 - **Online app packages with site scripts**: a `.mrbd.zip` without `index.html` whose
@@ -35,7 +41,8 @@
   for the sites it names (`lumen_scripts`). GeckoView runs them in those pages, in the page's own
   world before its scripts, only while the app is in front; the install confirmation names the
   sites. Such a package can also show a gesture card the first three times the app opens
-  (`lumen_gestures`); any gesture closes it.
+  (`lumen_gestures`); any gesture closes it. It takes over an app added by address for the same
+  site, keeping its sign-ins and its place in the grid.
 - **The band on any site**: in an online app, swipes move a highlight between what can be
   clicked on the page (the page scrolls when there's nothing more that way), the index tap opens
   it, and a page that handles the arrows itself keeps them. An online app without a gesture card

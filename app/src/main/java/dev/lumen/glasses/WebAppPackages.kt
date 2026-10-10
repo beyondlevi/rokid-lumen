@@ -353,15 +353,18 @@ object WebAppPackages {
             target.deleteRecursively()
             if (!staged.base.renameTo(target)) throw InvalidPackage(Problem.WRITE_FAILED)
             val icon = WebAppIcons.savePackageIcon(context, target, staged.manifest, staged.id) ?: existing?.icon
+            // The app added by address for the same site, which this package takes over.
+            val adopted = if (staged.online) adoptable(WebAppLibrary.all(context), staged.startUrl, staged.scriptHosts, staged.id) else null
+            // A name given by hand stays (this app's, or the one taken over).
+            val named = existing?.takeIf { it.renamed } ?: adopted?.takeIf { it.renamed }
             val app = WebApp(
                 id = staged.id,
-                // A name given by hand stays.
-                name = if (existing?.renamed == true) existing.name else staged.name,
-                renamed = existing?.renamed ?: false,
+                name = named?.name ?: staged.name,
+                renamed = named != null,
                 offline = !staged.online,
                 remoteUrl = staged.startUrl.takeIf { staged.online }.orEmpty(),
                 port = port,
-                engine = existing?.engine ?: WebEngineKind.GECKO,
+                engine = existing?.engine ?: adopted?.engine ?: WebEngineKind.GECKO,
                 icon = icon,
                 version = staged.version,
                 configFields = staged.configFields,
@@ -370,8 +373,16 @@ object WebAppPackages {
                 source = if (trusted && staged.source.isEmpty()) existing?.source.orEmpty() else staged.source,
                 packaged = staged.online,
                 scriptHosts = staged.scriptHosts,
+                // Its sign-ins: the context taken over now, or the one it took over before.
+                contextOf = adopted?.contextKey ?: existing?.contextOf.orEmpty(),
             )
+            // The context this app had on its own until now (a fresh install's) isn't used any more.
+            if (adopted != null && existing != null && existing.contextKey != app.contextKey) WebAppContexts.clear(context, existing.contextKey)
             WebAppLibrary.put(context, app)
+            if (adopted != null) {
+                WebAppLibrary.handOver(context, adopted.id, app.id)
+                android.util.Log.i("BandPackages", "${app.name} took over ${adopted.name} (its sign-ins and its place in the grid)")
+            }
             updateCopies(context, app, target)
             return app
         } finally {
@@ -458,6 +469,29 @@ object WebAppPackages {
         val only = children.singleOrNull()?.takeIf { it.isDirectory } ?: return null
         return if (File(only, "index.html").isFile) only else null
     }
+
+    /**
+     * The app an online package installed at [startUrl] takes over: one added by address (not
+     * packaged, not a copy, not [id] itself) for the same site: the start page's host or one the
+     * package's scripts change ([scriptHosts], `*.` covering the domain and its subdomains), a
+     * leading `www.` or `m.` aside (an app added as `instagram.com` is the site of a package for
+     * `www.instagram.com`). The package then keeps that app's sign-ins ([WebApp.contextOf]) and
+     * its place in the grid, instead of a second app that starts signed out. Null when there's none.
+     */
+    @JvmStatic
+    fun adoptable(apps: List<WebApp>, startUrl: String, scriptHosts: List<String>, id: String): WebApp? {
+        val start = hostOf(startUrl) ?: return null
+        fun site(host: String) = host.removePrefix("www.").removePrefix("m.")
+        val sites = (listOf(start) + scriptHosts.map { it.removePrefix("*.") }).map(::site).toSet()
+        val domains = scriptHosts.filter { it.startsWith("*.") }.map { it.removePrefix("*.") }
+        return apps.firstOrNull { app ->
+            val host = hostOf(app.remoteUrl)
+            !app.offline && !app.packaged && app.copyOf.isEmpty() && app.id != id && host != null &&
+                (site(host) in sites || domains.any { host == it || host.endsWith(".$it") })
+        }
+    }
+
+    private fun hostOf(url: String): String? = runCatching { java.net.URI(url).host?.lowercase(java.util.Locale.ROOT) }.getOrNull()
 
     /** The folder holding the manifest: the root, or its only subfolder (an online package has no index.html). */
     @JvmStatic

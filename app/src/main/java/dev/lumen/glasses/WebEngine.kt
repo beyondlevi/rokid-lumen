@@ -38,6 +38,12 @@ interface WebEngine {
 
         /** The page's process died again soon after a reload: it waits for [retry] ([held]). */
         fun onPageHeld()
+
+        /**
+         * The shown page's process died (out of memory, on the glasses): called before it's
+         * loaded again or held, so what else holds memory can let go first.
+         */
+        fun onPageLost()
     }
 
     /** The view to place in the HUD's square (the engine sizes itself inside it). */

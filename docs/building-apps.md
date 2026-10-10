@@ -302,6 +302,12 @@ the package's files on the glasses: the manifest, the icon and the site scripts.
 updates as any package does (adb, a link confirmed on the glasses, the companion), is known by
 its manifest `id`, and takes `version`, `icons` and `lumen_config` as an offline package does.
 
+When you already have an app added by address for the same site (`instagram.com` added from
+the companion, say), the package takes it over: the new app keeps that app's cookies and storage
+(its sign-ins) and its place in the grid, and the old entry goes. The same site means the start
+page's host or a host its scripts change, a leading `www.` or `m.` aside; a copy of an app is never
+taken over. The install confirmation shows it as an update ("Updates instagram.com").
+
 What it may bring:
 
 | Field | Use |

@@ -68,6 +68,18 @@
         android:supportsRtl="true"
         tools:targetApi="s">
 
+        <!--
+            GeckoView's crash helper runs as its own process for the whole session (40-70 MB on
+            the 1.8 GB glasses, measured with Instagram's Reels), only to write minidumps that
+            Lumen never sends anywhere. Disabled: GeckoView ignores the failed bind and runs on,
+            as it does in builds without the helper.
+        -->
+        <service
+            android:name="org.mozilla.gecko.crashhelper.CrashHelper"
+            android:enabled="false"
+            tools:replace="android:enabled" />
+
+
         <!-- The glasses' own settings, opened from the grid's last item. -->
         <!-- The band's device chooser (the Controls tab's Band tile, or a gesture). -->
         <activity

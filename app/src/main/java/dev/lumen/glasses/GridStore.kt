@@ -55,6 +55,16 @@ object GridStore {
             .apply()
     }
 
+    /**
+     * Puts [newId] where [oldId] was in the stored lists (a packaged app taking over an app added
+     * by address): its place in the order, hidden if that one was.
+     */
+    @JvmStatic
+    fun replace(context: Context, oldId: String, newId: String) {
+        fun swap(list: List<String>) = if (oldId in list) list.filter { it != newId }.map { if (it == oldId) newId else it } else list
+        set(context, swap(stored(context, KEY_ORDER)), swap(stored(context, KEY_HIDDEN)))
+    }
+
     /** Takes an id out of the stored lists (a deleted web app). */
     @JvmStatic
     fun forget(context: Context, id: String) {

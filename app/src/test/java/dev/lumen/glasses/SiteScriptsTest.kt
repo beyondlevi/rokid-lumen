@@ -1,5 +1,6 @@
 package dev.lumen.glasses
 
+import dev.lumen.protocol.GridItem
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -99,6 +100,63 @@ class SiteScriptsTest {
         assertFalse(dir.exists())
         WebAppLibrary.remove(context, copy.id)
         assertFalse(WebAppPackages.dir(context, copy.id).exists())
+    }
+
+    @Test
+    fun anOnlinePackageTakesOverTheAppAddedForItsSite() {
+        // Signed in on the app added by address, placed in the grid.
+        val byAddress = WebAppLibrary.add(context, "https://www.instagram.com/", null)!!
+        GridStore.set(context, listOf("web:other", GridItem.WEB_PREFIX + byAddress.id, GridItem.SETTINGS_ID), emptyList())
+        WebAppContexts.takePending(context)
+        val staged = stage("manifest.webmanifest" to manifest(), "site/instagram.js" to "1", "site/instagram.css" to "")
+        assertEquals("www.instagram.com", InstallPreview.forPackage(context, staged, "https://dl.example/ig.mrbd.zip").updates)
+
+        val app = WebAppPackages.commit(context, staged, trusted = true)
+        // Its cookies and storage (the sign-ins) and its place in the grid; the old entry is gone.
+        assertEquals(byAddress.id, app.contextOf)
+        assertEquals(byAddress.id, app.contextKey)
+        assertNull(WebAppLibrary.find(context, byAddress.id))
+        // Where the library had it too (its order is the grid's until the phone arranges it).
+        assertEquals(app.id, WebAppLibrary.all(context).first().id)
+        val order = GridStore.layout(context)
+        assertTrue(order.indexOf(GridItem.WEB_PREFIX + app.id) in 0 until order.indexOf(GridItem.SETTINGS_ID))
+        assertFalse(GridItem.WEB_PREFIX + byAddress.id in order)
+        assertTrue(WebAppContexts.takePending(context).isEmpty())
+
+        // An update keeps that context; a copy gets its own.
+        val updated = WebAppPackages.commit(context, stage("manifest.webmanifest" to manifest(version = "1.1.0"), "site/instagram.js" to "2", "site/instagram.css" to ""), trusted = true)
+        assertEquals(byAddress.id, updated.contextOf)
+        val copy = WebAppLibrary.copy(context, app.id, "Instagram 2")!!
+        assertEquals(copy.id, copy.contextKey)
+        WebAppLibrary.remove(context, copy.id)
+        WebAppContexts.takePending(context)
+
+        // Removing the app clears the context it took over.
+        WebAppLibrary.remove(context, app.id)
+        assertEquals(setOf(byAddress.id), WebAppContexts.takePending(context))
+    }
+
+    @Test
+    fun onlyAnAppAddedByAddressForTheSameSiteIsTakenOver() {
+        fun app(id: String, url: String, offline: Boolean = false, packaged: Boolean = false, copyOf: String = "") =
+            WebApp(id, id, offline, if (offline) "" else url, 0, WebEngineKind.GECKO, null, "", packaged = packaged, copyOf = copyOf)
+        val hosts = listOf("m.youtube.com", "*.youtube.com")
+        // Another host of the site, covered by the scripts' *.youtube.com.
+        assertEquals("www", WebAppPackages.adoptable(listOf(app("www", "https://www.youtube.com/")), "https://m.youtube.com/", hosts, "pkg")?.id)
+        assertEquals("bare", WebAppPackages.adoptable(listOf(app("bare", "https://youtube.com/feed")), "https://m.youtube.com/", hosts, "pkg")?.id)
+        // Not: another site, a copy, a packaged app, the package itself, an offline app.
+        assertNull(WebAppPackages.adoptable(listOf(app("x", "https://notyoutube.com/")), "https://m.youtube.com/", hosts, "pkg"))
+        assertNull(WebAppPackages.adoptable(listOf(app("c", "https://m.youtube.com/", copyOf = "www")), "https://m.youtube.com/", hosts, "pkg"))
+        assertNull(WebAppPackages.adoptable(listOf(app("p", "https://m.youtube.com/", packaged = true)), "https://m.youtube.com/", hosts, "pkg"))
+        assertNull(WebAppPackages.adoptable(listOf(app("pkg", "https://m.youtube.com/")), "https://m.youtube.com/", hosts, "pkg"))
+        assertNull(WebAppPackages.adoptable(listOf(app("o", "", offline = true)), "https://m.youtube.com/", hosts, "pkg"))
+        // Added without www. or m. (as on the glasses: https://instagram.com, https://youtube.com).
+        assertEquals("ig", WebAppPackages.adoptable(listOf(app("ig", "https://instagram.com")), "https://www.instagram.com/", listOf("www.instagram.com"), "pkg")?.id)
+        assertEquals("yt", WebAppPackages.adoptable(listOf(app("yt", "https://youtube.com")), "https://m.youtube.com/", listOf("m.youtube.com", "www.youtube.com"), "pkg")?.id)
+        assertEquals("www", WebAppPackages.adoptable(listOf(app("www", "https://www.youtube.com/")), "https://m.youtube.com/", emptyList(), "pkg")?.id)
+        // Another site that merely ends the same way isn't.
+        assertNull(WebAppPackages.adoptable(listOf(app("ig2", "https://notinstagram.com")), "https://www.instagram.com/", listOf("www.instagram.com"), "pkg"))
+        assertNull(WebAppPackages.adoptable(listOf(app("m2", "https://music.youtube.com/")), "https://m.youtube.com/", listOf("m.youtube.com"), "pkg"))
     }
 
     @Test

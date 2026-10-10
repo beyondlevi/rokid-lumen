@@ -51,6 +51,12 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
      * phone's network again takes 7 to 30 s, measured).
      */
     private static final long HIDDEN_STOP_MS = 5 * 60_000L;
+    /**
+     * Every app screen alive, shown or hidden behind another screen: a hidden one keeps its page
+     * (a content process, 175 MB for YouTube's next to Instagram's Reels, measured), which the
+     * glasses' 1.8 GB need for the app in front when memory runs short ([releaseHidden]).
+     */
+    private static final java.util.Set<WebAppActivity> LIVE = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
     /** After the phone keyboard's Enter, the page's own change to the field (a sent message clears it). */
     private static final long KEYBOARD_SYNC_MS = 500;
 
@@ -66,6 +72,8 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     /** Whether [internet] is held now: let go while the app is hidden, taken again when it's back. */
     private boolean internetHeld;
     private final Runnable hiddenStop = this::stopHidden;
+    /** Between onStart and onStop: someone sees this app. */
+    private boolean shown;
     private boolean loaded;
     private WebComposer composer;
     /** The app's gesture card or band hint, the first times it opens. */
@@ -104,6 +112,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
             finish();
             return;
         }
+        LIVE.add(this);
         // Held until onDestroy: the app's server stops once no screen uses it.
         serverPort = app.getOffline() ? app.getPort() : 0;
         appId = app.getId();
@@ -318,6 +327,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     @Override
     protected void onStart() {
         super.onStart();
+        shown = true;
         mainHandler.removeCallbacks(hiddenStop);
         if (engine != null) {
             engine.onShown();
@@ -336,6 +346,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
      */
     @Override
     protected void onStop() {
+        shown = false;
         GlassesAudio.closeAll(this);
         WebRecognition.closeAll(this);
         if (engine != null) {
@@ -344,6 +355,31 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         mainHandler.removeCallbacks(hiddenStop);
         mainHandler.postDelayed(hiddenStop, HIDDEN_STOP_MS);
         super.onStop();
+    }
+
+    /**
+     * Closes every app hidden behind another screen, so their pages' memory goes to the app in
+     * front. Opened again, a closed app loads its page again; its sign-ins stay in its cookies.
+     */
+    static void releaseHidden(String why) {
+        for (WebAppActivity activity : new java.util.ArrayList<>(LIVE)) {
+            if (!activity.shown && !activity.isFinishing() && !activity.isDestroyed()) {
+                Log.i(TAG, "Closing the hidden " + activity.appName + ": " + why);
+                activity.finish();
+            }
+        }
+    }
+
+    /** Android says memory runs low while Lumen is in front: the hidden apps go first. */
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (shown) {
+            Log.d(TAG, "Memory trim level " + level);
+        }
+        if (level >= TRIM_MEMORY_RUNNING_LOW && level < TRIM_MEMORY_UI_HIDDEN) {
+            releaseHidden("memory running low (" + level + ")");
+        }
     }
 
     private void stopHidden() {
@@ -356,6 +392,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
 
     @Override
     protected void onDestroy() {
+        LIVE.remove(this);
         mainHandler.removeCallbacks(hiddenStop);
         GlassesAudio.closeAll(this);
         WebRecognition.closeAll(this);
@@ -604,6 +641,11 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
                 engine.speechEvent(utteranceId, type, code);
             }
         });
+    }
+
+    @Override
+    public void onPageLost() {
+        releaseHidden("the page in front ran out of memory");
     }
 
     @Override

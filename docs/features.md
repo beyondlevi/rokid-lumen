@@ -212,7 +212,8 @@ app goes back in its history, or closes when there is none.
   that brings scripts for the sites it opens, so they work with the band (Instagram's Reels,
   YouTube's player), and a gesture card shown the first three times it opens (any gesture
   closes it). The scripts run only in the sites the package names, only while the app is in
-  front, and the install confirmation names those sites. Any other online app on GeckoView
+  front, and the install confirmation names those sites. Installed over an app added by address
+  for the same site, it keeps that app's sign-ins and place in the grid. Any other online app on GeckoView
   shows a one-line hint of the band navigation (swipe: move, index: open, middle: back) the
   first three times.
 - **The band on any site** (online apps). Swipes move a highlight between what can be clicked
@@ -235,7 +236,9 @@ app goes back in its history, or closes when there is none.
 - **Out of memory, the page goes and Lumen stays** (GeckoView). The page's processes sit below
   Lumen's for Android, so a page too heavy for the glasses (Instagram's Reels) is the one Android
   stops. Lumen loads it again; if it goes twice within two minutes, a notice says so, and the
-  index tap tries again.
+  index tap tries again. Apps left open behind it are closed first (when Android says memory
+  runs low, or the page in front runs out of it); opened again they load again, still signed in. While a page is
+  shown, Gecko is asked to free memory as soon as the free memory drops below 350 MB.
 
 How to build one: [building-apps.md](building-apps.md).
 
