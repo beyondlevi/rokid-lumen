@@ -30,6 +30,7 @@ object BandLabels {
         "launcher_battery" to R.string.band_setting_launcher_battery,
         "power_saving" to R.string.band_setting_power_saving,
         "screen_timeout" to R.string.band_setting_screen_timeout,
+        "lumen_keyboard" to R.string.band_setting_lumen_keyboard,
         // The phone's own (PhoneSettings).
         "phone.swipe_up" to R.string.phone_gesture_swipe_up,
         "phone.swipe_down" to R.string.phone_gesture_swipe_down,
@@ -129,6 +130,11 @@ object BandLabels {
         "other" to R.string.action_group_other,
     )
 
+    /** A line under a setting that says what it does, by setting key. */
+    private val descriptions = mapOf(
+        "lumen_keyboard" to R.string.band_setting_lumen_keyboard_hint,
+    )
+
     /** A slider's hint and the words at its two ends, by setting key. */
     data class Range(@StringRes val hint: Int, @StringRes val start: Int, @StringRes val end: Int)
 
@@ -165,6 +171,8 @@ object BandLabels {
     @StringRes fun option(settingKey: String, id: String): Int? = if (settingKey.endsWith("_app")) null else options[id]
 
     @StringRes fun section(key: String): Int? = sections[key]
+
+    @StringRes fun description(key: String): Int? = descriptions[key]
 
     @StringRes fun group(id: String): Int? = groups[id]
 

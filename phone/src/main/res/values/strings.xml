@@ -454,12 +454,12 @@
     <string name="apps_rename_title">Rename %1$s</string>
     <string name="apps_copy_dialog_hint">It starts with no settings and no data: set it up like a new app.</string>
     <string name="keyboard_title">Keyboard</string>
-    <string name="home_keyboard_no_field">Type into a web app on the glasses</string>
+    <string name="home_keyboard_no_field">Type into a field on the glasses</string>
     <string name="keyboard_typing_into">Typing into %1$s · %2$s</string>
-    <string name="keyboard_no_field">No text field has focus on the glasses. Pick one in the web app; what you type here goes into it.</string>
+    <string name="keyboard_no_field">No text field has focus on the glasses. Pick one there, in any app; what you type here goes into it.</string>
     <string name="keyboard_no_link">The glasses aren\'t connected.</string>
     <string name="keyboard_enter">Enter</string>
-    <string name="keyboard_hint">What you type shows up on the glasses as you type. While this screen is open, Enter on a field there goes to the app instead of opening dictation.</string>
+    <string name="keyboard_hint">What you type shows up on the glasses as you type. Enter is the field\'s own there: it searches, sends or goes to the next field.</string>
     <string name="keyboard_field_text">a text field</string>
     <string name="keyboard_field_password">a password</string>
     <string name="home_keyboard_field">Field in focus: %1$s · %2$s</string>

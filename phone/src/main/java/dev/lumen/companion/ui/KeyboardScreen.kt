@@ -37,10 +37,11 @@ import dev.lumen.protocol.KeyboardField
 import kotlinx.coroutines.delay
 
 /**
- * Types into the text field focused in the glasses' web app: every change goes out live as the
- * field's whole text, and the keyboard's action is Enter there. While this page is in front the
- * glasses know the keyboard is open (Enter on a field reaches the page instead of opening the
- * dictation composer); it closes when the page goes or the companion leaves the screen.
+ * Types into the text field focused on the glasses, in any app there (Lumen's keyboard is their
+ * input method): every change goes out live as the field's whole text, and the keyboard's action
+ * is the field's Enter there (its search, its send). While this page is in front the glasses know
+ * the keyboard is open, and send the field's text; it closes when the page goes or the companion
+ * leaves the screen. The glasses' panel opens it with a notification ([dev.lumen.companion.KeyboardLink]).
  */
 @Composable
 internal fun KeyboardPage(field: KeyboardField, linked: Boolean, actions: CompanionActions, onBack: () -> Unit) {

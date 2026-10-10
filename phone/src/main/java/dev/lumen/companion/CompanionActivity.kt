@@ -797,6 +797,8 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
         /** Opens a page over the tabs ([dev.lumen.companion.ui.PAGE_UPDATES]): the update notification. */
         const val EXTRA_PAGE = "page"
         const val PAGE_UPDATES = dev.lumen.companion.ui.PAGE_UPDATES
+        /** The keyboard for the glasses' field: their ask's notification ([KeyboardLink]). */
+        const val PAGE_KEYBOARD = dev.lumen.companion.ui.PAGE_KEYBOARD
 
         private const val REQUEST_AUTH = 7
         private const val REQUEST_MICROPHONE = 8

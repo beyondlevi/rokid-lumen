@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="band_setting_lumen_keyboard">Teclado do Lumen</string>
+    <string name="band_setting_lumen_keyboard_hint">Ditar, escrever com a band ou digitar neste celular em qualquer campo dos óculos. Desligado: o teclado da Rokid.</string>
+    <string name="keyboard_notice_channel">Teclado dos óculos</string>
+    <string name="keyboard_notice_title">Os óculos pedem o teclado</string>
+    <string name="keyboard_notice_text">Digite em %1$s · %2$s</string>
+    <string name="keyboard_notice_text_field">Digite em %1$s</string>
+</resources>
