@@ -12,6 +12,9 @@ class KeyboardTest {
         assertEquals(text, KeyboardCommand.from(text.toJson()))
         val field = KeyboardField(true, "WhatsApp", "Mensagem", "text", true, "oi", KeyboardField.SYNC)
         assertEquals(field, KeyboardField.from(field.toJson()))
+        // The glasses asking the phone to open its keyboard.
+        val ask = KeyboardField(true, "Settings", "Password", "password", false, "", KeyboardField.ASK)
+        assertEquals(KeyboardField.ASK, KeyboardField.from(ask.toJson()).reason)
     }
 
     @Test

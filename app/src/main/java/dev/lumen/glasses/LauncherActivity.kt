@@ -207,6 +207,8 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         BandAccessibilityService.setInputTarget(this)
         NotificationInbox.addListener(this)
         GridStore.addListener(this)
+        // The self-arm may have finished since, or Rokid's assistant taken the keyboard back.
+        KeyboardDefault.apply(this)
         pages[tab].onShow()
         refreshApps()
         refreshDot()

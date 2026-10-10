@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="keyboard_name">Teclado do Lumen</string>
+    <string name="keyboard_hint">Indicador: ditar, escrever ou celular</string>
+    <string name="keyboard_hint_password">Indicador: escrever ou celular</string>
+    <string name="keyboard_hint_action">Indicador: %1$s ou continuar</string>
+    <string name="keyboard_status_choose">Como escrever?</string>
+    <string name="keyboard_status_continue">Como continuar?</string>
+    <string name="keyboard_status_password">Senha: escrever ou celular</string>
+    <string name="keyboard_continue_hint">Deslizar: trocar · Indicador: escolher · Médio: fechar</string>
+    <string name="keyboard_password_hint">Ditar fica fora das senhas · Médio: cancelar</string>
+    <string name="keyboard_password_writing_hint">A senha não aparece · Médio: concluir</string>
+    <string name="keyboard_choice_phone">Celular</string>
+    <string name="keyboard_phone_status">Digite no celular</string>
+    <string name="keyboard_phone_hint">O teclado abriu no celular; o texto chega enquanto você digita · Médio: fechar</string>
+    <string name="keyboard_enter_label">Enter: %1$s</string>
+    <string name="keyboard_action_enter">Enter</string>
+    <string name="keyboard_action_search">Pesquisar</string>
+    <string name="keyboard_action_send">Enviar</string>
+    <string name="keyboard_action_go">Ir</string>
+    <string name="keyboard_action_next">Próximo</string>
+    <string name="keyboard_action_previous">Anterior</string>
+    <string name="keyboard_action_done">Concluir</string>
+    <string name="keyboard_field_text">Campo de texto</string>
+    <string name="keyboard_field_password">Senha</string>
+    <string name="keyboard_field_email">E-mail</string>
+    <string name="keyboard_field_url">Endereço</string>
+    <string name="keyboard_field_number">Número</string>
+    <string name="keyboard_field_phone">Telefone</string>
+</resources>

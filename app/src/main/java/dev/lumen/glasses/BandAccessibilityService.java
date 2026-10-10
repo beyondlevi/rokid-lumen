@@ -246,6 +246,8 @@ public final class BandAccessibilityService extends AccessibilityService {
         PhoneLink.start(this);
         MetaToast.attach(this);
         BandSwitch.load(this);
+        // Lumen's keyboard as the glasses' input method (or Rokid's back), with the self-arm's permission.
+        KeyboardDefault.apply(this);
         String problem = BandRuntime.start(this, this::onBandAction);
         Log.d(TAG, "Accessibility service connected band=" + (problem == null ? "starting" : problem));
     }
@@ -456,6 +458,11 @@ public final class BandAccessibilityService extends AccessibilityService {
         }
         if (GestureChoices.DEVICES.equals(command)) {
             BandDeviceActivity.open(this);
+            return;
+        }
+        // Lumen's keyboard first: its open panel takes the band (over a banner too), and the index
+        // tap on a focused text field opens the panel instead of reaching the app (any app).
+        if (LumenKeyboard.onBandCommand(command, banner != null && banner.isShowing())) {
             return;
         }
         if (banner != null && banner.onBandCommand(command)) {

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lumen's keyboard on the glasses (LumenKeyboard): the hint under a focused field and its panel. -->
+<resources>
+    <string name="keyboard_name">Lumen keyboard</string>
+    <!-- The hint pill, with a field focused and the panel closed. -->
+    <string name="keyboard_hint">Index: dictate, write or phone</string>
+    <string name="keyboard_hint_password">Index: write or phone</string>
+    <!-- %1$s: the field's Enter action, lower case ("search"). -->
+    <string name="keyboard_hint_action">Index: %1$s or continue</string>
+    <!-- The panel's status line while choosing. -->
+    <string name="keyboard_status_choose">How to write?</string>
+    <string name="keyboard_status_continue">How to continue?</string>
+    <string name="keyboard_status_password">Password: write or phone</string>
+    <string name="keyboard_continue_hint">Swipe: switch · Index: select · Middle: close</string>
+    <string name="keyboard_password_hint">No dictation for passwords · Middle: cancel</string>
+    <string name="keyboard_password_writing_hint">The password doesn\'t show · Middle: done</string>
+    <string name="keyboard_choice_phone">Phone</string>
+    <string name="keyboard_phone_status">Type on the phone</string>
+    <string name="keyboard_phone_hint">The keyboard opened on the phone; the text comes as you type · Middle: close</string>
+    <!-- %1$s: the field's Enter action, lower case ("search"). -->
+    <string name="keyboard_enter_label">Enter: %1$s</string>
+    <!-- The field's Enter actions (Android's IME actions). -->
+    <string name="keyboard_action_enter">Enter</string>
+    <string name="keyboard_action_search">Search</string>
+    <string name="keyboard_action_send">Send</string>
+    <string name="keyboard_action_go">Go</string>
+    <string name="keyboard_action_next">Next</string>
+    <string name="keyboard_action_previous">Previous</string>
+    <string name="keyboard_action_done">Done</string>
+    <!-- A field without a label of its own, by kind. -->
+    <string name="keyboard_field_text">Text field</string>
+    <string name="keyboard_field_password">Password</string>
+    <string name="keyboard_field_email">Email</string>
+    <string name="keyboard_field_url">Address</string>
+    <string name="keyboard_field_number">Number</string>
+    <string name="keyboard_field_phone">Phone number</string>
+</resources>
