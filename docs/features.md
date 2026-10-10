@@ -208,6 +208,19 @@ app goes back in its history, or closes when there is none.
 - **Offline apps** are `.mrbd.zip` packages, served from a loopback server
   (`http://127.0.0.1:<port>`, one port per app). They work with no network.
 - **Online apps** are HTTPS addresses.
+- **Online app packages and site scripts** (GeckoView). An online app can come as a package
+  that brings scripts for the sites it opens, so they work with the band (Instagram's Reels,
+  YouTube's player), and a gesture card shown the first three times it opens (any gesture
+  closes it). The scripts run only in the sites the package names, only while the app is in
+  front, and the install confirmation names those sites. Any other online app on GeckoView
+  shows a one-line hint of the band navigation (swipe: move, index: open, middle: back) the
+  first three times.
+- **The band on any site** (online apps). Swipes move a highlight between what can be clicked
+  on the page; when nothing more is that way, the page scrolls. The index tap opens what's
+  highlighted, and a text field gets the composer. A page that handles the arrows itself (a game)
+  keeps them. Details: [site-scripts.md](site-scripts.md).
+- **Dark pages** (GeckoView). Sites are asked for their dark theme (`prefers-color-scheme`): on
+  the glasses black is see-through, and a white page washes out the view.
 - **Engines.** Each app runs on GeckoView 156 (the default, bundled with the app) or on the
   glasses' system WebView (Chromium 95, the firmware's). Switch it per app from the companion's
   Apps tab or from **Settings > Web apps (MRBD)** on the glasses.

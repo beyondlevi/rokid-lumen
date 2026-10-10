@@ -211,6 +211,8 @@
     <string name="webapp_no_internet">No internet: the app didn\'t load.</string>
     <string name="webapp_out_of_memory">The glasses ran out of memory on this app twice, so it was stopped and Lumen kept running. Index tap: try again.</string>
     <string name="webapp_navigation_blocked">This app can\'t open other sites</string>
+    <string name="webapp_gestures_close">Any gesture closes</string>
+    <string name="webapp_band_hint">Swipe: move · Index: open · Middle: back</string>
     <string name="launcher_downloading">Downloading the package…</string>
     <string name="launcher_installed">Installed: %1$s</string>
     <string name="launcher_updated">Updated: %1$s</string>
@@ -223,6 +225,8 @@
     <string name="install_offline">Offline package</string>
     <string name="install_offline_version">Offline package · version %1$s</string>
     <string name="install_online">Online app</string>
+    <string name="install_online_version">Online app · version %1$s</string>
+    <string name="install_site_scripts">Changes the pages of %1$s for the glasses and the band</string>
     <string name="install_internet">Uses the internet</string>
     <string name="install_no_internet">Doesn\'t ask for the internet</string>
     <string name="install_settings">Settings: %1$s</string>
@@ -240,7 +244,12 @@
     <string name="package_empty">Empty package, or not a zip</string>
     <string name="package_damaged">The package arrived damaged: send it again</string>
     <string name="package_other_app">This package is another app (%1$s), not the one being updated</string>
-    <string name="package_not_offline">Only an offline app can be updated with a package</string>
+    <string name="package_not_offline">Only an app installed from a package can be updated with one</string>
+    <string name="package_start_url">An online app\'s package needs an https:// start_url, not %1$s</string>
+    <string name="package_scripts_invalid">The package\'s lumen_scripts is malformed</string>
+    <string name="package_script_match">Site scripts only for https:// sites by name, not %1$s</string>
+    <string name="package_script_path">Site script missing or outside the package: %1$s</string>
+    <string name="package_scripts_too_big">The package\'s site scripts are over 1 MB</string>
     <string name="package_line" translatable="false">%1$s: %2$s</string>
     <string name="notification_phone">Phone</string>
     <string name="notification_eyebrow" translatable="false">%1$s · %2$s</string>

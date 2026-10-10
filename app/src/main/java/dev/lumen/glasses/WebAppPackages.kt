@@ -14,8 +14,10 @@ import java.util.zip.ZipInputStream
 /**
  * Offline web apps: a `.mrbd.zip` is a Vite `dist/` (index.html at the root, or under one
  * top-level folder) with a `manifest.webmanifest`. It's extracted in [dir] and served by
- * [LocalAppServer]. Packages arrive by `adb push` into [dropFolder] (picked up when the grid
- * opens, like the band key), from the phone ([GridApi]), or by download from an HTTPS URL
+ * [LocalAppServer]. A package without index.html whose manifest's `start_url` is an `https://`
+ * address is an online app instead: it opens that address, and its folder holds the manifest,
+ * the icon and the site scripts ([SiteScripts]) it brings. Packages arrive by `adb push` into
+ * [dropFolder] (picked up when the grid opens, like the band key), from the phone ([GridApi]), or by download from an HTTPS URL
  * confirmed on the glasses ([InstallConfirmActivity], which [stage]s the package first to show
  * what it is, then [commit]s or [discard]s it).
  *
@@ -40,7 +42,7 @@ object WebAppPackages {
      */
     class StagedPackage internal constructor(
         internal val folder: File,
-        /** The folder holding index.html (the staging folder or its only subfolder). */
+        /** The folder holding index.html, or an online package's manifest (the staging folder or its only subfolder). */
         val base: File,
         val id: String,
         val name: String,
@@ -51,12 +53,17 @@ object WebAppPackages {
         internal val manifest: JSONObject?,
         /** The origin it was downloaded from; empty for a package handed over locally. */
         val source: String = "",
+        /** An online app's package: its manifest's `start_url` is an HTTPS address ([startUrl]). */
+        val online: Boolean = false,
+        val startUrl: String = "",
+        /** The sites its scripts change ([SiteScripts.hosts]), for the confirmation. */
+        val scriptHosts: List<String> = emptyList(),
     ) {
         /** The package's own icon (its manifest's or its page's), or null; beside the staging folder. */
         val icon: File? by lazy { WebAppIcons.packageIcon(base, manifest, iconFile(folder)) }
 
         /** The same package under another app's id (an update for an app whose package has no id). */
-        internal fun withId(id: String) = StagedPackage(folder, base, id, name, version, configFields, internet, manifest, source)
+        internal fun withId(id: String) = StagedPackage(folder, base, id, name, version, configFields, internet, manifest, source, online, startUrl, scriptHosts)
 
         /** Whether its manifest names the app (`id`); without one, its id comes from the file name. */
         internal val hasManifestId: Boolean get() = !manifest?.optString("id").isNullOrEmpty()
@@ -74,7 +81,12 @@ object WebAppPackages {
         EMPTY(R.string.package_empty, "empty package, or not a zip"),
         DAMAGED(R.string.package_damaged, "the package doesn't match what the phone sent"),
         OTHER_APP(R.string.package_other_app, "the package is another app:"),
-        NOT_OFFLINE(R.string.package_not_offline, "not an offline app:"),
+        NOT_OFFLINE(R.string.package_not_offline, "not an app from a package:"),
+        START_URL(R.string.package_start_url, "an online package's start_url must be https:"),
+        SCRIPTS_INVALID(R.string.package_scripts_invalid, "invalid lumen_scripts:"),
+        SCRIPT_MATCH(R.string.package_script_match, "a site script's page isn't https://<host>/…:"),
+        SCRIPT_PATH(R.string.package_script_path, "site script missing or outside the package:"),
+        SCRIPTS_TOO_BIG(R.string.package_scripts_too_big, "site scripts over 1 MiB"),
     }
 
     class InvalidPackage(val problem: Problem, val detail: String = "") : IOException("${problem.log} $detail".trim())
@@ -145,14 +157,14 @@ object WebAppPackages {
     /**
      * Downloads a package the phone serves on its own network ([GridOps.installFile]) from
      * [phone] (`host:port`, its proxy), checks it is what the phone sent ([size], [sha256]) and
-     * installs it. With [replace] (a web app id) it only updates that offline app: a package of
-     * another app is refused, one without a manifest id takes that app's. The owner's channel,
-     * so settings and storage stay. Off the main thread.
+     * installs it. With [replace] (a web app id) it only updates that app, offline or a packaged
+     * online one: a package of another app is refused, one without a manifest id takes that
+     * app's. The owner's channel, so settings and storage stay. Off the main thread.
      */
     @JvmStatic
     fun installFromPhone(context: Context, phone: String, token: String, size: Long, sha256: String, fileName: String, replace: String?): WebApp {
         val target = replace?.let { id ->
-            WebAppLibrary.find(context, id)?.takeIf { it.offline } ?: throw InvalidPackage(Problem.NOT_OFFLINE, id)
+            WebAppLibrary.find(context, id)?.takeIf { it.hasPackage } ?: throw InvalidPackage(Problem.NOT_OFFLINE, id)
         }
         val download = File(context.cacheDir, "phone-package-$token.zip")
         try {
@@ -261,8 +273,22 @@ object WebAppPackages {
         val staging = File(root(context), STAGING_PREFIX + System.nanoTime())
         try {
             extract(input, staging)
-            val base = contentRoot(staging) ?: throw InvalidPackage(Problem.NO_INDEX)
-            val manifest = readManifest(base)
+            val index = contentRoot(staging)
+            val folder = index ?: manifestRoot(staging)
+            val manifest = folder?.let { readManifest(it) }
+            // A package with its own page stays an offline app whatever its start_url says (an
+            // MRBD app's manifest may name where it's also hosted); only one without index.html
+            // is an online app.
+            val startUrl = if (index == null) onlineStart(manifest) else null
+            val declaredStart = manifest?.optString("start_url").orEmpty()
+            val base = when {
+                folder != null && (startUrl != null || folder == index) -> folder
+                // An address that isn't HTTPS: meant as an online package, which must be.
+                declaredStart.contains("://") -> throw InvalidPackage(Problem.START_URL, declaredStart)
+                else -> throw InvalidPackage(Problem.NO_INDEX)
+            }
+            // Only an online app's site scripts run (an offline app never leaves its origin).
+            val scripts = if (startUrl != null) SiteScripts.declared(manifest).also { SiteScripts.check(base, it) } else emptyList()
             val fallbackName = fileName.removeSuffix(SUFFIX).removeSuffix(".zip")
             val key = manifest?.optString("id")?.ifEmpty { null }
                 ?: fallbackName
@@ -281,6 +307,9 @@ object WebAppPackages {
                 internet = manifest?.optBoolean("lumen_internet") ?: false,
                 manifest = manifest,
                 source = source,
+                online = startUrl != null,
+                startUrl = startUrl.orEmpty(),
+                scriptHosts = SiteScripts.hosts(scripts),
             )
         } catch (e: Throwable) {
             staging.deleteRecursively()
@@ -302,8 +331,10 @@ object WebAppPackages {
     }
 
     /**
-     * Installs a [stage]d package, replacing an earlier version of the same app (keeping its port).
-     * Unless [trusted], an update from another origin forgets the app's secrets ([clearsSecrets]).
+     * Installs a [stage]d package, replacing an earlier version of the same app (an offline one
+     * keeps its port). An online package becomes an online app ([WebApp.packaged]) whose folder
+     * keeps the manifest, icon and site scripts. Unless [trusted], an update from another origin
+     * forgets the app's secrets ([clearsSecrets]).
      */
     @JvmStatic
     @JvmOverloads
@@ -311,7 +342,13 @@ object WebAppPackages {
         try {
             val existing = WebAppLibrary.find(context, staged.id)
             if (existing != null && clearsSecrets(context, staged, trusted)) WebAppConfig.clearSecrets(context, existing)
-            val port = existing?.port ?: WebAppLibrary.allocatePort(context)
+            val port = when {
+                staged.online -> 0
+                existing != null && existing.offline -> existing.port
+                else -> WebAppLibrary.allocatePort(context)
+            }
+            // An offline app that became an online one: nothing serves its files any more.
+            if (staged.online && existing?.offline == true) LocalAppServer.stop(existing.port)
             val target = dir(context, staged.id)
             target.deleteRecursively()
             if (!staged.base.renameTo(target)) throw InvalidPackage(Problem.WRITE_FAILED)
@@ -321,8 +358,8 @@ object WebAppPackages {
                 // A name given by hand stays.
                 name = if (existing?.renamed == true) existing.name else staged.name,
                 renamed = existing?.renamed ?: false,
-                offline = true,
-                remoteUrl = "",
+                offline = !staged.online,
+                remoteUrl = staged.startUrl.takeIf { staged.online }.orEmpty(),
                 port = port,
                 engine = existing?.engine ?: WebEngineKind.GECKO,
                 icon = icon,
@@ -331,6 +368,8 @@ object WebAppPackages {
                 internet = staged.internet,
                 // A local package from the owner keeps the origin the app was downloaded from.
                 source = if (trusted && staged.source.isEmpty()) existing?.source.orEmpty() else staged.source,
+                packaged = staged.online,
+                scriptHosts = staged.scriptHosts,
             )
             WebAppLibrary.put(context, app)
             updateCopies(context, app, target)
@@ -342,7 +381,8 @@ object WebAppPackages {
 
     /**
      * The copies of [app] ([WebAppLibrary.copy]) get its new package: the files, the version and
-     * what the manifest asks for; each keeps its name, port, settings and data.
+     * what the manifest asks for, an online one's address and site scripts; each keeps its name,
+     * port, settings and data.
      */
     private fun updateCopies(context: Context, app: WebApp, files: File) {
         WebAppLibrary.copiesOf(context, app.id).forEach { copy ->
@@ -351,7 +391,12 @@ object WebAppPackages {
                 dir.deleteRecursively()
                 check(files.copyRecursively(dir))
                 val icon = app.icon?.let { path -> File(path).copyTo(File(File(path).parentFile, "${copy.id}.png"), overwrite = true).absolutePath } ?: copy.icon
-                WebAppLibrary.put(context, copy.copy(version = app.version, configFields = app.configFields, internet = app.internet, icon = icon, source = app.source))
+                val port = if (!app.offline) 0 else copy.port.takeIf { copy.offline && it > 0 } ?: WebAppLibrary.allocatePort(context)
+                if (!app.offline && copy.offline) LocalAppServer.stop(copy.port)
+                WebAppLibrary.put(context, copy.copy(
+                    version = app.version, configFields = app.configFields, internet = app.internet, icon = icon, source = app.source,
+                    offline = app.offline, remoteUrl = app.remoteUrl, port = port, packaged = app.packaged, scriptHosts = app.scriptHosts,
+                ))
             }.onFailure { android.util.Log.w("BandPackages", "couldn't update the copy ${copy.id}", it) }
         }
     }
@@ -413,6 +458,20 @@ object WebAppPackages {
         val only = children.singleOrNull()?.takeIf { it.isDirectory } ?: return null
         return if (File(only, "index.html").isFile) only else null
     }
+
+    /** The folder holding the manifest: the root, or its only subfolder (an online package has no index.html). */
+    @JvmStatic
+    fun manifestRoot(extracted: File): File? {
+        if (MANIFEST_NAMES.any { File(extracted, it).isFile }) return extracted
+        val children = extracted.listFiles().orEmpty().filter { !it.name.startsWith("__MACOSX") && !it.name.startsWith(".") }
+        val only = children.singleOrNull()?.takeIf { it.isDirectory } ?: return null
+        return if (MANIFEST_NAMES.any { File(only, it).isFile }) only else null
+    }
+
+    /** An online package's address: its manifest's `start_url` when that's an absolute HTTPS URL, else null. */
+    @JvmStatic
+    fun onlineStart(manifest: JSONObject?): String? =
+        manifest?.optString("start_url")?.trim()?.takeIf { it.startsWith("https://", ignoreCase = true) && WebAppLibrary.isAcceptable(it) }
 
     @JvmStatic
     fun readManifest(base: File): JSONObject? = MANIFEST_NAMES.map { File(base, it) }.firstOrNull { it.isFile }

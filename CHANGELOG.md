@@ -30,6 +30,19 @@
   builds no accessibility trees, whose teardown crashed Lumen when a page's process died.
 - **Video fits the display**: Instagram's videos play at 480 pixels on the short side at most,
   in H.264 when offered, and players asking about bigger sizes or more than 30 fps hear no.
+- **Online app packages with site scripts**: a `.mrbd.zip` without `index.html` whose
+  manifest's `start_url` is an `https://` address installs as an online app that brings scripts
+  for the sites it names (`lumen_scripts`). GeckoView runs them in those pages, in the page's own
+  world before its scripts, only while the app is in front; the install confirmation names the
+  sites. Such a package can also show a gesture card the first three times the app opens
+  (`lumen_gestures`); any gesture closes it.
+- **The band on any site**: in an online app, swipes move a highlight between what can be
+  clicked on the page (the page scrolls when there's nothing more that way), the index tap opens
+  it, and a page that handles the arrows itself keeps them. An online app without a gesture card
+  says so ("Swipe: move · Index: open · Middle: back") the first three times it opens. Site
+  scripts get the same pieces (`window.lumen.band`, `highlight`, `toast`, `click`, `nav`).
+- **Dark pages**: GeckoView asks every site for its dark theme (`prefers-color-scheme: dark`):
+  on the glasses black is see-through and a white page washes out the view.
 
 ## [0.2.0-beta.18]
 

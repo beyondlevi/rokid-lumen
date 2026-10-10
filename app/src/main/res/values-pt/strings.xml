@@ -204,6 +204,8 @@
     <string name="webapp_no_internet">Sem internet: o app não carregou.</string>
     <string name="webapp_out_of_memory">Os óculos ficaram sem memória neste app duas vezes, então ele foi parado e o Lumen continuou. Indicador: tentar de novo.</string>
     <string name="webapp_navigation_blocked">Este app não pode abrir outros sites</string>
+    <string name="webapp_gestures_close">Qualquer gesto fecha</string>
+    <string name="webapp_band_hint">Deslize: mover · Indicador: abrir · Médio: voltar</string>
     <string name="launcher_downloading">Baixando o pacote…</string>
     <string name="launcher_installed">Instalado: %1$s</string>
     <string name="launcher_updated">Atualizado: %1$s</string>
@@ -216,6 +218,8 @@
     <string name="install_offline">Pacote offline</string>
     <string name="install_offline_version">Pacote offline · versão %1$s</string>
     <string name="install_online">App online</string>
+    <string name="install_online_version">App online · versão %1$s</string>
+    <string name="install_site_scripts">Muda as páginas de %1$s para os óculos e a band</string>
     <string name="install_internet">Usa a internet</string>
     <string name="install_no_internet">Não pede internet</string>
     <string name="install_settings">Ajustes: %1$s</string>
@@ -233,7 +237,12 @@
     <string name="package_empty">Pacote vazio ou não é um zip</string>
     <string name="package_damaged">O pacote chegou corrompido: envie de novo</string>
     <string name="package_other_app">Este pacote é de outro app (%1$s), não do que está sendo atualizado</string>
-    <string name="package_not_offline">Só um app offline pode ser atualizado com um pacote</string>
+    <string name="package_not_offline">Só um app instalado de um pacote pode ser atualizado com outro</string>
+    <string name="package_start_url">O pacote de um app online precisa de um start_url https://, não %1$s</string>
+    <string name="package_scripts_invalid">O lumen_scripts do pacote está malformado</string>
+    <string name="package_script_match">Scripts de site só para sites https:// com nome, não %1$s</string>
+    <string name="package_script_path">Script de site ausente ou fora do pacote: %1$s</string>
+    <string name="package_scripts_too_big">Os scripts de site do pacote passam de 1 MB</string>
     <string name="notification_phone">Celular</string>
     <string name="notification_hidden">Conteúdo oculto</string>
     <string name="notification_banner_hint">Indicador: abrir · Médio: dispensar · ↓↓: silenciar</string>

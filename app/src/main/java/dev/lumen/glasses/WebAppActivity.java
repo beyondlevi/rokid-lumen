@@ -68,6 +68,8 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     private final Runnable hiddenStop = this::stopHidden;
     private boolean loaded;
     private WebComposer composer;
+    /** The app's gesture card or band hint, the first times it opens. */
+    private WebAppGuide guide;
     private TextView notice;
     private TextToSpeech tts;
     private boolean ttsReady;
@@ -131,6 +133,8 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
                 Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM));
         setContentView(root);
         composer = new WebComposer(this, root, side);
+        guide = new WebAppGuide(this, root, side);
+        guide.open(app, kind == WebEngineKind.GECKO);
 
         tts = new TextToSpeech(this, status -> ttsReady = status == TextToSpeech.SUCCESS);
         tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
@@ -363,6 +367,9 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         if (tts != null) {
             tts.shutdown();
         }
+        if (guide != null) {
+            guide.destroy();
+        }
         if (engine != null) {
             engine.destroy();
         }
@@ -375,6 +382,11 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     /** The band, while this app is in front; volume and mapped actions run as anywhere. */
     @Override
     public boolean onBandCommand(String command) {
+        // The gesture card is read first: whatever gesture comes next only closes it.
+        if (guide != null && guide.onBandCommand()) {
+            Log.d(TAG, "Band " + command + " closed the gesture card");
+            return true;
+        }
         Log.d(TAG, "Band " + command + (composer != null && composer.isOpen() ? " to the composer" : " to the page"));
         if (composer != null && composer.onBandCommand(command)) {
             return true;
@@ -423,6 +435,13 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int code = event.getKeyCode();
+        // The touchpad closes the gesture card as the band does (the key goes nowhere else).
+        if (guide != null && guide.isShowingCard() && isGuideKey(code)) {
+            if (event.getAction() == KeyEvent.ACTION_UP) {
+                guide.closeCard();
+            }
+            return true;
+        }
         if (code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_ESCAPE) {
             if (event.getAction() == KeyEvent.ACTION_UP) {
                 if (composer != null && composer.isOpen()) {
@@ -453,6 +472,12 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
             return true;
         }
         return super.dispatchKeyEvent(event);
+    }
+
+    private static boolean isGuideKey(int code) {
+        return code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_ESCAPE || code == KeyEvent.KEYCODE_ENTER
+                || code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN
+                || code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT || code == KeyEvent.KEYCODE_TAB;
     }
 
     @Override

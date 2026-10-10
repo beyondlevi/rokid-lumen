@@ -34,6 +34,10 @@ import org.mozilla.geckoview.WebRequestError
  * a message from any other origin is ignored, except typing on the page an online app shows on
  * another site (a sign-in page): its fields work with the phone's keyboard and the composer.
  * What goes to the page goes to its tab only.
+ *
+ * A packaged online app's site scripts ([SiteScripts]) are registered in the extension while
+ * the app is in front ([HostLink.want]); its page waits for them before loading (at most
+ * [SCRIPTS_WAIT_MS]), so they run at the start of its first page too.
  */
 class GeckoWebEngine(
     activity: Activity,
@@ -73,6 +77,9 @@ class GeckoWebEngine(
     private val startedAt = SystemClock.elapsedRealtime()
     /** Gecko's own text input delegate: the system's keyboard. */
     private val keyboard: GeckoSession.TextInputDelegate = session.textInput.delegate
+    /** The site scripts registered while this app is in front; none for most apps. */
+    private val siteScripts = SiteScripts.registrationFor(activity, app)
+    private var destroyed = false
 
     override val view: View get() = geckoView
 
@@ -147,6 +154,7 @@ class GeckoWebEngine(
         geckoView.isFocusableInTouchMode = true
 
         HostLink.current = this
+        HostLink.want(siteScripts)
         HostLink.ensure(runtime) { ready() }
     }
 
@@ -161,9 +169,21 @@ class GeckoWebEngine(
             pendingUrl = url
             return
         }
-        loadedUrl = url
-        session.loadUri(url)
-        focus()
+        afterScripts {
+            loadedUrl = url
+            session.loadUri(url)
+            focus()
+        }
+    }
+
+    /**
+     * Runs [action] once this app's site scripts are in place in the extension (right away for
+     * an app without any), so the page's first document gets them; after [SCRIPTS_WAIT_MS]
+     * without the extension's word, anyway.
+     */
+    private fun afterScripts(action: () -> Unit) {
+        if (siteScripts.isEmpty) return action()
+        HostLink.whenRegistered(siteScripts.key) { if (!destroyed) action() }
     }
 
     private fun pageGone(how: String) {
@@ -281,9 +301,11 @@ class GeckoWebEngine(
 
     override fun onResume() {
         HostLink.current = this
+        HostLink.want(siteScripts)
         visible = true
         session.setActive(true)
-        if (!isHeld) reloadLost()
+        // A page lost while hidden loads again once this app's scripts are back in place.
+        if (!isHeld && pageLost) afterScripts { if (!isHeld) reloadLost() }
         focus()
     }
 
@@ -301,7 +323,12 @@ class GeckoWebEngine(
     }
 
     override fun destroy() {
-        if (HostLink.current === this) HostLink.current = null
+        destroyed = true
+        if (HostLink.current === this) {
+            HostLink.current = null
+            // No app in front: no site's pages change (a hidden app's included).
+            HostLink.want(SiteScripts.Registration.NONE)
+        }
         session.close()
     }
 
@@ -325,6 +352,8 @@ class GeckoWebEngine(
                 Log.d(TAG, "Page ready on ${WebOrigin.of(sender).ifEmpty { "no origin" }}")
                 post(JSONObject().put("type", "canGoBack").put("value", canGoBack), typing = true)
                 post(JSONObject().put("type", "phoneKeyboard").put("value", phoneKeyboard), typing = true)
+                // A site made for a mouse gets the shim's band navigation; an MRBD app has its own.
+                post(JSONObject().put("type", "bandNavigation").put("value", !app.offline), typing = true)
             }
             "backResult" -> if (!json.optBoolean("handled")) host.onBackUnhandled()
             "openComposer" -> host.onOpenComposer(json.optString("value"), json.optBoolean("multiline"))
@@ -372,6 +401,11 @@ class GeckoWebEngine(
      * second app's page talking to the first app's closed screen (measured: its composer opened
      * there, unseen, and the focused field got no answer). The page's messages go to the engine
      * in front ([current]), which hears only its own origin's.
+     *
+     * It also keeps the extension's site scripts those of the app in front ([want]): the set goes
+     * to background.js (`{type: "siteScripts", key, scripts}`, no tab) when the app in front
+     * changes and on every new port, and comes back acknowledged (`siteScriptsReady`, no tab);
+     * a page load waits for its app's key ([whenRegistered]).
      */
     private object HostLink {
         var port: WebExtension.Port? = null
@@ -380,6 +414,62 @@ class GeckoWebEngine(
         private var loading = false
         private val waiting = mutableListOf<() -> Unit>()
         private val main = android.os.Handler(android.os.Looper.getMainLooper())
+        /** The site scripts the extension should have: the app in front's. */
+        private var wanted = SiteScripts.Registration.NONE
+        /** The set last sent on [port]; null on a new port, which gets [wanted] again. */
+        private var sentKey: String? = null
+        /** The set the extension last said is in place. */
+        private var readyKey: String? = null
+        private class Waiter(val key: String, val then: () -> Unit) {
+            lateinit var timeout: Runnable
+        }
+        private val scriptWaiters = mutableListOf<Waiter>()
+
+        /** Makes [registration] the extension's site scripts (replacing the previous app's). Main thread. */
+        fun want(registration: SiteScripts.Registration) {
+            wanted = registration
+            sendScripts()
+        }
+
+        private fun sendScripts() {
+            val target = port ?: return
+            if (sentKey == wanted.key) return
+            sentKey = wanted.key
+            Log.d(TAG, if (wanted.isEmpty) "Site scripts cleared" else "Site scripts ${wanted.key} sent (${wanted.scripts.size})")
+            target.postMessage(wanted.toMessage())
+        }
+
+        /** Runs [then] when the extension confirms the set [key], or after [SCRIPTS_WAIT_MS]. Main thread. */
+        fun whenRegistered(key: String, then: () -> Unit) {
+            if (readyKey == key) return then()
+            val waiter = Waiter(key, then)
+            waiter.timeout = Runnable {
+                if (scriptWaiters.remove(waiter)) {
+                    Log.w(TAG, "Site scripts $key not confirmed within $SCRIPTS_WAIT_MS ms: loading anyway")
+                    then()
+                }
+            }
+            scriptWaiters += waiter
+            main.postDelayed(waiter.timeout, SCRIPTS_WAIT_MS)
+        }
+
+        /** A message from background.js itself, not from a page. */
+        private fun onExtensionMessage(json: JSONObject) {
+            when (val type = json.optString("type")) {
+                "siteScriptsReady" -> {
+                    val key = json.optString("key")
+                    if (json.optBoolean("ok")) Log.d(TAG, "Site scripts ${key.ifEmpty { "(none)" }} in place")
+                    else Log.w(TAG, "Site scripts $key: ${json.optString("error")}")
+                    readyKey = key
+                    scriptWaiters.filter { it.key == key }.forEach { waiter ->
+                        scriptWaiters.remove(waiter)
+                        main.removeCallbacks(waiter.timeout)
+                        waiter.then()
+                    }
+                }
+                else -> Log.d(TAG, "Extension message $type")
+            }
+        }
 
         fun ensure(runtime: GeckoRuntime, then: () -> Unit) {
             if (ready) return then()
@@ -429,6 +519,8 @@ class GeckoWebEngine(
                 newPort.setDelegate(object : WebExtension.PortDelegate {
                     override fun onPortMessage(message: Any, from: WebExtension.Port) {
                         main.post {
+                            // Page messages always carry their tab (background.js adds it).
+                            if (message is JSONObject && !message.has("tabId")) return@post onExtensionMessage(message)
                             val engine = current
                             if (engine == null) Log.d(TAG, "Host message with no app in front: ${(message as? JSONObject)?.optString("type")}")
                             engine?.onHostMessage(message)
@@ -436,11 +528,20 @@ class GeckoWebEngine(
                     }
 
                     override fun onDisconnect(from: WebExtension.Port) {
+                        // The next port gets the site scripts again (onConnect).
                         if (port === from) port = null
                     }
                 })
-                // A page that loaded before the port existed never heard canGoBack.
-                main.post { current?.let { it.post(JSONObject().put("type", "canGoBack").put("value", it.canGoBack)) } }
+                main.post {
+                    // A new port may be a new background (no scripts registered): the set goes
+                    // again, and only its answer says what's in place. Sent first, so background.js
+                    // knows the port is taken.
+                    sentKey = null
+                    readyKey = null
+                    sendScripts()
+                    // A page that loaded before the port existed never heard canGoBack.
+                    current?.let { it.post(JSONObject().put("type", "canGoBack").put("value", it.canGoBack)) }
+                }
             }
 
             /** The extension's proxy question (background.js): PhoneInternet's answer. */
@@ -454,6 +555,8 @@ class GeckoWebEngine(
 
     companion object {
         private const val TAG = "BandGecko"
+        /** The longest a page load waits for its app's site scripts to be in place. */
+        private const val SCRIPTS_WAIT_MS = 3_000L
         private const val EXTENSION_URI = "resource://android/assets/mrbd-ext/"
         private const val EXTENSION_ID = "mrbd-host@lumen.dev"
         /** Two deaths of a shown page within this hold it ([held]). */
@@ -553,6 +656,9 @@ class GeckoWebEngine(
             GeckoRuntimeSettings.Builder()
                 .configFilePath(preferencesFile(context))
                 .displayDensityOverride(density)
+                // The HUD is additive: black is see-through and a white page washes out the view.
+                // Sites with a dark theme (YouTube, Instagram) take it from prefers-color-scheme.
+                .preferredColorScheme(GeckoRuntimeSettings.COLOR_SCHEME_DARK)
                 // A page's console.* goes to logcat in debug builds only.
                 .consoleOutput(BuildConfigDebug.debuggable(context))
                 .remoteDebuggingEnabled(BuildConfigDebug.debuggable(context))

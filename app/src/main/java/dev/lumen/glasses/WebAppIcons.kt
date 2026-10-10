@@ -84,7 +84,7 @@ object WebAppIcons {
 
     // ---- Offline packages ----
 
-    /** An offline package's icon, from its files ([base] holds index.html), written to [into]; null when it has none. */
+    /** A package's icon, from its files ([base] holds index.html, or an online package's manifest), written to [into]; null when it has none. */
     @JvmStatic
     fun packageIcon(base: File, manifest: JSONObject?, into: File): File? = packageBitmap(base, manifest)?.let { bitmap ->
         into.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -136,7 +136,8 @@ object WebAppIcons {
      */
     @JvmStatic
     fun refreshOnOpen(context: Context, app: WebApp, done: Runnable) {
-        if (app.offline) return
+        // A package's own icon stays (a packaged online app's too).
+        if (app.offline || (app.packaged && app.icon != null)) return
         val age = app.icon?.let { System.currentTimeMillis() - File(it).lastModified() } ?: Long.MAX_VALUE
         if (age < REFRESH_MS) return
         fetch(context, listOf(app), done)

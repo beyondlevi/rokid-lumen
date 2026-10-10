@@ -169,6 +169,7 @@ Lumen reads these fields and ignores the rest:
 | `id` | The app's identity on the glasses. A package with the same `id` updates the installed app and keeps its port, its data and its settings. Without it, the package's file name is used. |
 | `short_name`, else `name` | The name in the grid. Without either, the file name. |
 | `version` | Shown on the install confirmation ("Offline package · version 1.2.0"). |
+| `start_url` | In a package without `index.html`, an absolute `https://` address makes it an online app ([below](#online-app-packages-and-site-scripts)); otherwise ignored. |
 | `icons` | The grid's icon: the largest PNG (`type` `image/png`, or no type), by the width in `sizes`. Its `src` must be inside the package. |
 | `lumen_internet` | `true` if the app needs the internet. It opens at once, and the internet comes up behind it (the phone's when the glasses have none). |
 | `lumen_config` | The settings the app needs, filled in from the companion's Apps tab. |
@@ -219,9 +220,10 @@ Values are trimmed; setting an empty value clears it.
 }
 ```
 
-Online apps don't use the Lumen fields: their name is the one given when they're added (or
-their host), they always use the internet, and their icon is fetched once from their web
-manifest (or their `apple-touch-icon`).
+Online apps added by address don't use the Lumen fields: their name is the one given when
+they're added (or their host), they always use the internet, and their icon is fetched once
+from their web manifest (or their `apple-touch-icon`). An online app can also come as a package,
+which does use them: see [Online app packages and site scripts](#online-app-packages-and-site-scripts).
 
 ## Packaging an offline app
 
@@ -290,6 +292,80 @@ bridge, and Back skips the others; the others' text fields still work with the p
 and the composer. It reaches the internet through a saved Wi-Fi or the phone
 (see [features.md](features.md#internet-through-the-phone)), so it opens a few seconds later
 when the glasses have to join the phone's hotspot.
+
+## Online app packages and site scripts
+
+An online app can come as a package too: a `.mrbd.zip` with no `index.html` whose manifest's
+`start_url` is an absolute `https://` address (the manifest may sit at the root or under one
+top-level folder; a package with its own `index.html` is always an offline app). It installs as an online app that opens `start_url`, and keeps
+the package's files on the glasses: the manifest, the icon and the site scripts. It installs and
+updates as any package does (adb, a link confirmed on the glasses, the companion), is known by
+its manifest `id`, and takes `version`, `icons` and `lumen_config` as an offline package does.
+
+What it may bring:
+
+| Field | Use |
+| --- | --- |
+| `lumen_scripts` | Site scripts: JavaScript and CSS from the package that run in the pages of the sites they name, to make a site work with the band (Instagram's Reels, YouTube's player). |
+| `lumen_gestures` | A gesture card: what the band does in the app, shown the first three times it opens. Any package may have one. |
+
+```json
+{
+  "id": "cloud.bynd.lumen.site.instagram",
+  "name": "Instagram",
+  "version": "1.0.0",
+  "start_url": "https://www.instagram.com/",
+  "icons": [{ "src": "icon.png", "sizes": "192x192", "type": "image/png" }],
+  "lumen_scripts": [
+    { "matches": ["https://www.instagram.com/*"], "js": ["site/instagram.js"], "css": ["site/instagram.css"] }
+  ],
+  "lumen_gestures": {
+    "title": { "en": "Gestures on Instagram", "pt": "Gestos no Instagram" },
+    "rows": [
+      { "gestures": ["down", "up"], "text": { "en": "Next reel · previous", "pt": "Próximo reel · anterior" } },
+      { "gestures": ["index"], "text": { "en": "Pause or play", "pt": "Pausar ou tocar" } },
+      { "gestures": ["middle"], "text": { "en": "Back", "pt": "Voltar" } }
+    ]
+  }
+}
+```
+
+The rules for `lumen_scripts` (a package that breaks one is refused, with the reason):
+
+- At most 8 entries, each `{matches, js, css}`: `js` and `css` are lists of files, at least one
+  file in all. An entry's scripts run in their order (joined with a `;` line), and so do its
+  style sheets.
+- `matches` are `https://<host>/<path>` match patterns, as `https://www.instagram.com/*`. The
+  host may start with `*.` (`https://*.youtube.com/*`) and needs a dot past it (no `*.com`). No
+  other scheme, no `<all_urls>`, no port.
+- Files are relative paths inside the package: no `..`, no leading `/`, nothing fetched from
+  elsewhere. All the scripts and style sheets together: 1 MiB at most.
+- Only an online package's scripts run; an offline package's `lumen_scripts` is ignored (its
+  pages never leave its own origin).
+
+How they run:
+
+- In the page's own world (as the page's scripts, not an extension's isolated one), at
+  `document_start`, before any script of the page and whatever its Content Security Policy, in
+  the top frame only.
+- Only while their app is in front: Lumen hands the app's scripts to its built-in extension when
+  the app comes to the front and replaces them when another app does (an app without scripts
+  clears them). The app's first page waits for them to be in place, 3 s at most.
+- On GeckoView only: an app switched to the system WebView gets none.
+- The install confirmation says so, in bold, with every site they name: "Changes the pages of
+  www.instagram.com for the glasses and the band".
+- The page API they use (`window.lumen.band`, `lumen.highlight`, `lumen.toast`, `lumen.click`,
+  `lumen.nav`) and the band navigation every online app's site gets are in
+  [site-scripts.md](site-scripts.md).
+
+`lumen_gestures` is `{title, rows}`. Each row is `{gestures, text}`: `gestures` is a list of
+`up`, `down`, `left`, `right` (swipes), `index` and `middle` (taps), drawn in a row of circles,
+and `text` says what they do. Every text (the title too) is a string, or one per language
+(`{"en": …, "pt": …}`): the device's language is picked (`pt` for both pt-BR and pt-PT), then
+English, then the first one given. Up to 6 rows; unknown gestures are skipped. The card covers
+the bottom of the screen the first three times the app opens, and the first band gesture only
+closes it. An online app on GeckoView without a card shows a one-line hint of the band
+navigation instead (the first three times, for 4 s).
 
 ## Engines
 
@@ -367,5 +443,7 @@ reaction, the chat, a dictated reply. Recorded with `adb shell screenrecord`, in
 - The host bridge answers the app's own origin only (another site's HTTPS page in an online
   app can only be typed into), and the settings go only to a page on that origin.
 - Installs from outside the phone are confirmed on the glasses.
+- A package's site scripts run only in the `https://` sites it names, only while its app is in
+  front, on GeckoView, and the confirmation names those sites.
 
 The whole model and its open issues: [security.md](security.md).
