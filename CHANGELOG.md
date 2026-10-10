@@ -23,6 +23,13 @@
 - **Sign in on another site's page**: an online app's page on another site (the Google sign-in
   of a YouTube app) now takes the phone's keyboard and the composer in its text fields. It still
   gets nothing else from the host (settings, microphone, speech, installs, Back).
+- **Out of memory, the page goes and Lumen stays**: watching Instagram's Reels ran the glasses
+  out of memory and Android stopped Lumen with the page. Now only the page goes; Lumen loads it
+  again, and after a second time within two minutes shows a notice (index tap: try again).
+  Gecko keeps less for later (no spare process, no pages kept for Back, smaller caches) and
+  builds no accessibility trees, whose teardown crashed Lumen when a page's process died.
+- **Video fits the display**: Instagram's videos play at 480 pixels on the short side at most,
+  in H.264 when offered, and players asking about bigger sizes or more than 30 fps hear no.
 
 ## [0.2.0-beta.18]
 

@@ -215,6 +215,14 @@ app goes back in its history, or closes when there is none.
   `navigator.install()`: the confirmation shows the app's name and host, whether it uses the
   internet, the settings it asks for, and what it updates. Cancel has the focus first. What
   you add from the companion installs without asking again.
+- **Video fits the display** (GeckoView). Instagram's videos play at 480 pixels on the short
+  side at most, in H.264 when they offer it: the higher qualities are dropped from what the site
+  sends before its player reads it. Any player that asks about a size above that, or a frame
+  rate above 30, hears that the glasses can't play it (YouTube then picks a smaller one).
+- **Out of memory, the page goes and Lumen stays** (GeckoView). The page's processes sit below
+  Lumen's for Android, so a page too heavy for the glasses (Instagram's Reels) is the one Android
+  stops. Lumen loads it again; if it goes twice within two minutes, a notice says so, and the
+  index tap tries again.
 
 How to build one: [building-apps.md](building-apps.md).
 

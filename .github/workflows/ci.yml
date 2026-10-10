@@ -33,6 +33,9 @@ jobs:
       - name: English check
         run: python3 scripts/check-english.py
 
+      - name: Web extension tests
+        run: node --test scripts/test-*.mjs
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
