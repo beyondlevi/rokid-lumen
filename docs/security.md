@@ -144,7 +144,11 @@ ADB on those glasses. How to undo it: [getting-started.md](getting-started.md#un
   the phone.
 - **Notifications** live in memory only on both sides. Redacted, secret and (with *Hide the
   text*) all notification text stays on the phone. A dismiss from the glasses clears only
-  notifications the phone sent them.
+  notifications the phone sent them, and a reply goes only to those.
+- **Notification pictures** go only on demand: the phone names them in the notification and
+  sends one when the glasses open it (small, gray), only for notifications it sent them whose
+  text goes to the glasses, checked again at that moment. Neither side writes them to disk; the
+  glasses keep the last few decoded in memory.
 - **The touch service** (for the band on the phone) performs gestures only and reads nothing
   on the screen.
 - **Debug builds only:** the hotspot's credentials are written to the companion's private
@@ -153,6 +157,6 @@ ADB on those glasses. How to undo it: [getting-started.md](getting-started.md#un
 ## The link between the glasses and the phone
 
 All messages go over Rokid's CXR link, through the Hi Rokid app: the band's settings, the
-grid, notifications, the dictation audio and text, web app settings (secrets included, from
+grid, notifications (their pictures and your replies too), the dictation audio and text, web app settings (secrets included, from
 the phone to the glasses) and the hotspot's credentials. Lumen adds no encryption of its own on
 top of that link.
