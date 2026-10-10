@@ -23,7 +23,10 @@ import dev.lumen.companion.computer.ComputerLink
 import dev.lumen.companion.computer.ComputerPointer
 import dev.lumen.companion.computer.ComputerProfiles
 import dev.lumen.companion.computer.ComputerWriter
+import dev.lumen.companion.ime.HandwritingSwitch
+import dev.lumen.protocol.BandDevices
 import dev.lumen.protocol.BandStatus
+import dev.lumen.protocol.SettingsEvent
 import dev.lumen.protocol.SettingsOps
 import org.json.JSONObject
 
@@ -83,13 +86,41 @@ object PhoneBand {
         start(context)
     }
 
-    /** The companion's "Use on the glasses": the phone lets go, then the glasses take it. */
+    /**
+     * The companion's "Use on the glasses": the phone lets go, then the glasses take it. Rokid's
+     * link can lose the request: if the glasses' status doesn't say they took the band within
+     * [SettingsOps.HAND_OVER_MS], the phone takes it back ([handOverUnanswered]).
+     */
     fun useOnGlasses(context: Context) {
-        leaveComputer(context)
-        CompanionPrefs.setBandOnPhone(context, false)
+        val app = context.applicationContext
+        val fromComputer = CompanionPrefs.bandOnComputer(app)
+        leaveComputer(app)
+        CompanionPrefs.setBandOnPhone(app, false)
         stop()
         glassesSaidPhone = true
-        CompanionService.requestSettings(SettingsOps.action(SettingsOps.ACTION_TO_GLASSES))
+        CompanionService.requestSettings(SettingsOps.handOver())
+        handOver = app to fromComputer
+        main.removeCallbacks(handOverCheck)
+        main.postDelayed(handOverCheck, SettingsOps.HAND_OVER_MS)
+    }
+
+    /** The phone let the band go for the glasses (and whether it was a computer's), until they answer. */
+    private var handOver: Pair<Context, Boolean>? = null
+    private val handOverCheck = Runnable { handOverUnanswered() }
+
+    /** The glasses never said they took the band: it comes back here, as it was, rather than stay loose. */
+    private fun handOverUnanswered() {
+        val (app, fromComputer) = handOver ?: return
+        handOver = null
+        // Moved since (the companion's switch), or a claim of its own: not ours to undo.
+        if (CompanionPrefs.bandOnPhone(app) || BandClaim.state is BandClaim.State.Running) return
+        Log.d(TAG, "the glasses didn't answer the hand-over: the band stays here")
+        CompanionPrefs.setBandOnPhone(app, true)
+        if (fromComputer) CompanionPrefs.setBandOnComputer(app, true)
+        start(app)
+        if (fromComputer) ComputerLink.start(app)
+        changed()
+        BandMoveNotice.notReceived(app)
     }
 
     /**
@@ -129,6 +160,12 @@ object PhoneBand {
      * the glasses connects here; the band taken back by the glasses stops here.
      */
     fun onGlassesStatus(context: Context, glasses: BandStatus) {
+        BandMoveNotice.onGlasses()
+        // They took the band: the hand-over is answered.
+        if (!glasses.onPhone && handOver != null) {
+            handOver = null
+            main.removeCallbacks(handOverCheck)
+        }
         val before = glassesSaidPhone
         glassesSaidPhone = glasses.onPhone
         if (before == glasses.onPhone) return
@@ -139,12 +176,55 @@ object PhoneBand {
             Log.d(TAG, "the glasses handed the band over")
             CompanionPrefs.setBandOnPhone(context, true)
             start(context)
+            BandMoveNotice.toPhone(context)
         } else if (!glasses.onPhone && here) {
             Log.d(TAG, "the glasses took the band back")
             leaveComputer(context)
             CompanionPrefs.setBandOnPhone(context, false)
             stop()
+            BandMoveNotice.toGlasses(context)
         }
+    }
+
+    /**
+     * The glasses' Controls sent the band here ([SettingsEvent.BandTarget]): to this phone with
+     * one of its profiles, or to a computer through this phone with a computer profile. The
+     * glasses let it go themselves, so nothing is asked of them (a late request over Rokid's link
+     * could take the band from them again after they took it back).
+     */
+    fun onGlassesTarget(context: Context, target: SettingsEvent.BandTarget) {
+        val app = context.applicationContext
+        Log.d(TAG, "the glasses send the band to the ${target.target}")
+        // They let it go already; a status of theirs from before must not read as taking it back.
+        glassesSaidPhone = false
+        when (target.target) {
+            BandDevices.PHONE -> {
+                if (PhoneProfiles.state(app).profiles.any { it.id == target.profile }) {
+                    PhoneProfiles.update(app) { it.copy(active = target.profile) }
+                }
+                if (CompanionPrefs.bandOnComputer(app)) leaveComputer(app)
+            }
+            BandDevices.COMPUTER -> {
+                if (ComputerProfiles.state(app).profiles.any { it.id == target.profile }) {
+                    ComputerProfiles.update(app) { it.copy(active = target.profile) }
+                }
+                if (target.computer.isNotEmpty()) ComputerLink.prefer(app, target.computer)
+                PhonePointer.stop()
+                CompanionPrefs.setBandOnComputer(app, true)
+            }
+            else -> return
+        }
+        CompanionPrefs.setBandOnPhone(app, true)
+        if (link == null) start(app) else {
+            applyMapping(app)
+            applyLock(app)
+        }
+        if (target.target == BandDevices.COMPUTER) {
+            ComputerLink.start(app)
+            if (target.computer.isNotEmpty() && ComputerLink.computer?.address != target.computer) ComputerLink.connect(app, target.computer)
+        }
+        changed()
+        BandMoveNotice.toPhone(app)
     }
 
     /** The gesture settings changed in the Band tab: the band gets the new mapping. */
@@ -288,13 +368,17 @@ object PhoneBand {
                             // stop sending too; this covers what was already on its way).
                             !listening -> Log.d(TAG, "$action ignored: the phone is locked")
                             CompanionPrefs.bandOnComputer(app) -> onComputer(app, action)
-                            action == PhoneSettings.SWITCH_TO_GLASSES -> useOnGlasses(app)
+                            action == PhoneSettings.SWITCH_TO_GLASSES -> {
+                                useOnGlasses(app)
+                                BandMoveNotice.toGlasses(app)
+                            }
                             action == PhoneProfiles.DIAL_UP || action == PhoneProfiles.DIAL_DOWN ->
                                 dial(app, runner, action == PhoneProfiles.DIAL_UP)
                             action == PhoneProfiles.NEXT -> switchProfile(app, PhoneProfiles.step(PhoneProfiles.state(app), +1))
                             action == PhoneProfiles.PREVIOUS -> switchProfile(app, PhoneProfiles.step(PhoneProfiles.state(app), -1))
                             action.startsWith(PhoneProfiles.GO_PREFIX) -> switchProfile(app, action.removePrefix(PhoneProfiles.GO_PREFIX))
                             action == ScreenPointer.TOGGLE -> if (!PhonePointer.start(app)) Log.d(TAG, "$action: the air mouse can't start")
+                            action == PhoneSettings.WRITE -> if (!HandwritingSwitch.start(app)) Log.d(TAG, "$action: can't switch to the handwriting keyboard")
                             else -> runner.run(action)?.let { Log.d(TAG, "$action: $it") }
                         }
                     }
@@ -328,6 +412,11 @@ object PhoneBand {
             action.startsWith(PhoneProfiles.GO_PREFIX) -> switchComputerProfile(context, action.removePrefix(PhoneProfiles.GO_PREFIX))
             action == ComputerKeys.WRITE -> ComputerWriter.start(context)
             action == ComputerKeys.POINTER -> ComputerPointer.start(context)
+            action == PhoneSettings.SWITCH_TO_GLASSES -> {
+                useOnGlasses(context)
+                BandMoveNotice.toGlasses(context)
+                true
+            }
             action == PhoneProfiles.DIAL_UP || action == PhoneProfiles.DIAL_DOWN ->
                 ComputerProfiles.dialAction(computer.current.dial, action == PhoneProfiles.DIAL_UP)?.let { send(context, it) } ?: true
             else -> send(context, action)

@@ -18,8 +18,35 @@ class GridTest {
         val request = GridOps.describe()
         val json = Link.parse(state.toJson(request).toString())
         assertEquals(request.getLong("id"), json.getLong("re"))
-        assertEquals(state, GridEvent.from(json))
+        assertEquals(state.copy(re = request.getLong("id")), GridEvent.from(json))
         assertFalse((GridEvent.from(json) as GridEvent.State).items.last().removable)
+    }
+
+    @Test
+    fun `a state shows the changes on their way`() {
+        val chat = GridItem("web:chat", GridItem.Kind.WEB, "Chat", config = listOf(
+            AppConfigField("server.url", "Server", AppConfigField.TYPE_URL),
+            AppConfigField("server.key", "Key", AppConfigField.TYPE_SECRET),
+        ))
+        val state = GridEvent.State(items + chat, emptyList())
+        val after = state.with(listOf(
+            GridOps.config("web:chat", "server.url", "https://example.test"),
+            GridOps.config("web:chat", "server.key", "secret"),
+            GridOps.rename("web:chat", "  Work chat "),
+            GridOps.remove("web:abc"),
+            GridOps.set(listOf("web:chat", GridItem.SETTINGS_ID), emptyList()),
+            GridOps.addWeb("https://example.test"),
+        ))
+        assertEquals(listOf("web:chat", GridItem.SETTINGS_ID), after.items.map { it.id })
+        assertEquals(listOf(GridItem.NOTIFICATIONS_ID, "app:com.example"), after.available.map { it.id })
+        val changed = after.items.first()
+        assertEquals("Work chat", changed.name)
+        assertEquals(AppConfigField("server.url", "Server", AppConfigField.TYPE_URL, "https://example.test", set = true), changed.config[0])
+        // A secret shows as set, never with its value.
+        assertEquals(AppConfigField("server.key", "Key", AppConfigField.TYPE_SECRET, "", set = true), changed.config[1])
+        // An empty value clears a field.
+        assertFalse(after.with(listOf(GridOps.config("web:chat", "server.url", ""))).items.first().config[0].set)
+        assertEquals(state, state.with(emptyList()))
     }
 
     @Test
@@ -36,7 +63,13 @@ class GridTest {
         assertEquals(icon, GridEvent.from(icon.toJson()))
         val request = GridOps.remove("web:abc")
         val result = GridEvent.Result(false, "web:abc", "not found")
-        assertEquals(result, GridEvent.from(result.toJson(request)))
+        // The item's id took the envelope's `id`: the answer still names the request.
+        assertEquals("web:abc", request.getString("id"))
+        assertEquals("web:abc", GridOps.item(request))
+        assertEquals(result.copy(re = GridOps.requestId(request)), GridEvent.from(result.toJson(request)))
+        assertEquals(true, GridOps.requestId(request) > 0)
+        assertEquals("", GridOps.item(GridOps.describe()))
+        assertEquals(0L, (GridEvent.from(GridEvent.State(items, emptyList()).toJson()) as GridEvent.State).re)
         assertEquals(GridOps.ENGINE, GridOps.engine("web:abc", "SYSTEM").getString("op"))
     }
 

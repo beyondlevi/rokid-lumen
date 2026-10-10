@@ -99,8 +99,8 @@ class SimulatedBand(private val listener: GestureDevice.Listener, private val co
             listener.onLog("simulated band: no gesture $key")
             return
         }
-        if (key == MIDDLE_HOLD) {
-            // The band's own toggle: it works while the controls are off.
+        if (mapping[key] == PAUSE) {
+            // The pause: the one action that works while the controls are off.
             paused = !paused
             publish()
             return
@@ -130,16 +130,20 @@ class SimulatedBand(private val listener: GestureDevice.Listener, private val co
     companion object {
         const val NAME = "Simulated band"
         const val MIDDLE_HOLD = "middle_hold"
+        const val INDEX_HOLD = "index_hold"
+
+        /** The bridge's pause (rust/bridge `PAUSE_TOGGLE`). */
+        const val PAUSE = "band.pause"
         const val DIAL_UP = "dial_up"
         const val DIAL_DOWN = "dial_down"
         private const val READY_MS = 800L
         private const val LETTER_MS = 650L
 
-        /** What the simulator can do: the mappable gestures, a dial step each way, the middle hold. */
+        /** What the simulator can do: the mappable gestures and a dial step each way. */
         val KEYS = listOf(
             "swipe_up", "swipe_down", "swipe_left", "swipe_right",
             "index_tap", "index_double", "middle_tap", "middle_double",
-            DIAL_UP, DIAL_DOWN, MIDDLE_HOLD,
+            DIAL_UP, DIAL_DOWN, INDEX_HOLD, MIDDLE_HOLD,
         )
 
         /** `key=value;…` into a map; later pairs win, as in the bridge. */
@@ -155,6 +159,7 @@ class SimulatedBand(private val listener: GestureDevice.Listener, private val co
             DIAL_UP -> "pinch and turn up"
             DIAL_DOWN -> "pinch and turn down"
             MIDDLE_HOLD -> "middle hold"
+            INDEX_HOLD -> "index hold"
             else -> key.replace('_', ' ')
         }
     }

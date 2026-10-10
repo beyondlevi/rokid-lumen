@@ -228,6 +228,13 @@ object ComputerLink {
         return known + others
     }
 
+    /** [address] first in the list, so the phone connects to it next (the glasses' Controls chose it). */
+    fun prefer(context: Context, address: String) {
+        val known = (stored(context) + computers(context)).firstOrNull { it.address == address }
+        val name = known?.name ?: runCatching { adapter(context)?.getRemoteDevice(address)?.name }.getOrNull() ?: address
+        remember(context, Computer(address, name))
+    }
+
     /** Takes [address] off the list (the pairing stays in the phone's Bluetooth settings). */
     fun forget(context: Context, address: String) {
         if (host?.address == address) {

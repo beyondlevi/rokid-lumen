@@ -31,7 +31,13 @@ import org.mozilla.geckoview.WebRequestError
  *
  * The bridge acts only for the app's own origin ([WebOrigin]): background.js tags every page
  * message with the tab and address of the page that sent it (which the page can't forge), and
- * a message from any other origin is ignored. What goes to the page goes to its tab only.
+ * a message from any other origin is ignored, except typing on the page an online app shows on
+ * another site (a sign-in page): its fields work with the phone's keyboard and the composer.
+ * What goes to the page goes to its tab only.
+ *
+ * A packaged online app's site scripts ([SiteScripts]) are registered in the extension while
+ * the app is in front ([HostLink.want]); its page waits for them before loading (at most
+ * [SCRIPTS_WAIT_MS]), so they run at the start of its first page too.
  */
 class GeckoWebEngine(
     activity: Activity,
@@ -41,7 +47,7 @@ class GeckoWebEngine(
 ) : WebEngine {
     private val geckoView = GeckoView(activity)
     private val session = GeckoSession(
-        GeckoSessionSettings.Builder().contextId(WebAppContexts.idFor(app.id)).build(),
+        GeckoSessionSettings.Builder().contextId(WebAppContexts.idFor(app.contextKey)).build(),
     )
     private val appOrigin = WebOrigin.ofApp(app)
     private var canGoBack = false
@@ -58,11 +64,22 @@ class GeckoWebEngine(
     private var savedState: GeckoSession.SessionState? = null
     /** The page's content process died (killed or crashed): load it again when shown. */
     private var pageLost = false
+    /**
+     * When the page's process died while it was shown: on the glasses that's lmkd, and a page
+     * that runs them out of memory (Instagram's Reels, measured) dies again right after each
+     * reload. The second death within [LOSS_WINDOW_MS] holds the page until [retry].
+     */
+    private val shownLosses = ArrayDeque<Long>()
+    private var isHeld = false
+    private var lastLossAt = -SAME_EVENT_MS
     private var visible = false
     private val geckoRuntime = runtime(activity, side.toFloat() / WebEngine.MRBD_VIEWPORT)
     private val startedAt = SystemClock.elapsedRealtime()
     /** Gecko's own text input delegate: the system's keyboard. */
     private val keyboard: GeckoSession.TextInputDelegate = session.textInput.delegate
+    /** The site scripts registered while this app is in front; none for most apps. */
+    private val siteScripts = SiteScripts.registrationFor(activity, app)
+    private var destroyed = false
 
     override val view: View get() = geckoView
 
@@ -80,7 +97,7 @@ class GeckoWebEngine(
 
             override fun onCanGoBack(s: GeckoSession, value: Boolean) {
                 canGoBack = value
-                post(JSONObject().put("type", "canGoBack").put("value", value))
+                post(JSONObject().put("type", "canGoBack").put("value", value), typing = true)
             }
 
             /** Top-level loads: an offline app stays on its origin (the rest opens nowhere), an online one on HTTPS. */
@@ -122,7 +139,7 @@ class GeckoWebEngine(
         // composer on it; the shim sends any other field (a password) back to the keyboard.
         session.textInput.setDelegate(object : GeckoSession.TextInputDelegate by keyboard {
             override fun showSoftInput(s: GeckoSession) {
-                if (!post(JSONObject().put("type", "keyboardWanted"))) keyboard.showSoftInput(s)
+                if (!post(JSONObject().put("type", "keyboardWanted"), typing = true)) keyboard.showSoftInput(s)
             }
         })
         // A TextureView, not the default SurfaceView: Gecko's surface otherwise covers the
@@ -137,6 +154,7 @@ class GeckoWebEngine(
         geckoView.isFocusableInTouchMode = true
 
         HostLink.current = this
+        HostLink.want(siteScripts)
         HostLink.ensure(runtime) { ready() }
     }
 
@@ -151,14 +169,56 @@ class GeckoWebEngine(
             pendingUrl = url
             return
         }
-        loadedUrl = url
-        session.loadUri(url)
-        focus()
+        afterScripts {
+            loadedUrl = url
+            session.loadUri(url)
+            focus()
+        }
+    }
+
+    /**
+     * Runs [action] once this app's site scripts are in place in the extension (right away for
+     * an app without any), so the page's first document gets them; after [SCRIPTS_WAIT_MS]
+     * without the extension's word, anyway.
+     */
+    private fun afterScripts(action: () -> Unit) {
+        if (siteScripts.isEmpty) return action()
+        HostLink.whenRegistered(siteScripts.key) { if (!destroyed) action() }
     }
 
     private fun pageGone(how: String) {
-        Log.w(TAG, "The page's process was $how (${if (visible) "reloading" else "reload when shown"})")
+        val now = SystemClock.elapsedRealtime()
+        // One shortage can take a page and its other-site frames' processes together: Gecko then
+        // reports each (measured: two kills 20 ms apart). They count as one.
+        // Hidden apps' pages go first: they hold memory the page in front needs (WebAppActivity).
+        if (visible) host.onPageLost()
+        if (visible && now - lastLossAt < SAME_EVENT_MS) {
+            Log.w(TAG, "The page's process was $how (the same shortage)")
+            pageLost = true
+            if (!isHeld) reloadLost()
+            return
+        }
+        if (visible) lastLossAt = now
+        if (visible) {
+            shownLosses.addLast(now)
+            while (now - shownLosses.first() > LOSS_WINDOW_MS) shownLosses.removeFirst()
+        }
         pageLost = true
+        isHeld = shownLosses.size >= LOSSES_TO_HOLD
+        Log.w(TAG, "The page's process was $how (" + when {
+            isHeld -> "again within ${LOSS_WINDOW_MS / 1000} s: held"
+            visible -> "reloading"
+            else -> "reload when shown"
+        } + ")")
+        if (isHeld) host.onPageHeld() else if (visible) reloadLost()
+    }
+
+    override val held: Boolean get() = isHeld
+
+    override fun retry() {
+        if (!isHeld) return
+        isHeld = false
+        shownLosses.clear()
         if (visible) reloadLost()
     }
 
@@ -204,24 +264,24 @@ class GeckoWebEngine(
     }
 
     override fun composerInput(text: String) {
-        post(JSONObject().put("type", "composerInput").put("text", text))
+        post(JSONObject().put("type", "composerInput").put("text", text), typing = true)
     }
 
     override fun composerClose() {
-        post(JSONObject().put("type", "composerClose").put("text", ""))
+        post(JSONObject().put("type", "composerClose").put("text", ""), typing = true)
     }
 
     override fun keyboardState(open: Boolean) {
         phoneKeyboard = open
-        post(JSONObject().put("type", "phoneKeyboard").put("value", open))
+        post(JSONObject().put("type", "phoneKeyboard").put("value", open), typing = true)
     }
 
     override fun keyboardInput(text: String) {
-        post(JSONObject().put("type", "keyboardInput").put("text", text))
+        post(JSONObject().put("type", "keyboardInput").put("text", text), typing = true)
     }
 
     override fun keyboardSync() {
-        post(JSONObject().put("type", "keyboardSync"))
+        post(JSONObject().put("type", "keyboardSync"), typing = true)
     }
 
     override fun speechEvent(id: String, type: String, code: String?) {
@@ -243,9 +303,12 @@ class GeckoWebEngine(
 
     override fun onResume() {
         HostLink.current = this
+        HostLink.want(siteScripts)
+        MemoryWatch.start()
         visible = true
         session.setActive(true)
-        reloadLost()
+        // A page lost while hidden loads again once this app's scripts are back in place.
+        if (!isHeld && pageLost) afterScripts { if (!isHeld) reloadLost() }
         focus()
     }
 
@@ -258,24 +321,32 @@ class GeckoWebEngine(
     // Gecko's vsync (~6% of a core, ~12% with a CSS animation) and, for an animated page, the GPU
     // process at ~23%, all with the display off. onResume makes it active again.
     override fun onHidden() {
+        MemoryWatch.stop()
         visible = false
         session.setActive(false)
     }
 
     override fun destroy() {
-        if (HostLink.current === this) HostLink.current = null
+        destroyed = true
+        if (HostLink.current === this) MemoryWatch.stop()
+        if (HostLink.current === this) {
+            HostLink.current = null
+            // No app in front: no site's pages change (a hidden app's included).
+            HostLink.want(SiteScripts.Registration.NONE)
+        }
         session.close()
     }
 
     /**
      * A page's message, relayed by background.js with its sender's `tabId` and `sender` (the
-     * page's address, set there, not by the page). Only the app's own origin is heard.
+     * page's address, set there, not by the page). The app's own origin is heard, and typing
+     * from another site's page an online app shows ([WebOrigin.hears]).
      */
     private fun onHostMessage(message: Any) {
         val json = message as? JSONObject ?: return
         val type = json.optString("type")
         val sender = json.optString("sender")
-        if (!WebOrigin.matches(sender, appOrigin) || !onAppPage()) {
+        if (!WebOrigin.hears(type, sender, pageUrl, app)) {
             Log.w(TAG, "Page message $type ignored from ${WebOrigin.of(sender).ifEmpty { "a page off any origin" }} (the app is $appOrigin)")
             return
         }
@@ -283,8 +354,11 @@ class GeckoWebEngine(
         when (type) {
             // A page's content script is ready: it hasn't heard canGoBack yet.
             "hello" -> {
-                post(JSONObject().put("type", "canGoBack").put("value", canGoBack))
-                post(JSONObject().put("type", "phoneKeyboard").put("value", phoneKeyboard))
+                Log.d(TAG, "Page ready on ${WebOrigin.of(sender).ifEmpty { "no origin" }}")
+                post(JSONObject().put("type", "canGoBack").put("value", canGoBack), typing = true)
+                post(JSONObject().put("type", "phoneKeyboard").put("value", phoneKeyboard), typing = true)
+                // A site made for a mouse gets the shim's band navigation; an MRBD app has its own.
+                post(JSONObject().put("type", "bandNavigation").put("value", !app.offline), typing = true)
             }
             "backResult" -> if (!json.optBoolean("handled")) host.onBackUnhandled()
             "openComposer" -> host.onOpenComposer(json.optString("value"), json.optBoolean("multiline"))
@@ -313,11 +387,15 @@ class GeckoWebEngine(
      */
     private fun onAppPage(): Boolean = WebOrigin.of(pageUrl).let { it.isEmpty() || it == appOrigin }
 
-    /** To this session's page, when it's the app's own and has spoken (so its tab is known). */
-    private fun post(message: JSONObject): Boolean {
+    /**
+     * To this session's page, when it's the app's own and has spoken (so its tab is known). With
+     * [typing], also to another site's page an online app shows ([WebOrigin.typingPage]): what
+     * the wearer types there, and the state the page's fields need.
+     */
+    private fun post(message: JSONObject, typing: Boolean = false): Boolean {
         val current = HostLink.port ?: return false
         val tab = tabId ?: return false
-        if (!onAppPage()) return false
+        if (if (typing) !WebOrigin.typingPage(pageUrl, app) else !onAppPage()) return false
         current.postMessage(message.put("tabId", tab))
         return true
     }
@@ -328,6 +406,11 @@ class GeckoWebEngine(
      * second app's page talking to the first app's closed screen (measured: its composer opened
      * there, unseen, and the focused field got no answer). The page's messages go to the engine
      * in front ([current]), which hears only its own origin's.
+     *
+     * It also keeps the extension's site scripts those of the app in front ([want]): the set goes
+     * to background.js (`{type: "siteScripts", key, scripts}`, no tab) when the app in front
+     * changes and on every new port, and comes back acknowledged (`siteScriptsReady`, no tab);
+     * a page load waits for its app's key ([whenRegistered]).
      */
     private object HostLink {
         var port: WebExtension.Port? = null
@@ -336,6 +419,62 @@ class GeckoWebEngine(
         private var loading = false
         private val waiting = mutableListOf<() -> Unit>()
         private val main = android.os.Handler(android.os.Looper.getMainLooper())
+        /** The site scripts the extension should have: the app in front's. */
+        private var wanted = SiteScripts.Registration.NONE
+        /** The set last sent on [port]; null on a new port, which gets [wanted] again. */
+        private var sentKey: String? = null
+        /** The set the extension last said is in place. */
+        private var readyKey: String? = null
+        private class Waiter(val key: String, val then: () -> Unit) {
+            lateinit var timeout: Runnable
+        }
+        private val scriptWaiters = mutableListOf<Waiter>()
+
+        /** Makes [registration] the extension's site scripts (replacing the previous app's). Main thread. */
+        fun want(registration: SiteScripts.Registration) {
+            wanted = registration
+            sendScripts()
+        }
+
+        private fun sendScripts() {
+            val target = port ?: return
+            if (sentKey == wanted.key) return
+            sentKey = wanted.key
+            Log.d(TAG, if (wanted.isEmpty) "Site scripts cleared" else "Site scripts ${wanted.key} sent (${wanted.scripts.size})")
+            target.postMessage(wanted.toMessage())
+        }
+
+        /** Runs [then] when the extension confirms the set [key], or after [SCRIPTS_WAIT_MS]. Main thread. */
+        fun whenRegistered(key: String, then: () -> Unit) {
+            if (readyKey == key) return then()
+            val waiter = Waiter(key, then)
+            waiter.timeout = Runnable {
+                if (scriptWaiters.remove(waiter)) {
+                    Log.w(TAG, "Site scripts $key not confirmed within $SCRIPTS_WAIT_MS ms: loading anyway")
+                    then()
+                }
+            }
+            scriptWaiters += waiter
+            main.postDelayed(waiter.timeout, SCRIPTS_WAIT_MS)
+        }
+
+        /** A message from background.js itself, not from a page. */
+        private fun onExtensionMessage(json: JSONObject) {
+            when (val type = json.optString("type")) {
+                "siteScriptsReady" -> {
+                    val key = json.optString("key")
+                    if (json.optBoolean("ok")) Log.d(TAG, "Site scripts ${key.ifEmpty { "(none)" }} in place")
+                    else Log.w(TAG, "Site scripts $key: ${json.optString("error")}")
+                    readyKey = key
+                    scriptWaiters.filter { it.key == key }.forEach { waiter ->
+                        scriptWaiters.remove(waiter)
+                        main.removeCallbacks(waiter.timeout)
+                        waiter.then()
+                    }
+                }
+                else -> Log.d(TAG, "Extension message $type")
+            }
+        }
 
         fun ensure(runtime: GeckoRuntime, then: () -> Unit) {
             if (ready) return then()
@@ -385,6 +524,8 @@ class GeckoWebEngine(
                 newPort.setDelegate(object : WebExtension.PortDelegate {
                     override fun onPortMessage(message: Any, from: WebExtension.Port) {
                         main.post {
+                            // Page messages always carry their tab (background.js adds it).
+                            if (message is JSONObject && !message.has("tabId")) return@post onExtensionMessage(message)
                             val engine = current
                             if (engine == null) Log.d(TAG, "Host message with no app in front: ${(message as? JSONObject)?.optString("type")}")
                             engine?.onHostMessage(message)
@@ -392,11 +533,20 @@ class GeckoWebEngine(
                     }
 
                     override fun onDisconnect(from: WebExtension.Port) {
+                        // The next port gets the site scripts again (onConnect).
                         if (port === from) port = null
                     }
                 })
-                // A page that loaded before the port existed never heard canGoBack.
-                main.post { current?.let { it.post(JSONObject().put("type", "canGoBack").put("value", it.canGoBack)) } }
+                main.post {
+                    // A new port may be a new background (no scripts registered): the set goes
+                    // again, and only its answer says what's in place. Sent first, so background.js
+                    // knows the port is taken.
+                    sentKey = null
+                    readyKey = null
+                    sendScripts()
+                    // A page that loaded before the port existed never heard canGoBack.
+                    current?.let { it.post(JSONObject().put("type", "canGoBack").put("value", it.canGoBack)) }
+                }
             }
 
             /** The extension's proxy question (background.js): PhoneInternet's answer. */
@@ -408,10 +558,66 @@ class GeckoWebEngine(
         }
     }
 
+    /**
+     * Gecko frees memory on its "memory-pressure" notification (a shrinking GC in every page,
+     * image and font caches dropped), which GeckoView sends only when Android trims memory: on
+     * the glasses that came after lmkd had already killed the page (measured: trim level 15 a
+     * second after Instagram's Reels page was gone). While a page is shown this reads the free
+     * memory every [EVERY_MS] and sends it below [LOW_KB], at most every [AGAIN_MS].
+     */
+    private object MemoryWatch {
+        private const val EVERY_MS = 2_000L
+        private const val AGAIN_MS = 10_000L
+        /** Above lmkd's kills on the RG glasses (MemAvailable ~200 MB when it took the page). */
+        private const val LOW_KB = 350L * 1024
+        private val main = android.os.Handler(android.os.Looper.getMainLooper())
+        private var running = false
+        private var sentAt = 0L
+        private val check = object : Runnable {
+            override fun run() {
+                if (!running) return
+                val available = availableKb()
+                val now = SystemClock.elapsedRealtime()
+                if (available in 1 until LOW_KB && now - sentAt >= AGAIN_MS) {
+                    sentAt = now
+                    runCatching { org.mozilla.gecko.GeckoAppShell.notifyObservers("memory-pressure", "low-memory") }
+                        .onSuccess { Log.i(TAG, "Memory low (${available / 1024} MB free): asked Gecko to free memory") }
+                        .onFailure { Log.w(TAG, "Couldn't ask Gecko to free memory", it) }
+                }
+                main.postDelayed(this, EVERY_MS)
+            }
+        }
+
+        fun start() {
+            if (running) return
+            running = true
+            main.postDelayed(check, EVERY_MS)
+        }
+
+        fun stop() {
+            running = false
+            main.removeCallbacks(check)
+        }
+
+        /** MemAvailable from /proc/meminfo, in kB; 0 when it can't be read. */
+        private fun availableKb(): Long = runCatching {
+            java.io.File("/proc/meminfo").useLines { lines ->
+                lines.firstOrNull { it.startsWith("MemAvailable:") }?.split(Regex("\\s+"))?.getOrNull(1)?.toLong()
+            } ?: 0L
+        }.getOrDefault(0L)
+    }
+
     companion object {
         private const val TAG = "BandGecko"
+        /** The longest a page load waits for its app's site scripts to be in place. */
+        private const val SCRIPTS_WAIT_MS = 3_000L
         private const val EXTENSION_URI = "resource://android/assets/mrbd-ext/"
         private const val EXTENSION_ID = "mrbd-host@lumen.dev"
+        /** Two deaths of a shown page within this hold it ([held]). */
+        private const val LOSS_WINDOW_MS = 120_000L
+        private const val LOSSES_TO_HOLD = 2
+        /** Deaths reported this close to the previous one are the same shortage. */
+        private const val SAME_EVENT_MS = 5_000L
         /** Every id the shim has had starts with this (the earlier one: mrbd-host@airgestures.dev). */
         private const val EXTENSION_PREFIX = "mrbd-host@"
         private var runtime: GeckoRuntime? = null
@@ -437,6 +643,24 @@ class GeckoWebEngine(
             "browser.safebrowsing.malware.enabled" to false,
             "browser.safebrowsing.phishing.enabled" to false,
             "dom.ipc.processPriorityManager.enabled" to false,
+            // Memory (RG glasses, 1.8 GB, measured 2026-10-09): scrolling Instagram's Reels ran
+            // the glasses out of memory, and lmkd killed the page and then Lumen's own process
+            // (all at oom_score_adj 0), so the whole app went down. What Gecko keeps for later:
+            // no spare content process waiting for the next page (~130 MB with its swap),
+            // no pages kept alive for Back, smaller caches for decoded images and the network,
+            // and a cap on what a streamed video or audio track keeps buffered.
+            "dom.ipc.processPrelaunch.enabled" to false,
+            "browser.sessionhistory.max_total_viewers" to 0,
+            "browser.cache.memory.capacity" to 8192,
+            "image.mem.surfacecache.max_size_kb" to 65536,
+            "media.mediasource.eviction_threshold.video" to 25 * 1024 * 1024,
+            "media.mediasource.eviction_threshold.audio" to 3 * 1024 * 1024,
+            // Gecko builds its accessibility trees because Android reports an accessibility
+            // service on (Lumen's own, for the band), but nothing reads a page through them:
+            // the band reaches pages as keys. They cost memory on a big page, and tearing one
+            // down when a page's process died crashed the parent process (measured: SIGSEGV in
+            // a11y::SessionAccessibility::GetInstanceFor from DocAccessibleParent::Destroy).
+            "accessibility.force_disabled" to 1,
         )
 
         /** Writes [PREFS] as GeckoView's config file (YAML, `prefs:`) and returns its path. */
@@ -457,12 +681,38 @@ class GeckoWebEngine(
          * viewport. Once it exists, removed apps' contexts are cleared right away, and those
          * removed before it are cleared now.
          */
+        /**
+         * Gecko binds its child processes (pages, GPU, media) with BIND_IMPORTANT while in front,
+         * which gives them the app's own oom_score_adj (0). Out of memory, lmkd then took the page
+         * and Lumen's process together (measured, Instagram's Reels): the whole app went down.
+         * Bound without it, a child stays at VISIBLE_APP_ADJ (100) while Lumen is in front, so
+         * lmkd takes the page first and Lumen reloads it (or holds it, [held]). Nothing changes
+         * in the background, where the client's own adj is already higher. GeckoView has no API
+         * for this: its PriorityLevel.FOREGROUND flag is set before any child process starts.
+         */
+        private fun bindChildrenBelowTheApp() {
+            runCatching {
+                val level = Class.forName("org.mozilla.gecko.process.ServiceAllocator\$PriorityLevel")
+                val foreground = level.getField("FOREGROUND").get(null)
+                level.getDeclaredField("mAndroidFlag").apply { isAccessible = true }.setInt(foreground, 0)
+            }.onSuccess { Log.d(TAG, "Child processes bound below the app") }
+                .onFailure { Log.w(TAG, "Couldn't bind the child processes below the app", it) }
+        }
+
         @Synchronized
-        private fun runtime(context: Context, density: Float): GeckoRuntime = runtime ?: GeckoRuntime.create(
+        private fun runtime(context: Context, density: Float): GeckoRuntime = runtime ?: run {
+            bindChildrenBelowTheApp()
+            createRuntime(context, density)
+        }
+
+        private fun createRuntime(context: Context, density: Float): GeckoRuntime = GeckoRuntime.create(
             context.applicationContext,
             GeckoRuntimeSettings.Builder()
                 .configFilePath(preferencesFile(context))
                 .displayDensityOverride(density)
+                // The HUD is additive: black is see-through and a white page washes out the view.
+                // Sites with a dark theme (YouTube, Instagram) take it from prefers-color-scheme.
+                .preferredColorScheme(GeckoRuntimeSettings.COLOR_SCHEME_DARK)
                 // A page's console.* goes to logcat in debug builds only.
                 .consoleOutput(BuildConfigDebug.debuggable(context))
                 .remoteDebuggingEnabled(BuildConfigDebug.debuggable(context))

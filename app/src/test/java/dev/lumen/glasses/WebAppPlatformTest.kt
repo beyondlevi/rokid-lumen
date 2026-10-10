@@ -332,6 +332,21 @@ class WebAppPlatformTest {
         assertEquals(2, WebAppLibrary.all(context).size)
     }
 
+    @Test
+    fun aPackagedOnlineAppIsUpdatedFromThePhone() {
+        val context = RuntimeEnvironment.getApplication()
+        val manifest = """{"id":"tube","name":"Tube","version":"1","start_url":"https://m.youtube.com/"}"""
+        val v1 = zip("manifest.json" to manifest)
+        val first = WebAppPackages.installFromPhone(context, "127.0.0.1:${servePackage(v1, mutableListOf())}", "tok1", v1.size.toLong(), sha256(v1), "tube.zip", null)
+        assertTrue(first.packaged)
+        val v2 = zip("manifest.json" to manifest.replace("\"1\"", "\"2\""))
+        val second = WebAppPackages.installFromPhone(context, "127.0.0.1:${servePackage(v2, mutableListOf())}", "tok1", v2.size.toLong(), sha256(v2), "tube.zip", first.id)
+        assertEquals(first.id, second.id)
+        assertEquals("2", second.version)
+        assertEquals("https://m.youtube.com/", second.url)
+        WebAppLibrary.remove(context, first.id)
+    }
+
     private fun assertProblem(problem: WebAppPackages.Problem, block: () -> Unit) {
         try {
             block()

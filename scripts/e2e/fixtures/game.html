@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Game</title>
+<style>
+  body { margin: 0; background: #000; color: #fff; font: 16px sans-serif; }
+  #board { width: 400px; height: 300px; margin: 20px; border: 1px solid #888; }
+  #restart { margin: 20px; }
+  .tall { height: 1500px; }
+</style>
+<div id="board">A game that plays with the arrows</div>
+<button id="restart">Restart</button>
+<p class="tall">A tall page, so an arrow the game didn't take would scroll it.</p>
+<script>
+  // On window, after Lumen's listener: the most common way games listen.
+  window.moves = [];
+  window.addEventListener('keydown', function (event) {
+    if (event.key.indexOf('Arrow') !== 0) return;
+    event.preventDefault();
+    moves.push(event.key);
+  });
+</script>

@@ -62,4 +62,36 @@ class WebOriginTest {
         assertFalse(WebOrigin.navigationAllowed("http://127.0.0.1:47100/", online))
         assertFalse(WebOrigin.navigationAllowed("file:///sdcard/x.html", online))
     }
+
+    @Test
+    fun theAppsOwnPagesAreHeardInFull() {
+        for (type in listOf("getConfig", "audio", "speak", "install", "backResult", "textFocus")) {
+            assertTrue(type, WebOrigin.hears(type, "https://app.example/a", "https://app.example/b", online))
+            assertTrue(type, WebOrigin.hears(type, "http://127.0.0.1:47100/", "http://127.0.0.1:47100/x", offline))
+            // Before the session reports a location (about:blank first).
+            assertTrue(type, WebOrigin.hears(type, "https://app.example/", "about:blank", online))
+        }
+    }
+
+    @Test
+    fun anotherSitesPageInAnOnlineAppOnlyTypes() {
+        val signIn = "https://accounts.google.com/v3/signin/identifier?continue=x"
+        for (type in listOf("hello", "textFocus", "textBlur", "openComposer", "noTextField")) {
+            assertTrue(type, WebOrigin.hears(type, signIn, signIn, online))
+        }
+        // The app's settings, the microphone, speech, installing and Back stay with the app.
+        for (type in listOf("getConfig", "audio", "speak", "cancelSpeech", "install", "backResult")) {
+            assertFalse(type, WebOrigin.hears(type, signIn, signIn, online))
+        }
+        // Only from the page the session shows: not from a page left behind, not over plain HTTP.
+        assertFalse(WebOrigin.hears("textFocus", signIn, "https://app.example/", online))
+        assertFalse(WebOrigin.hears("textFocus", "https://evil.example/", signIn, online))
+        assertFalse(WebOrigin.hears("textFocus", "http://plain.example/", "http://plain.example/", online))
+        // An offline app's page never types off its origin.
+        assertFalse(WebOrigin.hears("textFocus", signIn, signIn, offline))
+        assertTrue(WebOrigin.typingPage(signIn, online))
+        assertFalse(WebOrigin.typingPage("http://plain.example/", online))
+        assertFalse(WebOrigin.typingPage(signIn, offline))
+        assertTrue(WebOrigin.typingPage("about:blank", offline))
+    }
 }

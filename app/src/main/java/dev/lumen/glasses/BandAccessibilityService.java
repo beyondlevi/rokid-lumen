@@ -244,6 +244,8 @@ public final class BandAccessibilityService extends AccessibilityService {
         PhoneLink.setAlertListener(notification -> banner.show(notification));
         AppUpdateNotice.showIfUpdated(this, banner);
         PhoneLink.start(this);
+        MetaToast.attach(this);
+        BandSwitch.load(this);
         String problem = BandRuntime.start(this, this::onBandAction);
         Log.d(TAG, "Accessibility service connected band=" + (problem == null ? "starting" : problem));
     }
@@ -254,6 +256,7 @@ public final class BandAccessibilityService extends AccessibilityService {
             activeService = null;
         }
         GlassesPointer.stop();
+        MetaToast.detach(this);
         BandRuntime.shutdown();
         PhoneLink.setAlertListener(null);
         if (banner != null) {
@@ -449,6 +452,10 @@ public final class BandAccessibilityService extends AccessibilityService {
             if (!GlassesPointer.start(this)) {
                 Log.d(TAG, "The air mouse can't start (the band isn't connected)");
             }
+            return;
+        }
+        if (GestureChoices.DEVICES.equals(command)) {
+            BandDeviceActivity.open(this);
             return;
         }
         if (banner != null && banner.onBandCommand(command)) {

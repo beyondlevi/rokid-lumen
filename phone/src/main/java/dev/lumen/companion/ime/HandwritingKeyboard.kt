@@ -50,12 +50,14 @@ class HandwritingKeyboard : InputMethodService(), PhoneBand.HandwritingSink {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         PhoneBand.listeners += bandChanged
     }
 
     override fun onDestroy() {
         stopWriting()
         PhoneBand.listeners -= bandChanged
+        if (instance === this) instance = null
         super.onDestroy()
     }
 
@@ -133,6 +135,8 @@ class HandwritingKeyboard : InputMethodService(), PhoneBand.HandwritingSink {
         stopWriting()
         state = State.IDLE
         super.onFinishInputView(finishingInput)
+        // The field went away while a gesture had switched to this keyboard: the person's again.
+        if (finishingInput) HandwritingSwitch.finished(this)
     }
 
     /** Start writing if the band is here; otherwise say where it is. */
@@ -159,7 +163,7 @@ class HandwritingKeyboard : InputMethodService(), PhoneBand.HandwritingSink {
         PhoneBand.resetHandwritingText("")
         wrote = false
         lastWriting = System.currentTimeMillis()
-        status.text = getString(R.string.ime_status_preparing)
+        if (::status.isInitialized) status.text = getString(R.string.ime_status_preparing)
         main.removeCallbacks(idleCheck)
         main.postDelayed(idleCheck, IDLE_CHECK_MS)
         render()
@@ -216,6 +220,7 @@ class HandwritingKeyboard : InputMethodService(), PhoneBand.HandwritingSink {
         stopWriting()
         state = State.STOPPED
         requestHideSelf(0)
+        HandwritingSwitch.finished(this)
     }
 
     private fun checkIdle() {
@@ -226,6 +231,7 @@ class HandwritingKeyboard : InputMethodService(), PhoneBand.HandwritingSink {
             stopWriting()
             state = State.STOPPED
             render()
+            HandwritingSwitch.finished(this)
         } else {
             main.postDelayed(idleCheck, IDLE_CHECK_MS)
         }
@@ -275,6 +281,7 @@ class HandwritingKeyboard : InputMethodService(), PhoneBand.HandwritingSink {
 
     private fun switchKeyboard() {
         stopWriting()
+        HandwritingSwitch.forget()
         if (!switchToPreviousInputMethod()) {
             getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.showInputMethodPicker()
         }
@@ -299,8 +306,27 @@ class HandwritingKeyboard : InputMethodService(), PhoneBand.HandwritingSink {
         action.text = getString(if (state == State.ELSEWHERE) R.string.ime_use_here else R.string.ime_write_again)
     }
 
+    /** The Write gesture with this keyboard already up: it writes again (see [HandwritingSwitch]). */
+    private fun writeNow() {
+        // Not shown on a field yet: up it comes, and writing starts there (onStartInputView).
+        if (!::status.isInitialized || state == State.IDLE) {
+            if (currentInputStarted()) requestShowSelf(0)
+            return
+        }
+        if (state == State.STOPPED) begin()
+    }
+
+    private fun currentInputStarted() = currentInputEditorInfo != null && currentInputConnection != null
+
     companion object {
         private const val TAG = "NbHandwriting"
+
+        @Volatile private var instance: HandwritingKeyboard? = null
+
+        /** The Write gesture while this keyboard is the phone's: write again in the field it's on. */
+        fun writeAgain() {
+            instance?.writeNow()
+        }
         private val ACCENT = Color.rgb(102, 242, 165)
         private const val IDLE_MS = 15_000L
         private const val FIRST_LETTER_MS = 30_000L

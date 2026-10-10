@@ -9,8 +9,9 @@ import dev.lumen.band.ScreenPointer
  * default they navigate as the R08 ring does in R08 Access Bridge: a swipe moves the launcher or
  * the focus one step (right and down forward, left and up back), an index tap selects, a middle
  * tap is Back, and the middle double tap turns the screen off and on, as on Meta's glasses
- * ([BandCommand.SCREEN]). The index double tap ships unmapped (the dial is volume) so that an
- * index tap never waits to rule out a double. The middle hold stays the controls toggle.
+ * ([BandCommand.SCREEN]), the middle hold pauses the controls ([GestureChoices.PAUSE]) and the
+ * index double tap opens the band's device chooser ([GestureChoices.DEVICES]; an index tap waits
+ * a moment to rule out the double, as with any mapped double).
  */
 enum class MappableGesture(val key: String, val title: String, val default: String) {
     SWIPE_RIGHT("swipe_right", "Swipe right", BandCommand.RIGHT),
@@ -19,8 +20,15 @@ enum class MappableGesture(val key: String, val title: String, val default: Stri
     SWIPE_UP("swipe_up", "Swipe up", BandCommand.UP),
     INDEX_TAP("index_tap", "Index tap", BandCommand.ACTIVATE),
     MIDDLE_TAP("middle_tap", "Middle tap", BandCommand.BACK),
-    INDEX_DOUBLE("index_double", "Index double tap", GestureChoices.NONE),
+    INDEX_DOUBLE("index_double", "Index double tap", GestureChoices.DEVICES),
     MIDDLE_DOUBLE("middle_double", "Middle double tap", BandCommand.SCREEN),
+    /** Held and let go without turning (an index pinch held is also how pinch and turn starts). */
+    INDEX_HOLD("index_hold", "Index hold", GestureChoices.NONE),
+    MIDDLE_HOLD("middle_hold", "Middle hold", GestureChoices.PAUSE),
+    ;
+
+    /** A hold can't be the air mouse's switch: while it runs, the pinches are its clicks. */
+    val isHold get() = this == INDEX_HOLD || this == MIDDLE_HOLD
 }
 
 /**
@@ -34,16 +42,29 @@ object GestureChoices {
     /** The air mouse ([GlassesPointer]): the bridge's toggle id (rust/bridge `POINTER_TOGGLE`). */
     const val POINTER = ScreenPointer.TOGGLE
 
+    /**
+     * Pauses the controls and resumes them (rust/bridge `PAUSE_TOGGLE`, handled by the bridge):
+     * only the gesture mapped to it works while they're paused.
+     */
+    const val PAUSE = "band.pause"
+
+    /** Opens the band's device chooser ([BandDeviceActivity]): the glasses, the phone or a computer. */
+    const val DEVICES = "band.devices"
+
     const val NAVIGATION = "navigation"
     const val MOUSE = "mouse"
     const val GLASSES = "glasses"
     const val SCREEN = "screen"
+    const val BAND = "band"
     const val OTHER = "other"
 
     data class Choice(val id: String, val title: String, val group: String)
 
     /** Every choice, in the order the phone lists them, under their groups. */
     val ALL: List<Choice> = listOf(
+        Choice(DEVICES, "Choose the band's device", BAND),
+        Choice(PAUSE, "Pause or resume the band", BAND),
+        Choice(GlassesAction.TO_PHONE.id(), GlassesAction.TO_PHONE.title(), BAND),
         Choice(BandCommand.RIGHT, "Move right", NAVIGATION),
         Choice(BandCommand.LEFT, "Move left", NAVIGATION),
         Choice(BandCommand.DOWN, "Move down", NAVIGATION),
@@ -62,7 +83,6 @@ object GestureChoices {
         Choice(BandCommand.BRIGHTNESS_UP, "Brightness up", SCREEN),
         Choice(BandCommand.BRIGHTNESS_DOWN, "Brightness down", SCREEN),
         Choice(GlassesAction.LAUNCH_APP.id(), GlassesAction.LAUNCH_APP.title(), OTHER),
-        Choice(GlassesAction.TO_PHONE.id(), GlassesAction.TO_PHONE.title(), OTHER),
         Choice(NONE, GlassesAction.NONE.title(), OTHER),
     )
 
@@ -80,6 +100,9 @@ object GestureChoices {
     }
 
     fun isChoice(id: String) = id in ids
+
+    /** The choices [gesture] can have: all of them, the air mouse aside for a hold. */
+    fun choicesFor(gesture: MappableGesture): List<Choice> = if (gesture.isHold) ALL.filter { it.id != POINTER } else ALL
 
     /** The bridge's action for [choice]: a command as it is, `glasses.<id>`, `app:<package>`, or none. */
     fun command(choice: String, launchPackage: String?): String = when {

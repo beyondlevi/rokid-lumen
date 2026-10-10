@@ -16,8 +16,9 @@ companion's Band tab (Glasses); out of the box they navigate:
 | Index tap | Select | Open the app, click the item | Enter |
 | Middle tap | Back | Android Back | MRBD's Back (see below) |
 | Middle double tap | Screen off and on | | |
-| Middle hold | Controls off and on | | |
-| Index double tap | Mappable, no action by default | | |
+| Middle hold | Pause or resume the band | | |
+| Index double tap | No action | | |
+| Index hold | No action | | |
 | Pinch and turn | The volume while audio plays; otherwise Navigation, Brightness, Volume or No action | | |
 
 - **The middle double tap turns the screen off and on**, as on Meta's glasses. With the screen
@@ -27,17 +28,22 @@ companion's Band tab (Glasses); out of the box they navigate:
   after*: 30 seconds to 10 minutes, or Never, which keeps Rokid's own 10 days). Band gestures
   and the touchpad count as input, and an app that asks to keep the screen on (a video, the
   Rokid assistant) keeps it on.
-- **The middle hold pauses the controls.** The band stays connected and still vibrates, but
-  its gestures do nothing until the next hold. The settings screen shows *Band connected,
+- **The middle hold pauses the controls** (*Pause or resume the band*, which any gesture can
+  have instead). The band stays connected and still vibrates, but its gestures do nothing until
+  the gesture with the pause runs again: only that one works while paused. A mapping with no
+  gesture for the pause doesn't stay paused. The settings screen shows *Band connected,
   controls off*.
+- **The holds**: the middle hold is the band's own long press; the index hold is a pinch held
+  for at least 0.6 s and let go without turning the wrist (pinch and turn starts with the same
+  held pinch, so it's decided when you let go; turning makes it pinch and turn).
 - **The index double tap ships unmapped**, so an index tap is immediate: the bridge only waits
   to rule out a double tap when one is mapped.
 - **A gesture can be set to**: a navigation step (right, left, down, up, Select, Back), the
   **Air Mouse** (below), Home, MRBD apps (the grid), Play or pause, Rokid AI, Hi Rokid Shortcut
   (needs the self-arm), Take photo, Video toggle, AR screenshot, AR video toggle, the screen off
   and on, the volume or the brightness up or down, Launch app (any app with a launcher icon), Use
-  the band on the phone, or nothing. **Restore the default gestures** puts them back. The middle
-  hold isn't mappable: it stays the controls' pause.
+  the band on the phone, Pause or resume the band, or nothing. A hold can't be the Air Mouse
+  (while it runs, the pinches are its clicks). **Restore the default gestures** puts them back.
 - **Air Mouse** (experimental): the gesture mapped to it shows a cursor in the middle of the
   display, and the same gesture hides it. Your forearm moves it, as the [air mouse on a
   computer](#the-band-on-a-computer) does; the index pinch is a finger where the cursor is (a tap,
@@ -202,6 +208,20 @@ app goes back in its history, or closes when there is none.
 - **Offline apps** are `.mrbd.zip` packages, served from a loopback server
   (`http://127.0.0.1:<port>`, one port per app). They work with no network.
 - **Online apps** are HTTPS addresses.
+- **Online app packages and site scripts** (GeckoView). An online app can come as a package
+  that brings scripts for the sites it opens, so they work with the band (Instagram's Reels,
+  YouTube's player), and a gesture card shown the first three times it opens (any gesture
+  closes it). The scripts run only in the sites the package names, only while the app is in
+  front, and the install confirmation names those sites. Installed over an app added by address
+  for the same site, it keeps that app's sign-ins and place in the grid. Any other online app on GeckoView
+  shows a one-line hint of the band navigation (swipe: move, index: open, middle: back) the
+  first three times.
+- **The band on any site** (online apps). Swipes move a highlight between what can be clicked
+  on the page; when nothing more is that way, the page scrolls. The index tap opens what's
+  highlighted, and a text field gets the composer. A page that handles the arrows itself (a game)
+  keeps them. Details: [site-scripts.md](site-scripts.md).
+- **Dark pages** (GeckoView). Sites are asked for their dark theme (`prefers-color-scheme`): on
+  the glasses black is see-through, and a white page washes out the view.
 - **Engines.** Each app runs on GeckoView 156 (the default, bundled with the app) or on the
   glasses' system WebView (Chromium 95, the firmware's). Switch it per app from the companion's
   Apps tab or from **Settings > Web apps (MRBD)** on the glasses.
@@ -209,6 +229,16 @@ app goes back in its history, or closes when there is none.
   `navigator.install()`: the confirmation shows the app's name and host, whether it uses the
   internet, the settings it asks for, and what it updates. Cancel has the focus first. What
   you add from the companion installs without asking again.
+- **Video fits the display** (GeckoView). Instagram's videos play at 480 pixels on the short
+  side at most, in H.264 when they offer it: the higher qualities are dropped from what the site
+  sends before its player reads it. Any player that asks about a size above that, or a frame
+  rate above 30, hears that the glasses can't play it (YouTube then picks a smaller one).
+- **Out of memory, the page goes and Lumen stays** (GeckoView). The page's processes sit below
+  Lumen's for Android, so a page too heavy for the glasses (Instagram's Reels) is the one Android
+  stops. Lumen loads it again; if it goes twice within two minutes, a notice says so, and the
+  index tap tries again. Apps left open behind it are closed first (when Android says memory
+  runs low, or the page in front runs out of it); opened again they load again, still signed in. While a page is
+  shown, Gecko is asked to free memory as soon as the free memory drops below 350 MB.
 
 How to build one: [building-apps.md](building-apps.md).
 
@@ -489,6 +519,12 @@ Each profile also sets:
 - **Listen while locked**: off, the band stops while the phone is locked (no gestures, no
   motion: its power saving) and comes back when the phone is unlocked. Media listens while
   locked; Navigation doesn't.
+
+A profile sets the holds too (the index hold, and the middle hold, which pauses unless the
+profile says otherwise), and can put **Write** on a gesture: the Screen gestures service switches
+to the Lumen handwriting keyboard on the focused field, the band writes there, and your keyboard
+comes back when the writing ends (the middle tap, a pause, or leaving the field). It needs the
+Lumen keyboard turned on in the system's keyboard settings.
 
 A profile can also put the **Air Mouse** (experimental) on a gesture: a cursor in the middle of
 the phone's screen, moved by your forearm as on a [computer](#the-band-on-a-computer), and hidden

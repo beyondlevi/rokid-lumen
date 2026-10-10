@@ -54,6 +54,9 @@ const ORIENTATION: u32 = 0x02000212;
 const LINK_SETUP: u32 = 0x02001000;
 /// The band's model output (handwriting is its pipeline 3).
 const INFERENCE: u32 = 0x0200020c;
+/// Invalid orientation samples in a row that end the session. A lone one is skipped: the band
+/// sends a few now and then, and ending the link for one cost two seconds of reconnecting.
+const BAD_ORIENTATION_LIMIT: u32 = 25;
 
 const FINGERS: [&str; 5] = ["unknown", "thumb", "index", "middle", "notApplicable"];
 const ACTIONS: [&str; 21] = [
@@ -197,6 +200,8 @@ pub struct BandSession {
     motion_messages: usize,
     /// The motion samples themselves go out as events (the air mouse needs them).
     motion_samples: bool,
+    /// Invalid orientation samples in a row (see [BAD_ORIENTATION_LIMIT]).
+    bad_orientation: u32,
     streams_enabled: bool,
     /// Motion streams wanted (on unless [BandSession::set_motion_enabled] turned them off).
     motion: bool,
@@ -274,6 +279,7 @@ impl BandSession {
             authenticated_packets: 0,
             motion_messages: 0,
             motion_samples: false,
+            bad_orientation: 0,
             streams_enabled: false,
             motion: true,
             motion_active: true,
@@ -1567,10 +1573,15 @@ impl BandSession {
                 });
                 let norm: f32 = values.iter().map(|v| v * v).sum();
                 if !values.iter().all(|v| v.is_finite()) || !(0.9..=1.1).contains(&norm) {
-                    return Err(perr("Invalid band orientation sample"));
-                }
-                if self.motion_samples {
-                    events.push(Event::Orientation { timestamp_us: timestamp, quaternion: values });
+                    self.bad_orientation += 1;
+                    if self.bad_orientation >= BAD_ORIENTATION_LIMIT {
+                        return Err(perr("Invalid band orientation sample"));
+                    }
+                } else {
+                    self.bad_orientation = 0;
+                    if self.motion_samples {
+                        events.push(Event::Orientation { timestamp_us: timestamp, quaternion: values });
+                    }
                 }
             }
         }

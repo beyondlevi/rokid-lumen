@@ -3,6 +3,7 @@ package dev.lumen.glasses
 import android.content.Context
 import android.net.Uri
 import dev.lumen.protocol.AppConfigField
+import dev.lumen.protocol.GridItem
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -20,7 +21,8 @@ enum class WebEngineKind(val label: String) {
 }
 
 /**
- * A Meta Ray-Ban Display web app the host can open. An online app is an HTTPS URL; an offline
+ * A Meta Ray-Ban Display web app the host can open. An online app is an HTTPS URL, added as one
+ * or from a package ([packaged]); an offline
  * one is a package extracted in [WebAppPackages.dir], served by [LocalAppServer] on its own
  * loopback port, so each app keeps its own origin (and localStorage). On GeckoView each app also
  * has its own session context ([WebAppContexts]): cookies and storage apart from the others.
@@ -53,7 +55,26 @@ data class WebApp(
     val copyOf: String = "",
     /** The name was given by hand (a copy, a rename): package updates keep it. */
     val renamed: Boolean = false,
+    /**
+     * An online app installed from a package ([WebAppPackages]): its manifest, icon and site
+     * scripts ([SiteScripts]) live in [WebAppPackages.dir], and a package updates it.
+     */
+    val packaged: Boolean = false,
+    /** The sites a packaged online app's scripts change (`www.instagram.com`, `*.youtube.com`), as shown at install. */
+    val scriptHosts: List<String> = emptyList(),
+    /**
+     * The id of the app whose GeckoView context (cookies, storage) this one uses, "" for its own:
+     * a packaged online app that took over the app added by address for the same site keeps its
+     * sign-ins ([WebAppPackages.adoptable]).
+     */
+    val contextOf: String = "",
 ) {
+    /** The id of this app's GeckoView context ([WebAppContexts]): its own, or the one it took over. */
+    val contextKey: String get() = contextOf.ifEmpty { id }
+
+    /** Whether the app has a package folder ([WebAppPackages.dir]): an offline app, or a packaged online one. */
+    val hasPackage: Boolean get() = offline || packaged
+
     /** What the engine loads. */
     val url: String get() = if (offline) LocalAppServer.origin(port) + "/" else remoteUrl
 }
@@ -127,8 +148,8 @@ object WebAppLibrary {
 
     /**
      * A second install of the app [id] named [name]: its own id, and so its own GeckoView
-     * context (cookies, storage), settings and, offline, its own port (origin) and copy of the
-     * package. Settings start empty: a copy is usually another account. Null when there's no
+     * context (cookies, storage), settings, offline its own port (origin), and its own copy of
+     * the package when it has one. Settings start empty: a copy is usually another account. Null when there's no
      * such app or the name is empty.
      */
     @JvmStatic
@@ -139,7 +160,7 @@ object WebAppLibrary {
         val taken = all(context).map { it.id }.toSet()
         val newId = generateSequence { root + "-" + java.util.UUID.randomUUID().toString().take(6) }.first { it !in taken }
         val port = if (original.offline) allocatePort(context) else 0
-        if (original.offline) {
+        if (original.hasPackage) {
             val target = WebAppPackages.dir(context, newId)
             target.deleteRecursively()
             check(WebAppPackages.dir(context, original.id).copyRecursively(target)) { "couldn't copy the package" }
@@ -148,7 +169,8 @@ object WebAppLibrary {
             val to = File(File(path).parentFile, "$newId.png")
             runCatching { File(path).copyTo(to, overwrite = true).absolutePath }.getOrNull()
         }
-        val app = original.copy(id = newId, name = label, port = port, icon = icon, copyOf = root, renamed = true)
+        // A copy is usually another account: its own context, never the one the original took over.
+        val app = original.copy(id = newId, name = label, port = port, icon = icon, copyOf = root, renamed = true, contextOf = "")
         put(context, app)
         return app
     }
@@ -176,13 +198,30 @@ object WebAppLibrary {
     fun remove(context: Context, id: String) {
         val app = find(context, id) ?: return
         save(context, all(context).filter { it.id != id })
-        if (app.offline) {
-            LocalAppServer.stop(app.port)
-            WebAppPackages.dir(context, id).deleteRecursively()
-        }
+        if (app.offline) LocalAppServer.stop(app.port)
+        if (app.hasPackage) WebAppPackages.dir(context, id).deleteRecursively()
         app.icon?.let { File(it).delete() }
         WebAppConfig.clear(context, id)
-        WebAppContexts.clear(context, id)
+        WebAppContexts.clear(context, app.contextKey)
+        WebAppGuide.forget(context, id)
+    }
+
+    /**
+     * Takes [id] out of the library for the packaged app [by] that took it over: its icon and
+     * settings go, its GeckoView context stays (it's [by]'s now, [WebApp.contextOf]) and [by]
+     * takes its place in the grid.
+     */
+    @JvmStatic
+    fun handOver(context: Context, id: String, by: String) {
+        val apps = all(context)
+        val app = apps.firstOrNull { it.id == id } ?: return
+        // The library's order is the grid's until the phone arranges it: [by] goes where [id] was.
+        val heir = apps.firstOrNull { it.id == by }
+        save(context, apps.mapNotNull { when (it.id) { id -> heir; by -> null; else -> it } })
+        app.icon?.let { File(it).delete() }
+        WebAppConfig.clear(context, id)
+        WebAppGuide.forget(context, id)
+        GridStore.replace(context, GridItem.WEB_PREFIX + id, GridItem.WEB_PREFIX + by)
     }
 
     /**
@@ -228,6 +267,9 @@ object WebAppLibrary {
                 source = json.optString("source"),
                 copyOf = json.optString("copy_of"),
                 renamed = json.optBoolean("renamed"),
+                packaged = !offline && json.optBoolean("packaged"),
+                scriptHosts = json.optJSONArray("script_hosts")?.let { hosts -> (0 until hosts.length()).map { hosts.optString(it) }.filter { it.isNotEmpty() } }.orEmpty(),
+                contextOf = json.optString("context_of"),
             )
         }
     }.getOrDefault(emptyList())
@@ -250,7 +292,10 @@ object WebAppLibrary {
                     .put("internet", it.internet)
                     .put("source", it.source)
                     .put("copy_of", it.copyOf)
-                    .put("renamed", it.renamed),
+                    .put("renamed", it.renamed)
+                    .put("packaged", it.packaged)
+                    .put("script_hosts", JSONArray(it.scriptHosts))
+                    .put("context_of", it.contextOf),
             )
         }
         return array.toString()

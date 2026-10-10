@@ -35,6 +35,15 @@ interface WebEngine {
 
         /** No text field has focus any more. */
         fun onTextBlur()
+
+        /** The page's process died again soon after a reload: it waits for [retry] ([held]). */
+        fun onPageHeld()
+
+        /**
+         * The shown page's process died (out of memory, on the glasses): called before it's
+         * loaded again or held, so what else holds memory can let go first.
+         */
+        fun onPageLost()
     }
 
     /** The view to place in the HUD's square (the engine sizes itself inside it). */
@@ -86,6 +95,15 @@ interface WebEngine {
     fun onHidden() {}
 
     fun destroy()
+
+    /**
+     * The page's process was killed again soon after it was reloaded (the system out of memory,
+     * in practice): it isn't reloaded on its own, which would loop, until [retry].
+     */
+    val held: Boolean get() = false
+
+    /** Loads a [held] page again. */
+    fun retry() {}
 
     companion object {
         /** MRBD's viewport, in CSS pixels. */

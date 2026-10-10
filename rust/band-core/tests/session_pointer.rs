@@ -34,8 +34,9 @@ fn motion_samples_go_out_only_while_asked_for() {
 }
 
 #[test]
-fn an_invalid_orientation_still_ends_the_session() {
+fn an_invalid_orientation_gives_no_sample() {
     let mut peer = Peer::legacy(true, false);
     peer.session.set_motion_samples(true);
-    assert!(peer.band.orientation(&mut peer.session, 1_000, [2.0, 0.0, 0.0, 0.0], 0.0).is_err());
+    let events = peer.band.orientation(&mut peer.session, 1_000, [2.0, 0.0, 0.0, 0.0], 0.0).unwrap();
+    assert!(samples(&events).is_empty());
 }

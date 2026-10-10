@@ -19,6 +19,12 @@ import org.json.JSONObject
  *
  * Item ids: `notifications`, `settings`, `web:<web app id>`, `app:<package>`.
  *
+ * Rokid's link delays phone → glasses messages by minutes and loses some, so the phone sends a
+ * request again, with the same request id, until its answer (`re`, on the result or on the state
+ * that answers `describe`) comes back. The glasses do each request once: a repeat gets the first
+ * answer. The request id travels as `req` ([GridOps.requestId]): the ops about one item use `id`
+ * for the item (older glasses read it there), which overwrites the envelope's numeric `id`.
+ *
  * `install_file` hands over an offline package picked on the phone: the glasses join the phone's
  * network ([Link.NET]) and download it from the phone's proxy at `/lumen/package/<token>`
  * ([PACKAGE_PATH]), checking `size` and `sha256`. With `replace` (an item id) it updates that app
@@ -34,6 +40,18 @@ import org.json.JSONObject
  * (`copy_of`). `rename` gives any web app a name that updates keep.
  */
 object GridOps {
+    /** A grid request: the envelope's id kept as `req` too, since item ops reuse `id` for the item. */
+    private fun request(): JSONObject = Link.request().let { it.put("req", it.getLong("id")) }
+
+    /** The id of a grid request: `req`, or the envelope's `id` from a phone too old to send `req`. */
+    @JvmStatic
+    fun requestId(request: JSONObject): Long = request.optLong("req").takeIf { it != 0L } ?: request.optLong("id")
+
+    /** The grid item a request is about (`remove`, `config`, `rename`, `engine`, `copy`), or "". */
+    @JvmStatic
+    fun item(request: JSONObject): String =
+        if (request.optString("op") in setOf(REMOVE, CONFIG, RENAME, ENGINE, COPY)) request.optString("id") else ""
+
     const val DESCRIBE = "describe"
     const val SET = "set"
     const val ADD_WEB = "add_web"
@@ -47,38 +65,38 @@ object GridOps {
     const val COPY = "copy"
 
     @JvmStatic
-    fun rename(id: String, name: String): JSONObject = Link.request().put("op", RENAME).put("id", id).put("name", name)
+    fun rename(id: String, name: String): JSONObject = request().put("op", RENAME).put("id", id).put("name", name)
 
     @JvmStatic
-    fun copy(id: String, name: String): JSONObject = Link.request().put("op", COPY).put("id", id).put("name", name)
+    fun copy(id: String, name: String): JSONObject = request().put("op", COPY).put("id", id).put("name", name)
 
     /** Where the phone's proxy serves a package handed over with [installFile]: this + token. */
     const val PACKAGE_PATH = "/lumen/package/"
 
     @JvmStatic
-    fun describe(): JSONObject = Link.request().put("op", DESCRIBE)
+    fun describe(): JSONObject = request().put("op", DESCRIBE)
 
     /** The grid as it should be: [order] shown, in order; [hidden] kept out (web apps included). */
     @JvmStatic
-    fun set(order: List<String>, hidden: List<String>): JSONObject = Link.request().put("op", SET)
+    fun set(order: List<String>, hidden: List<String>): JSONObject = request().put("op", SET)
         .put("order", JSONArray(order)).put("hidden", JSONArray(hidden))
 
     @JvmStatic
-    fun addWeb(url: String, name: String = ""): JSONObject = Link.request().put("op", ADD_WEB).put("url", url).put("name", name)
+    fun addWeb(url: String, name: String = ""): JSONObject = request().put("op", ADD_WEB).put("url", url).put("name", name)
 
     @JvmStatic
-    fun addPackage(url: String): JSONObject = Link.request().put("op", ADD_PACKAGE).put("url", url)
+    fun addPackage(url: String): JSONObject = request().put("op", ADD_PACKAGE).put("url", url)
 
     /** Deletes a web app from the glasses (its package too, if offline). */
     @JvmStatic
-    fun remove(id: String): JSONObject = Link.request().put("op", REMOVE).put("id", id)
+    fun remove(id: String): JSONObject = request().put("op", REMOVE).put("id", id)
 
     @JvmStatic
-    fun engine(id: String, engine: String): JSONObject = Link.request().put("op", ENGINE).put("id", id).put("engine", engine)
+    fun engine(id: String, engine: String): JSONObject = request().put("op", ENGINE).put("id", id).put("engine", engine)
 
     /** Sets one configuration value of a web app; an empty [value] clears it. */
     @JvmStatic
-    fun config(id: String, key: String, value: String): JSONObject = Link.request().put("op", CONFIG).put("id", id)
+    fun config(id: String, key: String, value: String): JSONObject = request().put("op", CONFIG).put("id", id)
         .put("key", key).put("value", value)
 
     /**
@@ -88,11 +106,11 @@ object GridOps {
     @JvmStatic
     @JvmOverloads
     fun installFile(token: String, name: String, size: Long, sha256: String, replace: String = ""): JSONObject =
-        Link.request().put("op", INSTALL_FILE).put("token", token).put("name", name).put("size", size)
+        request().put("op", INSTALL_FILE).put("token", token).put("name", name).put("size", size)
             .put("sha256", sha256).put("replace", replace)
 
     @JvmStatic
-    fun icons(ids: List<String>): JSONObject = Link.request().put("op", ICONS).put("ids", JSONArray(ids))
+    fun icons(ids: List<String>): JSONObject = request().put("op", ICONS).put("ids", JSONArray(ids))
 
     @JvmStatic
     fun strings(json: JSONObject, key: String): List<String> {
@@ -200,15 +218,57 @@ data class GridItem(
 
 /** What arrives on [Link.GRID_EVENT]. */
 sealed class GridEvent {
-    /** [items] as the grid shows them, in order (9 per page); [available] can be added. */
-    data class State(val items: List<GridItem>, val available: List<GridItem>) : GridEvent() {
-        fun toJson(request: JSONObject? = null): JSONObject = (request?.let { Link.reply(it) } ?: Link.message()).put("type", "state")
+    /** [items] as the grid shows them, in order (9 per page); [available] can be added. [re]: the request it answers, 0 if none. */
+    data class State(val items: List<GridItem>, val available: List<GridItem>, val re: Long = 0) : GridEvent() {
+        /**
+         * This state with [requests] applied, oldest first, as the glasses will apply them: what the
+         * phone shows while they are on their way. Requests the phone can't foresee (adding an app,
+         * a copy) change nothing here.
+         */
+        fun with(requests: List<JSONObject>): State {
+            var shown = items
+            var rest = available
+            for (request in requests) {
+                val id = GridOps.item(request)
+                fun edit(transform: (GridItem) -> GridItem) {
+                    shown = shown.map { if (it.id == id) transform(it) else it }
+                    rest = rest.map { if (it.id == id) transform(it) else it }
+                }
+                when (request.optString("op")) {
+                    GridOps.REMOVE -> {
+                        shown = shown.filter { it.id != id }
+                        rest = rest.filter { it.id != id }
+                    }
+                    GridOps.CONFIG -> {
+                        val key = request.optString("key")
+                        val value = request.optString("value")
+                        edit { item ->
+                            item.copy(config = item.config.map { field ->
+                                if (field.key != key) field else field.copy(value = if (field.secret) "" else value, set = value.isNotEmpty())
+                            })
+                        }
+                    }
+                    GridOps.RENAME -> request.optString("name").trim().takeIf { it.isNotEmpty() }?.let { name -> edit { it.copy(name = name) } }
+                    GridOps.ENGINE -> edit { it.copy(engine = request.optString("engine")) }
+                    GridOps.SET -> {
+                        val order = GridOps.strings(request, "order")
+                        val all = (shown + rest).associateBy { it.id }
+                        shown = order.mapNotNull { all[it] }
+                        rest = all.values.filter { it.id !in order }
+                    }
+                }
+            }
+            return copy(items = shown, available = rest)
+        }
+
+        fun toJson(request: JSONObject? = null): JSONObject = (request?.let { reply(it) } ?: Link.message()).put("type", "state")
             .put("items", JSONArray().apply { items.forEach { put(it.toJson()) } })
             .put("available", JSONArray().apply { available.forEach { put(it.toJson()) } })
     }
 
-    data class Result(val ok: Boolean, val subject: String, val error: String = "") : GridEvent() {
-        fun toJson(request: JSONObject): JSONObject = Link.reply(request).put("type", "result").put("ok", ok)
+    /** The answer to request [re]. */
+    data class Result(val ok: Boolean, val subject: String, val error: String = "", val re: Long = 0) : GridEvent() {
+        fun toJson(request: JSONObject): JSONObject = reply(request).put("type", "result").put("ok", ok)
             .put("subject", subject).put("error", error)
     }
 
@@ -218,6 +278,9 @@ sealed class GridEvent {
     }
 
     companion object {
+        /** The answer's envelope: `re` is the request's id ([GridOps.requestId]). */
+        private fun reply(request: JSONObject): JSONObject = Link.message().put("re", GridOps.requestId(request))
+
         private fun items(json: JSONObject, key: String): List<GridItem> {
             val array = json.optJSONArray(key) ?: return emptyList()
             return (0 until array.length()).map { GridItem.from(array.getJSONObject(it)) }
@@ -225,8 +288,8 @@ sealed class GridEvent {
 
         @JvmStatic
         fun from(json: JSONObject): GridEvent? = when (json.optString("type")) {
-            "state" -> State(items(json, "items"), items(json, "available"))
-            "result" -> Result(json.optBoolean("ok"), json.optString("subject"), json.optString("error"))
+            "state" -> State(items(json, "items"), items(json, "available"), json.optLong("re"))
+            "result" -> Result(json.optBoolean("ok"), json.optString("subject"), json.optString("error"), json.optLong("re"))
             "icon" -> Icon(json.optString("id"), json.optString("png"))
             else -> null
         }

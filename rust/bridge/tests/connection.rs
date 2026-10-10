@@ -116,16 +116,46 @@ fn a_malformed_owner_key_is_refused() {
 }
 
 #[test]
-fn a_remapped_swipe_runs_its_new_action_and_the_hold_stays_the_toggle() {
+fn a_remapped_swipe_and_a_remapped_hold_run_their_new_actions() {
     let (mut connection, mut band) = connected(false);
     connection.set_mapping("swipe_down=volume.up;swipe_left=media.next;middle_hold=media.next");
     gesture(&mut connection, &mut band, 7, THUMB, 0, 3.0);
     assert_eq!(connection.take_actions(), vec!["volume.up".to_owned()]);
     gesture(&mut connection, &mut band, 8, THUMB, 0, 4.0);
     assert_eq!(connection.take_actions(), vec!["media.next".to_owned()]);
+    // The middle hold is an action like any other now: it doesn't pause.
     gesture(&mut connection, &mut band, 0, MIDDLE, 3, 5.0);
+    assert_eq!(connection.take_actions(), vec!["media.next".to_owned()]);
+    assert!(connection.status_json().contains(r#""paused":false"#));
+}
+
+#[test]
+fn the_pause_can_be_any_gesture_and_only_it_resumes() {
+    let (mut connection, mut band) = connected(false);
+    connection.set_mapping("swipe_left=band.pause;middle_hold=;swipe_down=media.next");
+    gesture(&mut connection, &mut band, 8, THUMB, 0, 3.0);
+    assert!(connection.status_json().contains(r#""paused":true"#));
+    assert!(connection.take_actions().is_empty(), "the pause isn't the app's action");
+    // Paused: the middle hold (no longer the pause) and the other gestures do nothing.
+    gesture(&mut connection, &mut band, 0, MIDDLE, 3, 5.0);
+    gesture(&mut connection, &mut band, 7, THUMB, 0, 6.0);
     assert!(connection.take_actions().is_empty());
     assert!(connection.status_json().contains(r#""paused":true"#));
+    gesture(&mut connection, &mut band, 8, THUMB, 0, 7.0);
+    assert!(connection.status_json().contains(r#""paused":false"#));
+    gesture(&mut connection, &mut band, 7, THUMB, 0, 8.0);
+    assert_eq!(connection.take_actions(), vec!["media.next".to_owned()]);
+}
+
+#[test]
+fn a_mapping_with_no_way_to_resume_doesnt_stay_paused() {
+    let (mut connection, _band) = connected(true);
+    assert!(connection.status_json().contains(r#""paused":true"#));
+    connection.set_mapping("middle_hold=media.next");
+    assert!(connection.status_json().contains(r#""paused":false"#));
+    // And a connection that starts paused with no pause gesture starts on.
+    let (connection, _band) = connected_with(true, "middle_hold=");
+    assert!(connection.status_json().contains(r#""paused":false"#));
 }
 
 #[test]

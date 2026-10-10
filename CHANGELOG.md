@@ -3,6 +3,54 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.19]
+
+### Band
+
+- **Index hold and middle hold** are gestures of their own on every device: the phone's and the
+  computer's profiles and the glasses. The index hold is a pinch held and let go without
+  turning the wrist (turning keeps it pinch and turn).
+- **Pause or resume the band** is an action: the middle hold's by default, any gesture's when
+  mapped, and the only one that works while paused. A mapping without it doesn't stay paused.
+
+### Companion
+
+- **Write** on the phone: a gesture switches to the Lumen handwriting keyboard on the focused
+  field and the band writes there; your keyboard comes back when the writing ends.
+
+### Web apps
+
+- **Sign in on another site's page**: an online app's page on another site (the Google sign-in
+  of a YouTube app) now takes the phone's keyboard and the composer in its text fields. It still
+  gets nothing else from the host (settings, microphone, speech, installs, Back).
+- **Out of memory, the page goes and Lumen stays**: watching Instagram's Reels ran the glasses
+  out of memory and Android stopped Lumen with the page. Now only the page goes; Lumen loads it
+  again, and after a second time within two minutes shows a notice (index tap: try again).
+  Gecko keeps less for later (no spare process, no pages kept for Back, smaller caches) and
+  builds no accessibility trees, whose teardown crashed Lumen when a page's process died.
+  Apps left open behind another screen are closed when memory runs low or the page in front
+  runs out of it (a hidden YouTube held 175 MB next to Instagram's Reels); opened again, they
+  load again, still signed in.
+  Gecko is asked to free memory as soon as the glasses run low (it otherwise heard only when
+  Android trimmed, after the page was already gone), and its crash helper process (40-70 MB,
+  for crash reports Lumen never sends) no longer runs.
+- **Video fits the display**: Instagram's videos play at 480 pixels on the short side at most,
+  in H.264 when offered, and players asking about bigger sizes or more than 30 fps hear no.
+- **Online app packages with site scripts**: a `.mrbd.zip` without `index.html` whose
+  manifest's `start_url` is an `https://` address installs as an online app that brings scripts
+  for the sites it names (`lumen_scripts`). GeckoView runs them in those pages, in the page's own
+  world before its scripts, only while the app is in front; the install confirmation names the
+  sites. Such a package can also show a gesture card the first three times the app opens
+  (`lumen_gestures`); any gesture closes it. It takes over an app added by address for the same
+  site, keeping its sign-ins and its place in the grid.
+- **The band on any site**: in an online app, swipes move a highlight between what can be
+  clicked on the page (the page scrolls when there's nothing more that way), the index tap opens
+  it, and a page that handles the arrows itself keeps them. An online app without a gesture card
+  says so ("Swipe: move · Index: open · Middle: back") the first three times it opens. Site
+  scripts get the same pieces (`window.lumen.band`, `highlight`, `toast`, `click`, `nav`).
+- **Dark pages**: GeckoView asks every site for its dark theme (`prefers-color-scheme: dark`):
+  on the glasses black is see-through and a white page washes out the view.
+
 ## [0.2.0-beta.18]
 
 ### Companion

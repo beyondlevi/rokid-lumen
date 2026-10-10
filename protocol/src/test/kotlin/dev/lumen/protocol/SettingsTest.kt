@@ -46,6 +46,34 @@ class SettingsTest {
     }
 
     @Test
+    fun `the devices the band can go to and a move round-trip`() {
+        val devices = BandDevices(
+            BandDevices.COMPUTER, "AA:BB", paused = true, pauseGesture = "middle_hold",
+            phoneProfiles = listOf(DeviceProfile("media", "Media", "media")), phoneProfile = "media",
+            computers = listOf(DeviceComputer("AA:BB", "Laptop")),
+            computerProfiles = listOf(DeviceProfile("notebook", "Notebook", "notebook")), computerProfile = "notebook",
+            since = 1_000L, phase = BandStatus.PHASE_CONNECTED, computerConnected = true,
+        )
+        assertEquals(devices, BandDevices.from(Link.parse(devices.toJson().toString())))
+        assertTrue(devices.arrived)
+        assertFalse(devices.copy(computerConnected = false).arrived)
+        assertTrue(devices.copy(where = BandDevices.PHONE, computerConnected = false).arrived)
+        assertFalse(devices.copy(phase = BandStatus.PHASE_SEARCHING).arrived)
+        assertEquals(null, BandDevices.from(PhoneEvent(50, false).toJson()))
+        val target = SettingsEvent.BandTarget(BandDevices.PHONE, profile = "media")
+        assertEquals(target, SettingsEvent.from(target.toJson()))
+    }
+
+    @Test
+    fun `a hand-over that reaches the glasses late is ignored, an unstamped action never`() {
+        val handOver = SettingsOps.handOver(now = 50_000L)
+        assertEquals(SettingsOps.ACTION_TO_GLASSES, handOver.getString("name"))
+        assertFalse(SettingsOps.isLate(handOver, now = 50_000L + SettingsOps.HAND_OVER_MS))
+        assertTrue(SettingsOps.isLate(handOver, now = 50_001L + SettingsOps.HAND_OVER_MS))
+        assertFalse(SettingsOps.isLate(SettingsOps.action(SettingsOps.ACTION_TO_GLASSES), now = Long.MAX_VALUE))
+    }
+
+    @Test
     fun `visibility follows the other setting's value`() {
         assertTrue(app.isVisible(listOf(action, app)))
         assertFalse(app.isVisible(listOf(action.copy(value = "none"), app)))

@@ -117,7 +117,8 @@ impl Connection {
 
     fn with_session(session: BandSession, paused: bool, dial: &str, mapping: &str) -> Self {
         let mut controller = Controller::new(config_with(mapping));
-        if paused {
+        // Paused only if a gesture can resume (the pause is a mapped action).
+        if paused && controller.can_pause() {
             controller.pause();
         }
         // An empty `dial` keeps what the mapping chose.
@@ -400,9 +401,12 @@ impl Connection {
                 self.actions.push(action);
             }
         }
-        // A new config resets the controller's pause state; keep the app's.
-        if paused {
+        // A new config resets the controller's pause state; keep the app's, unless no gesture
+        // could resume now (the pause is a mapped action, see `config::PAUSE_TOGGLE`).
+        if paused && self.controller.can_pause() {
             self.controller.pause();
+        } else if paused {
+            self.controller.resume(self.last_read);
         }
         self.session.set_motion_samples(self.controller.pointer_on());
     }

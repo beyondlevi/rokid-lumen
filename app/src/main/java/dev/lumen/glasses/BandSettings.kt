@@ -89,7 +89,10 @@ object BandSettings {
             }
             SettingsOps.ACTION -> {
                 val name = request.optString("name")
-                val error = action(ctx, name)
+                // The phone took the band back when the glasses didn't answer in time: too late now.
+                val late = SettingsOps.isLate(request)
+                if (late) Log.d(TAG, "$name came too late: the phone kept the band")
+                val error = if (late) "too late" else action(ctx, name)
                 PhoneLink.send(Link.SETTINGS_EVENT, SettingsEvent.Result(error == null, name, error.orEmpty()).toJson(request))
             }
         }
@@ -110,8 +113,8 @@ object BandSettings {
     fun schema(context: Context): SettingsEvent.Schema {
         val apps = launchableApps(context)
         val settings = mutableListOf<Setting>()
-        val choices = GestureChoices.ALL.map { SettingOption(it.id, it.title, it.group) }
         MappableGesture.entries.forEach { gesture ->
+            val choices = GestureChoices.choicesFor(gesture).map { SettingOption(it.id, it.title, it.group) }
             settings += Setting(gesture.key, Setting.Kind.CHOICE, gesture.title, GestureMappings.choice(context, gesture), choices, SECTION_GESTURES)
             settings += Setting(
                 gesture.key + APP_SUFFIX, Setting.Kind.CHOICE, "App to open", GestureMappings.launchPackage(context, gesture).orEmpty(),
@@ -171,7 +174,7 @@ object BandSettings {
         val gesture = MappableGesture.entries.firstOrNull { it.key == key || it.key + APP_SUFFIX == key }
         when {
             gesture != null && key == gesture.key -> {
-                if (!GestureChoices.isChoice(value)) return "unknown action $value"
+                if (GestureChoices.choicesFor(gesture).none { it.id == value }) return "unknown action $value"
                 GestureMappings.setChoice(context, gesture, value, GestureMappings.launchPackage(context, gesture))
             }
             gesture != null -> {
@@ -267,10 +270,13 @@ object BandSettings {
         }
         // Reconnecting here takes the band back from the phone too.
         ACTION_RECONNECT -> {
+            if (GestureMappings.isBandOnPhone(context)) BandSwitch.arriving(context)
             GestureMappings.setBandOnPhone(context, false)
             BandRuntime.restart(context).also { pushStatusNow() }
         }
         SettingsOps.ACTION_TO_GLASSES -> {
+            // Back from the phone or a computer: its steps in a toast until it connects here.
+            if (GestureMappings.isBandOnPhone(context)) BandSwitch.arriving(context)
             GestureMappings.setBandOnPhone(context, false)
             (if (BandRuntime.phase == Phase.CONNECTED) null else BandRuntime.restart(context)).also { pushStatusNow() }
         }

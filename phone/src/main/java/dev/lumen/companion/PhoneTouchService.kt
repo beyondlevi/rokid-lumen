@@ -67,6 +67,12 @@ class PhoneTouchService : AccessibilityService() {
         )
     }
 
+    /**
+     * Makes [id] the phone's keyboard (an app can't; an accessibility service can, for a keyboard
+     * the person turned on). False when the system refused.
+     */
+    fun switchKeyboard(id: String): Boolean = runCatching { softKeyboardController.switchToInputMethod(id) }.getOrDefault(false)
+
     /** The D-pad keys the system sends for an accessibility service. */
     enum class Key { UP, DOWN, LEFT, RIGHT, CENTER }
 

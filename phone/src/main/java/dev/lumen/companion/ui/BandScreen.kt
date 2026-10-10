@@ -495,19 +495,29 @@ private fun GlassesSettingsTab(state: CompanionUiState, actions: CompanionAction
         )
     }
     val reset = schema.actions.firstOrNull { it.name == GLASSES_RESET_GESTURES }
-    schema.settings.map { it.section }.distinct().forEach { section ->
-        val visible = schema.settings.filter { it.section == section && it.isVisible(schema.settings) }
+    // A value set here shows at once, marked as on its way, until the glasses confirm it.
+    val settings = schema.settings.map { setting -> state.bandPending[setting.key]?.let { setting.copy(value = it) } ?: setting }
+    val sending = schema.settings.filter { setting -> state.bandPending[setting.key].let { it != null && it != setting.value } }.map { it.key }.toSet()
+    settings.map { it.section }.distinct().forEach { section ->
+        val visible = settings.filter { it.section == section && it.isVisible(settings) }
         if (visible.isEmpty()) return@forEach
         SectionTitle(BandLabels.section(section)?.let { stringResource(it) } ?: section)
         Group {
             visible.forEach { setting ->
                 val title = BandLabels.setting(setting.key)?.let { stringResource(it) } ?: setting.label
                 when (setting.kind) {
-                    Setting.Kind.TOGGLE -> SwitchRow(title, null, setting.checked, { actions.setBandSetting(setting.key, it.toString()) })
+                    Setting.Kind.TOGGLE -> SwitchRow(
+                        title, if (setting.key in sending) stringResource(R.string.band_sending) else null, setting.checked,
+                        { actions.setBandSetting(setting.key, it.toString()) },
+                    )
                     Setting.Kind.CHOICE -> ListRow(
                         title = title,
                         value = optionLabel(setting, setting.value),
-                        trailing = if (setting.value == ScreenPointer.TOGGLE) ({ Tag(stringResource(R.string.computer_tag_experimental)) }) else null,
+                        trailing = when {
+                            setting.key in sending -> ({ Tag(stringResource(R.string.band_sending)) })
+                            setting.value == ScreenPointer.TOGGLE -> ({ Tag(stringResource(R.string.computer_tag_experimental)) })
+                            else -> null
+                        },
                         onClick = { choosing = setting },
                     )
                     Setting.Kind.RANGE -> RangeRow(setting, title) { actions.setBandSetting(setting.key, it) }
@@ -520,7 +530,7 @@ private fun GlassesSettingsTab(state: CompanionUiState, actions: CompanionAction
                     Text(BandLabels.action(action.name)?.let { stringResource(it) } ?: action.label, color = Lumen.accent)
                 }
             }
-            if (schema.settings.any { it.section == GLASSES_GESTURES && it.value == ScreenPointer.TOGGLE }) {
+            if (settings.any { it.section == GLASSES_GESTURES && it.value == ScreenPointer.TOGGLE }) {
                 PointerCard(LumenIcons.glasses, stringResource(R.string.glasses_pointer_text))
             }
         }
@@ -765,7 +775,7 @@ private fun profileIcon(kind: String) = when (kind) {
     else -> LumenIcons.band
 }
 
-/** An action for a phone gesture, grouped: profiles, the air mouse, media and volume, the screen, keys, the rest. */
+/** An action for a phone gesture, grouped: profiles, writing, the air mouse, media and volume, the screen, keys, the rest, the band. */
 @Composable
 private fun ActionPicker(
     title: String,
@@ -779,12 +789,15 @@ private fun ActionPicker(
         null to listOf(PhoneSettings.NONE),
         R.string.action_group_profiles to listOf(PhoneProfiles.NEXT, PhoneProfiles.PREVIOUS) +
             profiles.profiles.filter { it.id != profile.id }.map { PhoneProfiles.GO_PREFIX + it.id },
-        R.string.computer_group_mouse to listOf(ScreenPointer.TOGGLE),
+        R.string.computer_group_writing to listOf(PhoneSettings.WRITE),
+        // A hold can't switch the air mouse: while it runs, the pinches are its clicks.
+        R.string.computer_group_mouse to listOf(ScreenPointer.TOGGLE).filter { gesture !in PhoneSettings.HOLDS },
         R.string.action_group_media to listOf("media.play_pause", "media.next", "media.previous", "volume.up", "volume.down", "volume.mute"),
         R.string.action_group_screen to listOf("screen.back", "screen.home", "screen.recents", "screen.swipe_up", "screen.swipe_down", "screen.swipe_left", "screen.swipe_right"),
         R.string.action_group_keys to listOf("key.dpad_up", "key.dpad_down", "key.dpad_left", "key.dpad_right", "key.enter"),
-        R.string.action_group_other to listOf("brightness.up", "brightness.down", "torch.toggle", PhoneSettings.OPEN_APP, PhoneSettings.SWITCH_TO_GLASSES),
-    )
+        R.string.action_group_other to listOf("brightness.up", "brightness.down", "torch.toggle", PhoneSettings.OPEN_APP),
+        R.string.action_group_band to listOf(PhoneSettings.SWITCH_TO_GLASSES, PhoneSettings.PAUSE),
+    ).filter { (_, ids) -> ids.isNotEmpty() }
     val current = profile.action(gesture)
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -875,6 +888,8 @@ private val GESTURE_LABELS = mapOf(
     "index_double" to R.string.band_setting_index_double,
     "middle_tap" to R.string.phone_gesture_middle_tap,
     "middle_double" to R.string.band_setting_middle_double,
+    "index_hold" to R.string.gesture_index_hold,
+    "middle_hold" to R.string.gesture_middle_hold,
 )
 
 @Composable

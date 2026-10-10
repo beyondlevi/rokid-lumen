@@ -13,13 +13,12 @@ pub enum HandSetting {
     Right,
 }
 
-/// The gesture that turns the controls off and on (it works while they are off).
+/// A triple tap that turns the controls off and on (it works while they are off). The usual
+/// way is a gesture mapped to [PAUSE_TOGGLE] (the middle hold by default).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ToggleGesture {
-    None,
-    /// The band's own middle-finger hold (long press).
     #[default]
-    MiddleHold,
+    None,
     /// Three taps, each within 0.45 s of the last; that finger's double tap
     /// then waits 0.45 s for a third. Fast tapping only.
     IndexTriple,
@@ -75,7 +74,7 @@ impl Default for BandConfig {
         Self {
             hand: HandSetting::Band,
             autostart: true,
-            toggle: ToggleGesture::MiddleHold,
+            toggle: ToggleGesture::None,
             on_toggle: String::new(),
         }
     }
@@ -87,6 +86,10 @@ pub const DIAL_TOGGLE: &str = "dial.toggle";
 /// The air mouse's action: the gesture mapped to it turns it on, and off again (see
 /// `Controller::set_pointer`).
 pub const POINTER_TOGGLE: &str = "pc.pointer";
+/// Pauses the controls, and resumes them: the bridge handles it, and it's the one action that
+/// runs while they're paused, so only a gesture mapped to it brings them back. The middle hold's
+/// by default (it was the fixed pause before it could be mapped).
+pub const PAUSE_TOGGLE: &str = "band.pause";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GestureConfig {
@@ -98,6 +101,7 @@ pub struct GestureConfig {
     pub index_double: String,
     pub middle_tap: String,
     pub middle_double: String,
+    pub index_hold: String,
     pub middle_hold: String,
 }
 
@@ -112,14 +116,15 @@ impl Default for GestureConfig {
             index_double: DIAL_TOGGLE.into(),
             middle_tap: String::new(),
             middle_double: "volume.mute".into(),
-            middle_hold: String::new(),
+            index_hold: String::new(),
+            middle_hold: PAUSE_TOGGLE.into(),
         }
     }
 }
 
 impl GestureConfig {
     /// Apply `gesture=action` pairs separated by `;` (e.g. `swipe_up=media.next`).
-    /// The middle hold stays the controls toggle; unknown gestures are ignored.
+    /// Unknown gestures are ignored; a gesture left out keeps its action.
     pub fn apply_mapping(&mut self, mapping: &str) {
         for pair in mapping.split(';') {
             let Some((gesture, action)) = pair.split_once('=') else {
@@ -134,6 +139,8 @@ impl GestureConfig {
                 "index_double" => &mut self.index_double,
                 "middle_tap" => &mut self.middle_tap,
                 "middle_double" => &mut self.middle_double,
+                "index_hold" => &mut self.index_hold,
+                "middle_hold" => &mut self.middle_hold,
                 _ => continue,
             };
             *slot = action.trim().to_owned();
@@ -165,6 +172,7 @@ impl GestureConfig {
             Recognized::Tap(Tap::IndexDoubleTap) => &self.index_double,
             Recognized::Tap(Tap::MiddleTap) => &self.middle_tap,
             Recognized::Tap(Tap::MiddleDoubleTap) => &self.middle_double,
+            Recognized::Tap(Tap::IndexHold) => &self.index_hold,
             Recognized::Tap(Tap::MiddleHold) => &self.middle_hold,
         };
         if command.trim().is_empty() {

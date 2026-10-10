@@ -288,13 +288,20 @@ object BandRuntime {
         this.phase = phase
         // The air mouse ends with the connection.
         if (phase != Phase.CONNECTED) GlassesPointer.stop()
+        appContext?.let { BandSwitch.onPhase(it, phase) }
         if (band != null) bandName = band
         if (phase == Phase.STOPPED) status = JSONObject()
         notifyListeners()
     }
 
     private fun setStatus(context: Context, status: JSONObject) {
+        val before = this.status
         this.status = status
+        // Paused or resumed (a gesture, or the phone's switch): a toast says so.
+        if (before.has("paused") && status.has("paused") && before.optBoolean("paused") != status.optBoolean("paused")) {
+            val resume = MappableGesture.entries.firstOrNull { GestureMappings.choice(context, it) == GestureChoices.PAUSE }?.key.orEmpty()
+            BandSwitch.toastPause(context, status.optBoolean("paused"), resume)
+        }
         // The middle hold toggles the controls on the band itself: remember it for the next link.
         if (status.has("paused") && status.optBoolean("paused") != GestureMappings.isPaused(context)) {
             GestureMappings.setPaused(context, status.optBoolean("paused"))

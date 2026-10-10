@@ -18,6 +18,8 @@ object BandLabels {
         "middle_tap" to R.string.phone_gesture_middle_tap,
         "index_double" to R.string.band_setting_index_double,
         "middle_double" to R.string.band_setting_middle_double,
+        "index_hold" to R.string.gesture_index_hold,
+        "middle_hold" to R.string.gesture_middle_hold,
         "pointer_speed" to R.string.computer_pointer_speed,
         "pointer_steadiness" to R.string.computer_pointer_steadiness,
         "pointer_boost" to R.string.computer_pointer_boost,
@@ -37,10 +39,15 @@ object BandLabels {
         "phone.index_double" to R.string.band_setting_index_double,
         "phone.middle_tap" to R.string.phone_gesture_middle_tap,
         "phone.middle_double" to R.string.band_setting_middle_double,
+        "phone.index_hold" to R.string.gesture_index_hold,
+        "phone.middle_hold" to R.string.gesture_middle_hold,
         "phone.dial" to R.string.band_setting_dial,
         "phone.hand" to R.string.band_setting_hand,
     ).let { base ->
-        val gestures = listOf("swipe_up", "swipe_down", "swipe_left", "swipe_right", "index_tap", "index_double", "middle_tap", "middle_double")
+        val gestures = listOf(
+            "swipe_up", "swipe_down", "swipe_left", "swipe_right",
+            "index_tap", "index_double", "index_hold", "middle_tap", "middle_double", "middle_hold",
+        )
         base + gestures.associate { "phone.${it}_app" to R.string.band_setting_app } + gestures.associate { "${it}_app" to R.string.band_setting_app }
     }
 
@@ -107,6 +114,9 @@ object BandLabels {
         "nav.back" to R.string.band_option_back,
         "screen.toggle" to R.string.glasses_option_screen,
         "pc.pointer" to R.string.pc_pointer,
+        "band.pause" to R.string.action_pause,
+        "band.devices" to R.string.glasses_option_devices,
+        "phone.write" to R.string.action_write,
     )
 
     /** The groups of a long list of choices (the glasses' gesture actions). */
@@ -115,6 +125,7 @@ object BandLabels {
         "mouse" to R.string.computer_group_mouse,
         "glasses" to R.string.glasses_group_glasses,
         "screen" to R.string.glasses_group_screen,
+        "band" to R.string.action_group_band,
         "other" to R.string.action_group_other,
     )
 

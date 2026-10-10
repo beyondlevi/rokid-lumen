@@ -1,0 +1,31 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Nested, covered and cards</title>
+<style>
+  body { margin: 0; background: #000; color: #fff; font: 16px sans-serif; }
+  #card { position: absolute; left: 20px; top: 20px; width: 300px; height: 120px; border: 1px solid #666; }
+  #cardlink { display: block; margin: 2px; height: 116px; color: #fff; }
+  #covered { position: absolute; left: 20px; top: 160px; width: 300px; height: 50px; }
+  #cover { position: absolute; left: 10px; top: 150px; width: 330px; height: 70px; background: #222; }
+  #visible { position: absolute; left: 340px; top: 160px; width: 120px; height: 50px; }
+  .vcard { position: absolute; left: 20px; width: 560px; height: 200px; }
+  .vcard .thumb { display: block; height: 150px; background: #123; color: #fff; }
+  .vcard .title { display: block; margin: 8px 60px 0 0; height: 30px; color: #fff; }
+  .vcard .menu { position: absolute; right: 0; bottom: 4px; width: 40px; height: 30px; }
+  #v1 { top: 240px; }
+  #v2 { top: 460px; }
+</style>
+<div id="card" role="button" tabindex="0"><a id="cardlink" href="/inner">A link filling its card</a></div>
+<button id="covered">Covered</button>
+<div id="cover">A layer over the button</div>
+<button id="visible">Visible</button>
+<div class="vcard" id="v1">
+  <a class="thumb" id="t1" href="/watch?v=1">Thumbnail 1</a>
+  <a class="title" id="n1" href="/watch?v=1">Title 1</a>
+  <button class="menu" id="m1">...</button>
+</div>
+<div class="vcard" id="v2">
+  <a class="thumb" id="t2" href="/watch?v=2">Thumbnail 2</a>
+  <a class="title" id="n2" href="/watch?v=2">Title 2</a>
+  <button class="menu" id="m2">...</button>
+</div>

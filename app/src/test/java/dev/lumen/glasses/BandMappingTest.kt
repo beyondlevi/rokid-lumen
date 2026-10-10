@@ -91,6 +91,16 @@ class BandMappingTest {
     }
 
     @Test
+    fun theMiddleHoldPausesByDefaultAndAHoldCantBeTheAirMouse() {
+        val mapping = BandMapping.build(emptyMap(), DialMode.VOLUME, "band")
+        assertEquals(GestureChoices.PAUSE, resolve(mapping, "middle_hold"))
+        assertNull(resolve(mapping, "index_hold"))
+        assertEquals(false, GestureChoices.choicesFor(MappableGesture.INDEX_HOLD).any { it.id == GestureChoices.POINTER })
+        assertEquals(true, GestureChoices.choicesFor(MappableGesture.SWIPE_LEFT).any { it.id == GestureChoices.POINTER })
+        assertEquals(true, GestureChoices.choicesFor(MappableGesture.MIDDLE_HOLD).any { it.id == GestureChoices.PAUSE })
+    }
+
+    @Test
     fun choicesBecomeCommands() {
         assertEquals(BandCommand.BACK, GestureChoices.command(BandCommand.BACK, null))
         assertEquals("glasses.home", GestureChoices.command(GlassesAction.HOME.id(), null))

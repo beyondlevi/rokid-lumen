@@ -35,6 +35,14 @@ object SettingsOps {
     const val ACTION_TO_GLASSES = "to_glasses"
 
     /**
+     * How long the phone waits, after letting the band go for the glasses ([handOver]), for
+     * their status to say they took it. Rokid's link can lose the request: unanswered by then,
+     * the phone takes the band back, and the glasses ignore a hand-over (or a report that the
+     * band was let go for them, [BandDevices.since]) that reaches them older than this.
+     */
+    const val HAND_OVER_MS = 10_000L
+
+    /**
      * Runs the self-arm on the glasses, as their Settings row does: it needs their accessibility
      * service on, a Wi-Fi network and USB debugging allowed in Hi Rokid. Its progress comes back
      * as [SettingsEvent.SelfArm].
@@ -52,6 +60,15 @@ object SettingsOps {
 
     @JvmStatic
     fun action(name: String): JSONObject = Link.request().put("op", ACTION).put("name", name)
+
+    /** [ACTION_TO_GLASSES] from the phone's switch, stamped (`at`, the phone's clock, ms) for [isLate]. */
+    @JvmStatic
+    fun handOver(now: Long = System.currentTimeMillis()): JSONObject = action(ACTION_TO_GLASSES).put("at", now)
+
+    /** A stamped hand-over older than [HAND_OVER_MS] at [now]: the phone has taken the band back by then. */
+    @JvmStatic
+    fun isLate(request: JSONObject, now: Long = System.currentTimeMillis()): Boolean =
+        request.has("at") && now - request.optLong("at") > HAND_OVER_MS
 }
 
 /**
@@ -251,6 +268,17 @@ sealed class SettingsEvent {
         fun toJson(): JSONObject = Link.message().put("type", "status").put("status", status.toJson())
     }
 
+    /**
+     * The glasses' Controls moved the band: to [target] ([BandDevices.PHONE] or
+     * [BandDevices.COMPUTER], [computer] its address) with [profile] (an id there, "" for the one
+     * in use). The glasses let the band go themselves; back to the glasses needs no message (their
+     * status says it).
+     */
+    data class BandTarget(val target: String, val computer: String = "", val profile: String = "") : SettingsEvent() {
+        fun toJson(): JSONObject = Link.message().put("type", "band_target").put("target", target).put("computer", computer)
+            .put("profile", profile)
+    }
+
     companion object {
         @JvmStatic
         fun from(json: JSONObject): SettingsEvent? = when (json.optString("type")) {
@@ -269,6 +297,7 @@ sealed class SettingsEvent {
             "result" -> Result(json.optBoolean("ok"), json.optString("subject"), json.optString("error"))
             "status" -> Status(BandStatus.from(json.optJSONObject("status")))
             "self_arm" -> SelfArm(json.optString("state"), json.optString("message"), json.optBoolean("armed"))
+            "band_target" -> BandTarget(json.optString("target"), json.optString("computer"), json.optString("profile"))
             else -> null
         }
     }

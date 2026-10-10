@@ -59,6 +59,17 @@ class PhoneProfilesTest {
     }
 
     @Test
+    fun `the middle hold pauses unless the profile says otherwise, and the index hold starts empty`() {
+        val mapping = parse(PhoneProfiles.mapping(PhoneProfiles.navigation(), "middle_double", "band"))
+        assertEquals(PhoneSettings.PAUSE, mapping["middle_hold"])
+        assertEquals("", mapping["index_hold"])
+        val mine = PhoneProfiles.Profile("p", "Mine", "custom", mapOf("middle_hold" to PhoneSettings.NONE, "index_hold" to PhoneSettings.PAUSE))
+        val changed = parse(PhoneProfiles.mapping(mine, PhoneSettings.NONE, "band"))
+        assertEquals("", changed["middle_hold"])
+        assertEquals(PhoneSettings.PAUSE, changed["index_hold"])
+    }
+
+    @Test
     fun `an open-app gesture maps to its package, or to nothing without one`() {
         val profile = PhoneProfiles.Profile("p", "Mine", "custom", mapOf("index_double" to PhoneSettings.OPEN_APP, "swipe_up" to PhoneSettings.OPEN_APP), mapOf("index_double" to "com.example.music"))
         val mapping = parse(PhoneProfiles.mapping(profile, PhoneSettings.NONE, "band"))

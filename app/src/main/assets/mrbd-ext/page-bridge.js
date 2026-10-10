@@ -20,6 +20,7 @@
     if (data.type === 'config' && window.__lumenConfig) window.__lumenConfig(data.id, data.values);
     if (data.type === 'configChanged' && window.__lumenConfigChanged) window.__lumenConfigChanged(data.values);
     if (data.type === 'audio' && window.__lumenAudio) window.__lumenAudio(data.event);
+    if (data.type === 'bandNavigation' && window.__lumenBandNavigation) window.__lumenBandNavigation(data.value);
   });
   window.MrbdHost = {
     canGoBack: function () { return back; },

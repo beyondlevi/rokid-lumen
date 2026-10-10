@@ -107,10 +107,24 @@ ADB on those glasses. How to undo it: [getting-started.md](getting-started.md#un
   the WebView the main frame's address is checked, so a cross-origin iframe inside the app's
   own page still reaches the bridge.
 - **Navigation.** An offline app can't leave its own origin. An online app may go anywhere over
-  HTTPS, but other origins get nothing from the bridge.
+  HTTPS, and other origins get nothing from the bridge but typing (GeckoView): the page the app
+  shows can report a focused field and ask for the composer, and gets what the wearer types on
+  the phone's keyboard or in the composer. That's what a sign-in page on another site needs. It
+  gets no settings, no microphone, no speech, no installs, and can't hold Back.
 - **Settings and secrets.** `window.lumen.config` answers only a page on the app's origin, with
   only the keys its manifest declares. An update downloaded on the glasses from another origin
   than the installed app's forgets its secrets, since any package can claim a manifest `id`.
+- **Site scripts.** An online app's package may bring scripts for the sites it names
+  (`lumen_scripts`). Such a script runs in the page's own world, so it acts with the site's
+  privileges there: it reads what the page shows and can do what the signed-in user can on that
+  site. So it's kept narrow: only `https://` sites named in the manifest (a `*.` subdomain
+  wildcard at most, never every site, no other scheme), code from the package only (nothing
+  fetched), 1 MiB at most; the install confirmation names every site, in bold; the scripts are
+  registered only while their app is in front (replaced when another app comes to the front,
+  cleared when none is left) and on GeckoView only. They get nothing from the host beyond what the
+  page itself gets: the same bridge, which answers the app's own origin only, and never the
+  extension's or the app's privileged messages (the scripts' registration goes between the app
+  and the extension's background, never through a page).
 
 ## The phone companion
 

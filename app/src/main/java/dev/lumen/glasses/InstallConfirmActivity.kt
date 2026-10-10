@@ -26,8 +26,9 @@ import java.util.concurrent.Executors
 /**
  * What an install will add, shown before anything is installed: the app's name and where it
  * comes from, offline package or online app, whether it asks for the internet
- * (`lumen_internet`), its settings (`lumen_config`), and the installed app it replaces (same
- * manifest id, or same URL), which keeps that app's port and data.
+ * (`lumen_internet`), its settings (`lumen_config`), the sites its scripts change (an online
+ * package's `lumen_scripts`), and the installed app it replaces (same manifest id, or same URL),
+ * which keeps that app's port and data.
  */
 data class InstallPreview(
     val name: String,
@@ -42,6 +43,8 @@ data class InstallPreview(
     val updates: String?,
     /** The update comes from elsewhere than the installed app: its saved secrets will be forgotten. */
     val clearsSecrets: Boolean = false,
+    /** The sites an online package's scripts change ([SiteScripts.hosts]). */
+    val scriptHosts: List<String> = emptyList(),
 ) {
     companion object {
         /** An online app at [url] (HTTPS), named [name] or after its host. */
@@ -64,12 +67,16 @@ data class InstallPreview(
         fun forPackage(context: Context, staged: WebAppPackages.StagedPackage, url: String): InstallPreview = InstallPreview(
             name = staged.name,
             source = Uri.parse(url).host.orEmpty(),
-            offline = true,
+            offline = !staged.online,
             version = staged.version,
-            internet = staged.internet,
+            // An online app always uses the internet.
+            internet = staged.online || staged.internet,
             settings = staged.configFields.map { it.label.ifEmpty { it.key } },
-            updates = WebAppLibrary.find(context, staged.id)?.name,
+            // An online package also updates the app added by address for its site (it takes it over).
+            updates = WebAppLibrary.find(context, staged.id)?.name
+                ?: if (staged.online) WebAppPackages.adoptable(WebAppLibrary.all(context), staged.startUrl, staged.scriptHosts, staged.id)?.name else null,
             clearsSecrets = WebAppPackages.clearsSecrets(context, staged),
+            scriptHosts = staged.scriptHosts,
         )
     }
 }
@@ -386,7 +393,12 @@ class InstallConfirmActivity : Activity(), BandAccessibilityService.InputTarget 
         details.removeAllViews()
         shown.updates?.let { details.addView(detail(getString(R.string.install_updates, it), MetaStyle.TEXT, MetaStyle.BOLD)) }
         if (shown.clearsSecrets) details.addView(detail(getString(R.string.install_clears_secrets), MetaStyle.TEXT, MetaStyle.BOLD))
+        // Code that runs in other sites' pages: said plainly, with every site it names.
+        if (shown.scriptHosts.isNotEmpty()) {
+            details.addView(detail(getString(R.string.install_site_scripts, shown.scriptHosts.joinToString(", ")), MetaStyle.TEXT, MetaStyle.BOLD, lines = 4))
+        }
         details.addView(detail(when {
+            !shown.offline && shown.version.isNotEmpty() -> getString(R.string.install_online_version, shown.version)
             !shown.offline -> getString(R.string.install_online)
             shown.version.isNotEmpty() -> getString(R.string.install_offline_version, shown.version)
             else -> getString(R.string.install_offline)
@@ -447,8 +459,8 @@ class InstallConfirmActivity : Activity(), BandAccessibilityService.InputTarget 
         BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
     }.getOrNull()
 
-    private fun detail(value: String, color: Int = MetaStyle.TEXT_SECONDARY, face: android.graphics.Typeface = MetaStyle.REGULAR) =
-        text(value, 22f, color, face, 2).apply { setPadding(0, px(4f), 0, px(4f)) }
+    private fun detail(value: String, color: Int = MetaStyle.TEXT_SECONDARY, face: android.graphics.Typeface = MetaStyle.REGULAR, lines: Int = 2) =
+        text(value, 22f, color, face, lines).apply { setPadding(0, px(4f), 0, px(4f)) }
 
     private fun button(label: String) = text(label, 24f, MetaStyle.TEXT, MetaStyle.MEDIUM, 1).apply {
         gravity = Gravity.CENTER

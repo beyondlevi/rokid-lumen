@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Inner scroller</title>
+<style>
+  body { margin: 0; background: #000; color: #fff; font: 16px sans-serif; }
+  #top, #after { display: block; margin: 20px; width: 200px; height: 40px; }
+  #inner { margin: 0 20px; height: 200px; overflow: auto; border: 1px solid #555; }
+  #inner button { display: block; width: 200px; height: 40px; margin: 8px; }
+  .filler { height: 400px; margin: 8px; }
+</style>
+<button id="top">Top</button>
+<div id="inner">
+  <button id="b1">B1</button>
+  <button id="b2">B2</button>
+  <div class="filler">No buttons in this part of the list.</div>
+  <button id="b3">B3</button>
+  <button id="b4">B4</button>
+</div>
+<button id="after">After</button>

@@ -143,6 +143,10 @@ class CompanionService : Service() {
         PhoneBand.resume(this)
         registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         main.postDelayed(batteryHeartbeat, BATTERY_RESEND_MS)
+        main.postDelayed(devicesWatch, DEVICES_CHECK_MS)
+        // The band moving here or away goes to the glasses at once (the watch catches the rest).
+        PhoneBand.listeners += devicesNow
+        ComputerLink.listeners += devicesNow
         main.postDelayed(updateTick, 60_000)
     }
 
@@ -179,6 +183,8 @@ class CompanionService : Service() {
         if (instance === this) instance = null
         runCatching { unregisterReceiver(batteryReceiver) }
         main.removeCallbacksAndMessages(null)
+        PhoneBand.listeners -= devicesNow
+        ComputerLink.listeners -= devicesNow
         PhoneBand.stop()
         ComputerLink.stop()
         cancelListening("service stopped")
@@ -205,8 +211,10 @@ class CompanionService : Service() {
                     scheduleSync()
                     main.postDelayed({
                         sendSettings(SettingsOps.describe())
-                        sendGrid(GridOps.describe())
-                    }, 2_000)
+                        // Changes still waiting for the glasses go again, then the grid is asked for.
+                        GridRequests.flush()
+                        GridRequests.send(GridOps.describe())
+                    }, 1_000)
                 }
                 override fun onSessionStart(reason: CxrDefs.CXRSessionReason) = report(LinkState.SESSION_ACTIVE, reason.toString())
                 override fun onSessionPause(reason: CxrDefs.CXRSessionReason) = report(LinkState.SESSION_PAUSED, reason.toString())
@@ -338,7 +346,10 @@ class CompanionService : Service() {
             Link.SETTINGS_EVENT -> SettingsEvent.from(json)?.let { event ->
                 main.post {
                     BandStore.onEvent(event)
-                    PhoneBand.onGlassesStatus(this, BandStore.status)
+                    // A move carries no status: the glasses' last one would read as "the band is
+                    // theirs" and undo it (their status saying they let it go comes next).
+                    if (event is SettingsEvent.BandTarget) PhoneBand.onGlassesTarget(this, event)
+                    else PhoneBand.onGlassesStatus(this, BandStore.status)
                     if (event is SettingsEvent.Debug || event is SettingsEvent.Schema) GlassesDebug.onStatus(this, BandStore.debug)
                 }
             }
@@ -479,10 +490,15 @@ class CompanionService : Service() {
 
     /** Resend the notifications, once, shortly after the link (or the glasses app) asks. */
     private fun scheduleSync() {
+        // Rokid's link delivers in order, slowly: the notifications (one message each, dozens)
+        // go after the small ones (the describes at 1 s, the battery and devices at 2 s).
         main.removeCallbacks(sync)
-        main.postDelayed(sync, 1_500)
+        main.postDelayed(sync, 3_000)
         // The glasses (re)started or the session came up: they want the phone's battery too.
-        main.postDelayed({ sendBattery(force = true) }, 2_500)
+        main.postDelayed({
+            sendBattery(force = true)
+            sendDevices(force = true)
+        }, 2_000)
     }
 
     // ---- The phone's battery, for the glasses' Controls tab ----
@@ -506,6 +522,7 @@ class CompanionService : Service() {
     private val batteryHeartbeat = object : Runnable {
         override fun run() {
             sendBattery(force = true)
+            sendDevices(force = true)
             main.postDelayed(this, BATTERY_RESEND_MS)
         }
     }
@@ -518,6 +535,29 @@ class CompanionService : Service() {
         val result = runCatching { cxr.sendCustomCmd(Link.PHONE_EVENT, Protocol.encode(now.toJson())) }
         if (result.isSuccess) batterySent = now
         Log.d(TAG, "→ glasses battery ${now.level}%${if (now.charging) " charging" else ""} = ${result.getOrNull() ?: result.exceptionOrNull()?.message}")
+    }
+
+    // ---- Where the band can go, for the glasses' Controls ([GlassesDevices]) ----
+
+    private var devicesSent: dev.lumen.protocol.BandDevices? = null
+
+    private val devicesNow: () -> Unit = { main.post { sendDevices(force = false) } }
+
+    /** Checked every few seconds and sent when it changed (profiles, computers, where the band is). */
+    private val devicesWatch = object : Runnable {
+        override fun run() {
+            sendDevices(force = false)
+            main.postDelayed(this, DEVICES_CHECK_MS)
+        }
+    }
+
+    private fun sendDevices(force: Boolean) {
+        val now = runCatching { GlassesDevices.current(this) }.getOrNull() ?: return
+        if (!force && now == devicesSent) return
+        val cxr = link ?: return
+        val result = runCatching { cxr.sendCustomCmd(Link.PHONE_EVENT, Protocol.encode(now.toJson())) }
+        if (result.isSuccess) devicesSent = now
+        Log.d(TAG, "→ glasses devices ${now.where}${if (now.paused) " paused" else ""} = ${result.getOrNull() ?: result.exceptionOrNull()?.message}")
     }
 
     private val sync = Runnable {
@@ -696,6 +736,7 @@ class CompanionService : Service() {
     companion object {
         /** The battery's resend to the glasses, link drops aside. */
         private const val BATTERY_RESEND_MS = 5 * 60_000L
+        private const val DEVICES_CHECK_MS = 3_000L
         private const val TAG = "NbCompanion"
         private const val CHANNEL = "link"
         const val ACTION_RECONNECT = "dev.lumen.companion.RECONNECT"
@@ -761,8 +802,18 @@ class CompanionService : Service() {
             return true
         }
 
-        /** A grid request for the glasses ([GridOps]); false while the link is down. */
+        /**
+         * A grid request for the glasses ([GridOps]): sent now and again until they answer it
+         * ([GridRequests]), also once the link comes back. False with the service down.
+         */
         fun requestGrid(json: JSONObject): Boolean {
+            val service = instance ?: return false
+            service.main.post { GridRequests.send(json) }
+            return true
+        }
+
+        /** Sends a grid request once, now; false while the link is down. */
+        fun transmitGrid(json: JSONObject): Boolean {
             val service = instance ?: return false
             if (service.link == null) return false
             service.main.post { service.sendGrid(json) }

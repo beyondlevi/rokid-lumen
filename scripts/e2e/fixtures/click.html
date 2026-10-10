@@ -1,0 +1,28 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Click and fields</title>
+<style>
+  body { margin: 0; background: #000; color: #fff; font: 16px sans-serif; }
+  #react { width: 240px; height: 80px; margin: 20px; display: flex; align-items: center; justify-content: center; border: 1px solid #888; }
+  #name { display: block; margin: 20px; width: 240px; height: 40px; }
+  #after { display: block; margin: 20px; width: 240px; height: 40px; }
+</style>
+<div id="react" role="button" tabindex="0"><span id="label">Press me</span></div>
+<input id="name" type="text" placeholder="Name">
+<button id="after">After</button>
+<script>
+  window.counts = { pointerdown: 0, mousedown: 0, pointerup: 0, mouseup: 0, click: 0, ownEnter: 0, documentEnter: 0, after: 0 };
+  window.clicks = [];
+  var react = document.getElementById('react');
+  // Like React: one listener per type at the root, dispatching by the event's target.
+  ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(function (type) {
+    document.addEventListener(type, function (event) {
+      if (!react.contains(event.target)) return;
+      counts[type]++;
+      if (type === 'click') clicks.push({ target: event.target.id, x: event.clientX, y: event.clientY, bubbles: event.bubbles, composed: event.composed });
+    });
+  });
+  react.addEventListener('keydown', function (event) { if (event.key === 'Enter') counts.ownEnter++; });
+  document.addEventListener('keydown', function (event) { if (event.key === 'Enter') counts.documentEnter++; });
+  document.getElementById('after').addEventListener('click', function () { counts.after++; });
+</script>

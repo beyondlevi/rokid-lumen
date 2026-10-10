@@ -51,6 +51,12 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
      * phone's network again takes 7 to 30 s, measured).
      */
     private static final long HIDDEN_STOP_MS = 5 * 60_000L;
+    /**
+     * Every app screen alive, shown or hidden behind another screen: a hidden one keeps its page
+     * (a content process, 175 MB for YouTube's next to Instagram's Reels, measured), which the
+     * glasses' 1.8 GB need for the app in front when memory runs short ([releaseHidden]).
+     */
+    private static final java.util.Set<WebAppActivity> LIVE = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
     /** After the phone keyboard's Enter, the page's own change to the field (a sent message clears it). */
     private static final long KEYBOARD_SYNC_MS = 500;
 
@@ -66,8 +72,12 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     /** Whether [internet] is held now: let go while the app is hidden, taken again when it's back. */
     private boolean internetHeld;
     private final Runnable hiddenStop = this::stopHidden;
+    /** Between onStart and onStop: someone sees this app. */
+    private boolean shown;
     private boolean loaded;
     private WebComposer composer;
+    /** The app's gesture card or band hint, the first times it opens. */
+    private WebAppGuide guide;
     private TextView notice;
     private TextToSpeech tts;
     private boolean ttsReady;
@@ -102,6 +112,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
             finish();
             return;
         }
+        LIVE.add(this);
         // Held until onDestroy: the app's server stops once no screen uses it.
         serverPort = app.getOffline() ? app.getPort() : 0;
         appId = app.getId();
@@ -131,6 +142,8 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
                 Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM));
         setContentView(root);
         composer = new WebComposer(this, root, side);
+        guide = new WebAppGuide(this, root, side);
+        guide.open(app, kind == WebEngineKind.GECKO);
 
         tts = new TextToSpeech(this, status -> ttsReady = status == TextToSpeech.SUCCESS);
         tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
@@ -314,6 +327,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     @Override
     protected void onStart() {
         super.onStart();
+        shown = true;
         mainHandler.removeCallbacks(hiddenStop);
         if (engine != null) {
             engine.onShown();
@@ -332,6 +346,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
      */
     @Override
     protected void onStop() {
+        shown = false;
         GlassesAudio.closeAll(this);
         WebRecognition.closeAll(this);
         if (engine != null) {
@@ -340,6 +355,31 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         mainHandler.removeCallbacks(hiddenStop);
         mainHandler.postDelayed(hiddenStop, HIDDEN_STOP_MS);
         super.onStop();
+    }
+
+    /**
+     * Closes every app hidden behind another screen, so their pages' memory goes to the app in
+     * front. Opened again, a closed app loads its page again; its sign-ins stay in its cookies.
+     */
+    static void releaseHidden(String why) {
+        for (WebAppActivity activity : new java.util.ArrayList<>(LIVE)) {
+            if (!activity.shown && !activity.isFinishing() && !activity.isDestroyed()) {
+                Log.i(TAG, "Closing the hidden " + activity.appName + ": " + why);
+                activity.finish();
+            }
+        }
+    }
+
+    /** Android says memory runs low while Lumen is in front: the hidden apps go first. */
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (shown) {
+            Log.d(TAG, "Memory trim level " + level);
+        }
+        if (level >= TRIM_MEMORY_RUNNING_LOW && level < TRIM_MEMORY_UI_HIDDEN) {
+            releaseHidden("memory running low (" + level + ")");
+        }
     }
 
     private void stopHidden() {
@@ -352,6 +392,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
 
     @Override
     protected void onDestroy() {
+        LIVE.remove(this);
         mainHandler.removeCallbacks(hiddenStop);
         GlassesAudio.closeAll(this);
         WebRecognition.closeAll(this);
@@ -362,6 +403,9 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         }
         if (tts != null) {
             tts.shutdown();
+        }
+        if (guide != null) {
+            guide.destroy();
         }
         if (engine != null) {
             engine.destroy();
@@ -375,12 +419,28 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     /** The band, while this app is in front; volume and mapped actions run as anywhere. */
     @Override
     public boolean onBandCommand(String command) {
+        // The gesture card is read first: whatever gesture comes next only closes it.
+        if (guide != null && guide.onBandCommand()) {
+            Log.d(TAG, "Band " + command + " closed the gesture card");
+            return true;
+        }
         Log.d(TAG, "Band " + command + (composer != null && composer.isOpen() ? " to the composer" : " to the page"));
         if (composer != null && composer.onBandCommand(command)) {
             return true;
         }
         if (engine == null) {
             return false;
+        }
+        if (engine.getHeld()) {
+            // The page ran the glasses out of memory twice: the index tap tries again, Back leaves.
+            if (BandCommand.ACTIVATE.equals(command)) {
+                hideNotice();
+                engine.retry();
+                return true;
+            }
+            if (!BandCommand.BACK.equals(command)) {
+                return true;
+            }
         }
         hideNotice();
         switch (command) {
@@ -412,6 +472,13 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int code = event.getKeyCode();
+        // The touchpad closes the gesture card as the band does (the key goes nowhere else).
+        if (guide != null && guide.isShowingCard() && isGuideKey(code)) {
+            if (event.getAction() == KeyEvent.ACTION_UP) {
+                guide.closeCard();
+            }
+            return true;
+        }
         if (code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_ESCAPE) {
             if (event.getAction() == KeyEvent.ACTION_UP) {
                 if (composer != null && composer.isOpen()) {
@@ -442,6 +509,12 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
             return true;
         }
         return super.dispatchKeyEvent(event);
+    }
+
+    private static boolean isGuideKey(int code) {
+        return code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_ESCAPE || code == KeyEvent.KEYCODE_ENTER
+                || code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN
+                || code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT || code == KeyEvent.KEYCODE_TAB;
     }
 
     @Override
@@ -480,6 +553,8 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
 
     @Override
     public void onTextFocus(String value, String type, boolean multiline, String label, String reason) {
+        // The kind of field only: never its value (a password, an address).
+        Log.d(TAG, "Text field focused (" + type + ", " + reason + ")");
         PhoneKeyboard.focus(this, appName, label, type, multiline, value, reason);
     }
 
@@ -566,6 +641,16 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
                 engine.speechEvent(utteranceId, type, code);
             }
         });
+    }
+
+    @Override
+    public void onPageLost() {
+        releaseHidden("the page in front ran out of memory");
+    }
+
+    @Override
+    public void onPageHeld() {
+        showNotice(getString(R.string.webapp_out_of_memory));
     }
 
     private void showNotice(String text) {

@@ -13,18 +13,31 @@ pub enum Swipe {
     Down,
 }
 
-/// An index hold is the dial, so only the middle finger has a hold of its own.
+/// The band reports the middle finger's hold itself. The index hold is not the band's: an
+/// index pinch held is how pinch and turn starts, so the bridge makes one from the press and
+/// the release (a pinch held and let go without turning, see the bridge's controller).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Tap {
     IndexTap,
     IndexDoubleTap,
+    IndexHold,
     MiddleTap,
     MiddleDoubleTap,
     MiddleHold,
 }
 
 impl Tap {
-    pub const ALL: [Tap; 5] = [
+    pub const ALL: [Tap; 6] = [
+        Tap::IndexTap,
+        Tap::IndexDoubleTap,
+        Tap::IndexHold,
+        Tap::MiddleTap,
+        Tap::MiddleDoubleTap,
+        Tap::MiddleHold,
+    ];
+
+    /// The taps the band reports as such ([GestureRouter]); the index hold isn't one.
+    pub const REPORTED: [Tap; 5] = [
         Tap::IndexTap,
         Tap::IndexDoubleTap,
         Tap::MiddleTap,
@@ -34,7 +47,7 @@ impl Tap {
 
     pub fn finger(self) -> &'static str {
         match self {
-            Tap::IndexTap | Tap::IndexDoubleTap => "index",
+            Tap::IndexTap | Tap::IndexDoubleTap | Tap::IndexHold => "index",
             _ => "middle",
         }
     }
@@ -43,7 +56,7 @@ impl Tap {
         match self {
             Tap::IndexTap | Tap::MiddleTap => "tap",
             Tap::IndexDoubleTap | Tap::MiddleDoubleTap => "doubletap",
-            Tap::MiddleHold => "hold",
+            Tap::IndexHold | Tap::MiddleHold => "hold",
         }
     }
 }
@@ -112,7 +125,7 @@ impl GestureRouter {
             _ => {
                 let mapped = derived_tap_action(&message.derived_action);
                 let action = mapped.unwrap_or(message.action.as_str());
-                let tap = Tap::ALL
+                let tap = Tap::REPORTED
                     .into_iter()
                     .find(|tap| tap.finger() == message.finger && tap.action() == action)?;
                 (Recognized::Tap(tap), mapped.is_some())

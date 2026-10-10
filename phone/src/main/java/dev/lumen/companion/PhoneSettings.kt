@@ -30,7 +30,25 @@ object PhoneSettings {
     const val SWITCH_TO_GLASSES = "device.glasses"
     const val APP_PREFIX = "app:"
 
-    val GESTURES = listOf("swipe_up", "swipe_down", "swipe_left", "swipe_right", "index_tap", "index_double", "middle_tap", "middle_double")
+    val GESTURES = listOf(
+        "swipe_up", "swipe_down", "swipe_left", "swipe_right",
+        "index_tap", "index_double", "index_hold", "middle_tap", "middle_double", "middle_hold",
+    )
+
+    /** The holds: held and let go (the index), the band's own long press (the middle). */
+    val HOLDS = setOf("index_hold", "middle_hold")
+
+    /**
+     * Pauses the band's controls and resumes them (the bridge's `PAUSE_TOGGLE`): only a gesture
+     * mapped to it works while they're paused. The middle hold's unless a profile says otherwise.
+     */
+    const val PAUSE = "band.pause"
+
+    /** Writing with the band in the focused field ([HandwritingSwitch]). */
+    const val WRITE = "phone.write"
+
+    /** What a gesture a profile never set does: the middle hold pauses, as it always did. */
+    val GESTURE_DEFAULTS = mapOf("middle_hold" to PAUSE)
 
     /** The original app's media layout, the defaults. */
     val DEFAULTS = mapOf(
@@ -67,6 +85,8 @@ object PhoneSettings {
         OPEN_APP to "Open an app",
         SWITCH_TO_GLASSES to "Use the band on the glasses",
         ScreenPointer.TOGGLE to "Air Mouse",
+        WRITE to "Write",
+        PAUSE to "Pause or resume the band",
         PhoneProfiles.NEXT to "Next profile",
         PhoneProfiles.PREVIOUS to "Previous profile",
     )
@@ -84,7 +104,8 @@ object PhoneSettings {
 
     /** Actions that need the accessibility service ([PhoneTouchService]); the air mouse draws and touches through it. */
     fun needsTouch(action: String) =
-        action.startsWith("screen.") || action.startsWith("key.") || action == OPEN_APP || action == ScreenPointer.TOGGLE
+        action.startsWith("screen.") || action.startsWith("key.") || action == OPEN_APP || action == ScreenPointer.TOGGLE ||
+            action == WRITE
 
     // ---- The air mouse on this phone ([PhonePointer]), set like a computer's ----
 

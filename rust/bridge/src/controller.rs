@@ -8,7 +8,7 @@ use band_core::events::{Event, GestureMessage, Hand};
 use band_core::gestures::{ActionGate, DialRouter, GestureRouter, Recognized, Swipe, Tap};
 use band_core::pointer::{AirPointer, Approach, ArrivalDelay, ForearmAim, PointerReach, acceleration};
 
-use crate::config::{Config, DialTarget, HandSetting, POINTER_TOGGLE, ToggleGesture};
+use crate::config::{Config, DialTarget, HandSetting, PAUSE_TOGGLE, POINTER_TOGGLE, ToggleGesture};
 use crate::status::Status;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,6 +27,7 @@ fn label(gesture: Recognized) -> &'static str {
         Recognized::Swipe(Swipe::Down) => "swipe down",
         Recognized::Tap(Tap::IndexTap) => "index tap",
         Recognized::Tap(Tap::IndexDoubleTap) => "index double tap",
+        Recognized::Tap(Tap::IndexHold) => "index hold",
         Recognized::Tap(Tap::MiddleTap) => "middle tap",
         Recognized::Tap(Tap::MiddleDoubleTap) => "middle double tap",
         Recognized::Tap(Tap::MiddleHold) => "middle hold",
@@ -54,9 +55,16 @@ fn triple_of(tap: Tap) -> ToggleGesture {
     match tap {
         Tap::IndexTap | Tap::IndexDoubleTap => ToggleGesture::IndexTriple,
         Tap::MiddleTap | Tap::MiddleDoubleTap => ToggleGesture::MiddleTriple,
-        Tap::MiddleHold => ToggleGesture::None,
+        Tap::IndexHold | Tap::MiddleHold => ToggleGesture::None,
     }
 }
+
+/// An index pinch held at least this long and let go without turning is an index hold.
+pub const INDEX_HOLD: f64 = 0.6;
+
+/// Turning the wrist this much (degrees, either way) while the index pinch is held makes it
+/// pinch and turn rather than a hold, even if no step came of it.
+const INDEX_HOLD_TURN: f64 = 6.0;
 
 fn double_of(tap: Tap) -> Option<Tap> {
     match tap {
@@ -253,6 +261,12 @@ pub struct Controller {
     congested: bool,
     /// When the air mouse last turned itself off (see [SWITCHED_OFF_QUIET]).
     pointer_off_at: f64,
+    /// When the index pinch now held began, for the index hold ([INDEX_HOLD]).
+    index_pressed_at: Option<f64>,
+    /// How far the wrist turned while it's held (degrees, signed).
+    index_turn: f64,
+    /// When an index hold last ran: the band's tap reports of the same pinch don't.
+    index_hold_at: f64,
     delay_max: f64,
     delay_samples: u32,
     status: Status,
@@ -298,6 +312,9 @@ impl Controller {
             on_time_since: None,
             congested: false,
             pointer_off_at: f64::NEG_INFINITY,
+            index_pressed_at: None,
+            index_turn: 0.0,
+            index_hold_at: f64::NEG_INFINITY,
             delay_max: 0.0,
             delay_samples: 0,
             status,
@@ -313,6 +330,7 @@ impl Controller {
             self.writing = writing;
             self.held_tap = None;
             self.toggle_taps.clear();
+            self.index_pressed_at = None;
         }
         if writing {
             self.end_pointer(f64::NEG_INFINITY);
@@ -321,6 +339,11 @@ impl Controller {
 
     pub fn pointer_on(&self) -> bool {
         self.pointer.is_some()
+    }
+
+    /// Whether some gesture pauses and resumes the controls ([PAUSE_TOGGLE]).
+    pub fn can_pause(&self) -> bool {
+        self.config.gestures.has(PAUSE_TOGGLE)
     }
 
     /// The air mouse on or off (the app asks after the gesture mapped to [POINTER_TOGGLE] ran).
@@ -372,6 +395,8 @@ impl Controller {
 
     fn end_pointer(&mut self, now: f64) {
         if self.pointer.take().is_some() {
+            // Its pinches were clicks, not the start of an index hold.
+            self.index_pressed_at = None;
             self.router.reset();
             self.dial_ended_at = self.dial_ended_at.max(now);
         }
@@ -714,6 +739,7 @@ impl Controller {
         self.end_pointer(f64::NEG_INFINITY);
         self.pinched = [false; 2];
         self.held_tap = None;
+        self.index_pressed_at = None;
         self.toggle_taps.clear();
         self.router.reset();
         self.status.charging = None;
@@ -800,6 +826,9 @@ impl Controller {
         {
             return self.pointer_gesture(message, slot, now);
         }
+        if finger == Some(0) && !message.synthetic && let Some(hold) = self.index_hold(message, now) {
+            return hold;
+        }
         let Some(gesture) = self.router.gesture(message, now) else {
             return Vec::new();
         };
@@ -838,22 +867,17 @@ impl Controller {
             self.status.last_action = Some(command.clone());
             return vec![Command::Run(command)];
         }
-        // Releasing a wrist turn must not also trigger an index-finger assignment.
+        // Releasing a wrist turn, or an index hold, must not also trigger an index-finger
+        // assignment.
         if let Recognized::Tap(tap) = gesture
             && tap.finger() == "index"
-            && (now - self.last_dial_action <= 0.6 || now - self.dial_ended_at <= 0.7)
+            && (now - self.last_dial_action <= 0.6 || now - self.dial_ended_at <= 0.7 || now - self.index_hold_at <= 0.7)
         {
             return Vec::new();
         }
-        if gesture == Recognized::Tap(Tap::MiddleHold)
-            && self.config.band.toggle == ToggleGesture::MiddleHold
-        {
-            // One toggle per hold, however often the band repeats it.
-            if now - self.toggled_at < 1.0 {
-                return Vec::new();
-            }
-            self.toggled_at = now;
-            return self.toggle_by_tap(now);
+        // A hold has no double to wait for.
+        if gesture == Recognized::Tap(Tap::MiddleHold) {
+            return self.run(gesture, message.received_at, now, false);
         }
         if let Recognized::Tap(tap) = gesture
             && self.config.band.toggle != ToggleGesture::None
@@ -923,17 +947,63 @@ impl Controller {
                 return Vec::new();
             }
         }
+        self.run(gesture, message.received_at, now, false)
+    }
+
+    /// The gesture's action, if the controls are on, or the pause, which works while they're off
+    /// ([PAUSE_TOGGLE]). [held] is a single tap that waited for its double.
+    fn run(&mut self, gesture: Recognized, received_at: f64, now: f64, held: bool) -> Vec<Command> {
         self.status.gestures += 1;
         self.status.last_gesture = Some(label(gesture).into());
         let command = self.config.gestures.command(gesture).to_owned();
-        if !self.enabled
-            || command.is_empty()
-            || !self.gate.allows(message.received_at, now, self.live, true)
-        {
+        if command == PAUSE_TOGGLE {
+            // One toggle per hold, however often the band repeats it.
+            if now - self.toggled_at < 1.0 {
+                return Vec::new();
+            }
+            self.toggled_at = now;
+            return self.toggle_by_tap(now);
+        }
+        let allowed = if held {
+            self.gate.allows_held(received_at, true, now, self.live)
+        } else {
+            self.gate.allows(received_at, now, self.live, true)
+        };
+        if !self.enabled || command.is_empty() || !allowed {
             return Vec::new();
         }
         self.status.last_action = Some(command.clone());
         vec![Command::Run(command)]
+    }
+
+    /// Follows the index pinch for the index hold: held at least [INDEX_HOLD] and let go
+    /// without turning the wrist (pinch and turn starts the same way, so it's decided at the
+    /// release). Some when this report ran it.
+    fn index_hold(&mut self, message: &GestureMessage, now: f64) -> Option<Vec<Command>> {
+        if self.writing {
+            self.index_pressed_at = None;
+            return None;
+        }
+        if is_press(message) {
+            if self.index_pressed_at.is_none() {
+                self.index_pressed_at = Some(message.received_at);
+                self.index_turn = 0.0;
+            }
+            return None;
+        }
+        if !is_release(message) {
+            return None;
+        }
+        let pressed_at = self.index_pressed_at.take()?;
+        if message.received_at - pressed_at < INDEX_HOLD
+            || self.index_turn.abs() >= INDEX_HOLD_TURN
+            || self.last_dial_action >= pressed_at
+        {
+            return None;
+        }
+        self.index_hold_at = now;
+        self.held_tap = None;
+        Some(self.run(Recognized::Tap(Tap::IndexHold), message.received_at, now, false))
     }
 
     fn toggle_by_tap(&mut self, now: f64) -> Vec<Command> {
@@ -941,7 +1011,6 @@ impl Controller {
             return Vec::new();
         }
         self.toggle(now);
-        self.status.last_gesture = Some("triple tap".into());
         let command = &self.config.band.on_toggle;
         if command.is_empty() {
             return Vec::new();
@@ -960,20 +1029,7 @@ impl Controller {
             return Vec::new();
         };
         self.held_tap = None;
-        let gesture = Recognized::Tap(held.tap);
-        self.status.gestures += 1;
-        self.status.last_gesture = Some(label(gesture).into());
-        let command = self.config.gestures.command(gesture).to_owned();
-        if !self.enabled
-            || command.is_empty()
-            || !self
-                .gate
-                .allows_held(held.received_at, true, now, self.live)
-        {
-            return Vec::new();
-        }
-        self.status.last_action = Some(command.clone());
-        vec![Command::Run(command)]
+        self.run(Recognized::Tap(held.tap), held.received_at, now, true)
     }
 
     fn dial_state(&mut self, engaged: bool, now: f64) {
@@ -1005,6 +1061,9 @@ impl Controller {
             rotation
         };
         self.dial_turned = true;
+        if self.index_pressed_at.is_some() {
+            self.index_turn += delta;
+        }
         if !self.enabled
             || !self.dial_armed
             || self.config.dial.command(self.dial_target, true).is_none()
@@ -1352,3 +1411,127 @@ mod pointer_tests {
         assert_eq!(PointerTuning::parse("steadiness=nan").steadiness, 0.5);
     }
 }
+
+#[cfg(test)]
+mod hold_tests {
+    use super::*;
+    use band_core::events::GestureMessage;
+
+    struct Rig {
+        controller: Controller,
+        sequence: u64,
+    }
+
+    impl Rig {
+        /// A live, right-handed band with `mapping`.
+        fn new(mapping: &str) -> Self {
+            let mut config = Config::default();
+            config.apply_mapping(mapping);
+            let mut controller = Controller::new(config);
+            controller.on_event(&Event::Connected, 0.0);
+            controller.on_event(&Event::Handedness(Hand::Right), 0.0);
+            Self { controller, sequence: 0 }
+        }
+
+        fn report(&mut self, finger: &str, action: &str, derived: &str, now: f64) -> Vec<Command> {
+            self.sequence += 1;
+            let message = GestureMessage {
+                sequence: self.sequence,
+                timestamp_us: self.sequence,
+                finger: finger.into(),
+                action: action.into(),
+                derived_action: derived.into(),
+                synthetic: false,
+                received_at: now,
+            };
+            self.controller.on_event(&Event::Gesture(message), now)
+        }
+
+        /// An index pinch from `start` to `end`, reported as the band does (raw, then derived).
+        fn pinch(&mut self, start: f64, end: f64) -> Vec<Command> {
+            let mut out = self.report("index", "press", "unknown", start);
+            out.extend(self.report("index", "unknown", "buttonPress", start));
+            out.extend(self.report("index", "release", "unknown", end));
+            out.extend(self.report("index", "unknown", "buttonRelease", end));
+            out
+        }
+    }
+
+    fn runs(commands: Vec<Command>) -> Vec<String> {
+        commands
+            .into_iter()
+            .filter_map(|command| match command {
+                Command::Run(action) => Some(action),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn an_index_held_and_let_go_without_turning_is_the_index_hold() {
+        let mut rig = Rig::new("index_hold=screen.home;index_tap=");
+        assert_eq!(runs(rig.pinch(1.0, 1.8)), vec!["screen.home".to_owned()]);
+        // A short pinch isn't one.
+        assert!(runs(rig.pinch(3.0, 3.2)).is_empty());
+        // Nor is it without an action.
+        let mut rig = Rig::new("index_tap=");
+        assert!(runs(rig.pinch(1.0, 1.8)).is_empty());
+    }
+
+    #[test]
+    fn turning_while_it_is_held_is_pinch_and_turn_not_a_hold() {
+        let mut rig = Rig::new("index_hold=screen.home;dial_up=volume.up;dial_down=volume.down");
+        rig.report("index", "press", "unknown", 1.0);
+        rig.controller.on_event(&Event::DialState(true), 1.2);
+        rig.controller.on_event(&Event::DialTurn(4.0), 1.3);
+        rig.controller.on_event(&Event::DialTurn(4.0), 1.45);
+        rig.controller.on_event(&Event::DialState(false), 1.7);
+        assert!(runs(rig.report("index", "release", "unknown", 1.8)).is_empty());
+    }
+
+    #[test]
+    fn the_band_s_own_tap_after_the_hold_doesnt_run_the_index_tap() {
+        let mut rig = Rig::new("index_hold=screen.home;index_tap=media.play_pause;index_double=");
+        assert_eq!(runs(rig.pinch(1.0, 1.8)), vec!["screen.home".to_owned()]);
+        assert!(runs(rig.report("index", "unknown", "singleTap", 1.85)).is_empty());
+        // Later taps do.
+        assert_eq!(runs(rig.report("index", "unknown", "singleTap", 3.0)), vec!["media.play_pause".to_owned()]);
+    }
+
+    #[test]
+    fn the_middle_hold_pauses_by_default_and_runs_its_action_when_mapped() {
+        let mut rig = Rig::new("");
+        assert!(runs(rig.report("middle", "unknown", "buttonHold", 1.0)).is_empty());
+        assert!(rig.controller.status().paused);
+        // The band repeats the hold report: one toggle per hold.
+        rig.report("middle", "unknown", "buttonHold", 1.3);
+        assert!(rig.controller.status().paused);
+        rig.report("middle", "unknown", "buttonHold", 3.0);
+        assert!(!rig.controller.status().paused);
+        let mut rig = Rig::new("middle_hold=screen.recents");
+        assert_eq!(runs(rig.report("middle", "unknown", "buttonHold", 1.0)), vec!["screen.recents".to_owned()]);
+        assert!(!rig.controller.status().paused);
+    }
+
+    #[test]
+    fn an_index_hold_can_pause_and_resume() {
+        let mut rig = Rig::new("index_hold=band.pause;middle_hold=;index_tap=");
+        rig.pinch(1.0, 1.8);
+        assert!(rig.controller.status().paused);
+        rig.pinch(3.0, 3.8);
+        assert!(!rig.controller.status().paused);
+    }
+
+    #[test]
+    fn a_single_tap_that_waits_for_its_double_can_be_the_pause_too() {
+        let mut rig = Rig::new("middle_tap=band.pause;middle_double=volume.mute;middle_hold=");
+        rig.report("middle", "unknown", "singleTap", 1.0);
+        assert!(!rig.controller.status().paused, "waiting for a double tap");
+        rig.controller.fire_held_tap(1.5);
+        assert!(rig.controller.status().paused);
+        rig.report("middle", "unknown", "singleTap", 3.0);
+        rig.controller.fire_held_tap(3.5);
+        assert!(!rig.controller.status().paused);
+    }
+}
+
