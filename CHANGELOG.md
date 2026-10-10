@@ -3,6 +3,16 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.21]
+
+### Web apps
+
+- **No more blinking pages**: since beta.19 a page in any web app went black for a moment, and
+  stayed black until a gesture when left still, about every 10 seconds on a busy page (Google
+  News). Lumen asked Gecko to free memory whenever the glasses had less than 350 MB free, which
+  is most of the time with a page open, and Gecko dropped what it had drawn. Lumen no longer
+  asks: out of memory, the page goes and Lumen loads it again, as since beta.19.
+
 ## [0.2.0-beta.20]
 
 ### Glasses

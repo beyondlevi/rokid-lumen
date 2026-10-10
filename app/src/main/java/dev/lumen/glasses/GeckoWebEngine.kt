@@ -277,7 +277,6 @@ class GeckoWebEngine(
     override fun onResume() {
         HostLink.current = this
         HostLink.want(siteScripts)
-        MemoryWatch.start()
         visible = true
         session.setActive(true)
         // A page lost while hidden loads again once this app's scripts are back in place.
@@ -294,14 +293,12 @@ class GeckoWebEngine(
     // Gecko's vsync (~6% of a core, ~12% with a CSS animation) and, for an animated page, the GPU
     // process at ~23%, all with the display off. onResume makes it active again.
     override fun onHidden() {
-        MemoryWatch.stop()
         visible = false
         session.setActive(false)
     }
 
     override fun destroy() {
         destroyed = true
-        if (HostLink.current === this) MemoryWatch.stop()
         if (HostLink.current === this) {
             HostLink.current = null
             // No app in front: no site's pages change (a hidden app's included).
@@ -521,55 +518,6 @@ class GeckoWebEngine(
                 return GeckoResult.fromValue(PhoneInternet.proxy ?: "")
             }
         }
-    }
-
-    /**
-     * Gecko frees memory on its "memory-pressure" notification (a shrinking GC in every page,
-     * image and font caches dropped), which GeckoView sends only when Android trims memory: on
-     * the glasses that came after lmkd had already killed the page (measured: trim level 15 a
-     * second after Instagram's Reels page was gone). While a page is shown this reads the free
-     * memory every [EVERY_MS] and sends it below [LOW_KB], at most every [AGAIN_MS].
-     */
-    private object MemoryWatch {
-        private const val EVERY_MS = 2_000L
-        private const val AGAIN_MS = 10_000L
-        /** Above lmkd's kills on the RG glasses (MemAvailable ~200 MB when it took the page). */
-        private const val LOW_KB = 350L * 1024
-        private val main = android.os.Handler(android.os.Looper.getMainLooper())
-        private var running = false
-        private var sentAt = 0L
-        private val check = object : Runnable {
-            override fun run() {
-                if (!running) return
-                val available = availableKb()
-                val now = SystemClock.elapsedRealtime()
-                if (available in 1 until LOW_KB && now - sentAt >= AGAIN_MS) {
-                    sentAt = now
-                    runCatching { org.mozilla.gecko.GeckoAppShell.notifyObservers("memory-pressure", "low-memory") }
-                        .onSuccess { Log.i(TAG, "Memory low (${available / 1024} MB free): asked Gecko to free memory") }
-                        .onFailure { Log.w(TAG, "Couldn't ask Gecko to free memory", it) }
-                }
-                main.postDelayed(this, EVERY_MS)
-            }
-        }
-
-        fun start() {
-            if (running) return
-            running = true
-            main.postDelayed(check, EVERY_MS)
-        }
-
-        fun stop() {
-            running = false
-            main.removeCallbacks(check)
-        }
-
-        /** MemAvailable from /proc/meminfo, in kB; 0 when it can't be read. */
-        private fun availableKb(): Long = runCatching {
-            java.io.File("/proc/meminfo").useLines { lines ->
-                lines.firstOrNull { it.startsWith("MemAvailable:") }?.split(Regex("\\s+"))?.getOrNull(1)?.toLong()
-            } ?: 0L
-        }.getOrDefault(0L)
     }
 
     companion object {
