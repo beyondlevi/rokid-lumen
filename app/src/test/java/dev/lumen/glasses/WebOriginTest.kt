@@ -65,7 +65,7 @@ class WebOriginTest {
 
     @Test
     fun theAppsOwnPagesAreHeardInFull() {
-        for (type in listOf("getConfig", "audio", "speak", "install", "backResult", "textFocus")) {
+        for (type in listOf("getConfig", "audio", "speak", "install", "backResult", "hello")) {
             assertTrue(type, WebOrigin.hears(type, "https://app.example/a", "https://app.example/b", online))
             assertTrue(type, WebOrigin.hears(type, "http://127.0.0.1:47100/", "http://127.0.0.1:47100/x", offline))
             // Before the session reports a location (about:blank first).
@@ -74,24 +74,27 @@ class WebOriginTest {
     }
 
     @Test
-    fun anotherSitesPageInAnOnlineAppOnlyTypes() {
+    fun anotherSitesPageInAnOnlineAppOnlySaysItsReady() {
         val signIn = "https://accounts.google.com/v3/signin/identifier?continue=x"
-        for (type in listOf("hello", "textFocus", "textBlur", "openComposer", "noTextField")) {
-            assertTrue(type, WebOrigin.hears(type, signIn, signIn, online))
+        // Ready: it gets the band navigation's state.
+        assertTrue(WebOrigin.hears("hello", signIn, signIn, online))
+        // Typing went to the input method: the old composer and field messages are heard from no other site.
+        for (type in listOf("textFocus", "textBlur", "openComposer", "noTextField")) {
+            assertFalse(type, WebOrigin.hears(type, signIn, signIn, online))
         }
         // The app's settings, the microphone, speech, installing and Back stay with the app.
         for (type in listOf("getConfig", "audio", "speak", "cancelSpeech", "install", "backResult")) {
             assertFalse(type, WebOrigin.hears(type, signIn, signIn, online))
         }
         // Only from the page the session shows: not from a page left behind, not over plain HTTP.
-        assertFalse(WebOrigin.hears("textFocus", signIn, "https://app.example/", online))
-        assertFalse(WebOrigin.hears("textFocus", "https://evil.example/", signIn, online))
-        assertFalse(WebOrigin.hears("textFocus", "http://plain.example/", "http://plain.example/", online))
-        // An offline app's page never types off its origin.
-        assertFalse(WebOrigin.hears("textFocus", signIn, signIn, offline))
-        assertTrue(WebOrigin.typingPage(signIn, online))
-        assertFalse(WebOrigin.typingPage("http://plain.example/", online))
-        assertFalse(WebOrigin.typingPage(signIn, offline))
-        assertTrue(WebOrigin.typingPage("about:blank", offline))
+        assertFalse(WebOrigin.hears("hello", signIn, "https://app.example/", online))
+        assertFalse(WebOrigin.hears("hello", "https://evil.example/", signIn, online))
+        assertFalse(WebOrigin.hears("hello", "http://plain.example/", "http://plain.example/", online))
+        // An offline app's page never hears another origin.
+        assertFalse(WebOrigin.hears("hello", signIn, signIn, offline))
+        assertTrue(WebOrigin.navigationPage(signIn, online))
+        assertFalse(WebOrigin.navigationPage("http://plain.example/", online))
+        assertFalse(WebOrigin.navigationPage(signIn, offline))
+        assertTrue(WebOrigin.navigationPage("about:blank", offline))
     }
 }

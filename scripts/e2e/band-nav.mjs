@@ -149,15 +149,21 @@ async function clicks(context) {
   check('enter: again, one click per Enter (no native activation on top)', counts.click === 2, JSON.stringify(counts));
   await h.key('ArrowDown');
   let s = await h.state();
-  check('field: a ringed text field gets the focus', s.id === 'name' && s.active === 'name', JSON.stringify(s));
+  check('field: a ringed text field gets the focus (Gecko then asks for the keyboard)', s.id === 'name' && s.active === 'name', JSON.stringify(s));
+  const enters = counts.documentEnter;
   await h.key('Enter');
   await page.waitForTimeout(100);
   const sent = await h.sent();
   counts = await page.evaluate(() => Object.assign({}, window.counts));
-  check('field: Enter on it opens the composer, no click', sent.some((m) => m.type === 'openComposer') && counts.click === 2, JSON.stringify(sent.map((m) => m.type)));
+  // The keyboard's Enter (its action): the page gets it; no click, and nothing for the host.
+  check('field: Enter on it is the field\'s own: the page gets it, no click, no host message',
+    counts.documentEnter === enters + 1 && counts.click === 2 && sent.length === 0, JSON.stringify({ counts, sent: sent.map((m) => m.type) }));
   await h.key('ArrowDown');
   s = await h.state();
-  check('field: moving away blurs it', s.id === 'after' && s.active !== 'name', JSON.stringify(s));
+  check('field: a ringed password field gets the focus too', s.id === 'secret' && s.active === 'secret', JSON.stringify(s));
+  await h.key('ArrowDown');
+  s = await h.state();
+  check('field: moving away blurs it', s.id === 'after' && s.active !== 'secret', JSON.stringify(s));
   await h.key('Enter');
   counts = await page.evaluate(() => Object.assign({}, window.counts));
   check('enter: a real button gets one click', counts.after === 1, JSON.stringify(counts));
@@ -221,10 +227,13 @@ async function band(context) {
     !keys.some((k) => k.includes('Escape')) && sent.some((m) => m.type === 'backResult' && m.handled === true), `${keys} / ${JSON.stringify(sent)}`);
   await page.focus('#field');
   await page.evaluate(() => { window.__sent.length = 0; });
+  await pageKeys();
   await h.key('Enter');
   got = await page.evaluate(() => window.got.splice(0));
+  keys = await pageKeys();
   sent = await h.sent();
-  check('band.on: Enter on a text field is the composer\'s, not offered', got.length === 0 && sent.some((m) => m.type === 'openComposer'), `${got} / ${JSON.stringify(sent)}`);
+  check('band.on: Enter on a text field is the field\'s (the keyboard\'s Enter), not offered',
+    got.length === 0 && keys.includes('document Enter') && sent.length === 0, `${got} / ${keys} / ${JSON.stringify(sent)}`);
   await page.evaluate(() => document.activeElement.blur());
   await pageKeys();
   await h.key('Enter');

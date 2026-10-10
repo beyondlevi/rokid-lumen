@@ -31,9 +31,10 @@ import org.mozilla.geckoview.WebRequestError
  *
  * The bridge acts only for the app's own origin ([WebOrigin]): background.js tags every page
  * message with the tab and address of the page that sent it (which the page can't forge), and
- * a message from any other origin is ignored, except typing on the page an online app shows on
- * another site (a sign-in page): its fields work with the phone's keyboard and the composer.
- * What goes to the page goes to its tab only.
+ * a message from any other origin is ignored, except the page an online app shows on another
+ * site (a sign-in page) saying it's ready: it gets the band navigation's state, nothing else.
+ * What goes to the page goes to its tab only. Typing needs no bridge: Gecko's keyboard requests
+ * go to the glasses' input method ([LumenKeyboard]), on any page.
  *
  * A packaged online app's site scripts ([SiteScripts]) are registered in the extension while
  * the app is in front ([HostLink.want]); its page waits for them before loading (at most
@@ -51,7 +52,6 @@ class GeckoWebEngine(
     )
     private val appOrigin = WebOrigin.ofApp(app)
     private var canGoBack = false
-    private var phoneKeyboard = false
     /** The page's address as Gecko last reported it (for the origin checks). */
     private var pageUrl: String? = null
     /** The extension's id for this session's tab, learned from its page's first message. */
@@ -75,8 +75,6 @@ class GeckoWebEngine(
     private var visible = false
     private val geckoRuntime = runtime(activity, side.toFloat() / WebEngine.MRBD_VIEWPORT)
     private val startedAt = SystemClock.elapsedRealtime()
-    /** Gecko's own text input delegate: the system's keyboard. */
-    private val keyboard: GeckoSession.TextInputDelegate = session.textInput.delegate
     /** The site scripts registered while this app is in front; none for most apps. */
     private val siteScripts = SiteScripts.registrationFor(activity, app)
     private var destroyed = false
@@ -97,7 +95,7 @@ class GeckoWebEngine(
 
             override fun onCanGoBack(s: GeckoSession, value: Boolean) {
                 canGoBack = value
-                post(JSONObject().put("type", "canGoBack").put("value", value), typing = true)
+                post(JSONObject().put("type", "canGoBack").put("value", value), navigation = true)
             }
 
             /** Top-level loads: an offline app stays on its origin (the rest opens nowhere), an online one on HTTPS. */
@@ -134,16 +132,12 @@ class GeckoWebEngine(
             override fun onKill(s: GeckoSession) = pageGone("killed")
             override fun onCrash(s: GeckoSession) = pageGone("crashed")
         }
-        // Gecko asks for a keyboard when a field gets focus (measured: also a programmatic focus
-        // up to ~5 s after a tap). A field the composer takes gets nothing until Enter opens the
-        // composer on it; the shim sends any other field (a password) back to the keyboard.
-        session.textInput.setDelegate(object : GeckoSession.TextInputDelegate by keyboard {
-            override fun showSoftInput(s: GeckoSession) {
-                if (!post(JSONObject().put("type", "keyboardWanted"), typing = true)) keyboard.showSoftInput(s)
-            }
-        })
+        // Gecko's own text input delegate stays: a focused field's keyboard request (measured: also
+        // a programmatic focus up to ~5 s after a tap) reaches the input method, Lumen's keyboard,
+        // which then gets the field's real EditorInfo (intercepted, the field stayed inputType 0
+        // for it and deleting did nothing, measured on the glasses).
         // A TextureView, not the default SurfaceView: Gecko's surface otherwise covers the
-        // composer and the notices drawn over it (measured: the composer opened, invisible).
+        // notices drawn over it (measured: the old composer opened, invisible).
         geckoView.setViewBackend(GeckoView.BACKEND_TEXTURE_VIEW)
         session.open(runtime)
         geckoView.setSession(session)
@@ -263,27 +257,6 @@ class GeckoWebEngine(
         return true
     }
 
-    override fun composerInput(text: String) {
-        post(JSONObject().put("type", "composerInput").put("text", text), typing = true)
-    }
-
-    override fun composerClose() {
-        post(JSONObject().put("type", "composerClose").put("text", ""), typing = true)
-    }
-
-    override fun keyboardState(open: Boolean) {
-        phoneKeyboard = open
-        post(JSONObject().put("type", "phoneKeyboard").put("value", open), typing = true)
-    }
-
-    override fun keyboardInput(text: String) {
-        post(JSONObject().put("type", "keyboardInput").put("text", text), typing = true)
-    }
-
-    override fun keyboardSync() {
-        post(JSONObject().put("type", "keyboardSync"), typing = true)
-    }
-
     override fun speechEvent(id: String, type: String, code: String?) {
         post(JSONObject().put("type", "speech").put("id", id.toIntOrNull() ?: 0).put("event", type).put("code", code ?: JSONObject.NULL))
     }
@@ -339,8 +312,8 @@ class GeckoWebEngine(
 
     /**
      * A page's message, relayed by background.js with its sender's `tabId` and `sender` (the
-     * page's address, set there, not by the page). The app's own origin is heard, and typing
-     * from another site's page an online app shows ([WebOrigin.hears]).
+     * page's address, set there, not by the page). The app's own origin is heard, and another
+     * site's page an online app shows saying it's ready ([WebOrigin.hears]).
      */
     private fun onHostMessage(message: Any) {
         val json = message as? JSONObject ?: return
@@ -355,19 +328,11 @@ class GeckoWebEngine(
             // A page's content script is ready: it hasn't heard canGoBack yet.
             "hello" -> {
                 Log.d(TAG, "Page ready on ${WebOrigin.of(sender).ifEmpty { "no origin" }}")
-                post(JSONObject().put("type", "canGoBack").put("value", canGoBack), typing = true)
-                post(JSONObject().put("type", "phoneKeyboard").put("value", phoneKeyboard), typing = true)
+                post(JSONObject().put("type", "canGoBack").put("value", canGoBack), navigation = true)
                 // A site made for a mouse gets the shim's band navigation; an MRBD app has its own.
-                post(JSONObject().put("type", "bandNavigation").put("value", !app.offline), typing = true)
+                post(JSONObject().put("type", "bandNavigation").put("value", !app.offline), navigation = true)
             }
             "backResult" -> if (!json.optBoolean("handled")) host.onBackUnhandled()
-            "openComposer" -> host.onOpenComposer(json.optString("value"), json.optBoolean("multiline"))
-            "noTextField" -> keyboard.showSoftInput(session)
-            "textFocus" -> host.onTextFocus(
-                json.optString("value"), json.optString("fieldType"), json.optBoolean("multiline"),
-                json.optString("label"), json.optString("reason"),
-            )
-            "textBlur" -> host.onTextBlur()
             "install" -> host.onInstall(json.optString("url"), json.optString("name"))
             "speak" -> host.onSpeak(
                 json.optInt("id"), json.optString("text"), json.optString("lang"),
@@ -389,13 +354,13 @@ class GeckoWebEngine(
 
     /**
      * To this session's page, when it's the app's own and has spoken (so its tab is known). With
-     * [typing], also to another site's page an online app shows ([WebOrigin.typingPage]): what
-     * the wearer types there, and the state the page's fields need.
+     * [navigation], also to another site's page an online app shows ([WebOrigin.navigationPage]):
+     * the band navigation's state (whether there's history behind, the navigation on).
      */
-    private fun post(message: JSONObject, typing: Boolean = false): Boolean {
+    private fun post(message: JSONObject, navigation: Boolean = false): Boolean {
         val current = HostLink.port ?: return false
         val tab = tabId ?: return false
-        if (if (typing) !WebOrigin.typingPage(pageUrl, app) else !onAppPage()) return false
+        if (if (navigation) !WebOrigin.navigationPage(pageUrl, app) else !onAppPage()) return false
         current.postMessage(message.put("tabId", tab))
         return true
     }
@@ -403,8 +368,8 @@ class GeckoWebEngine(
     /**
      * The built-in extension and its one native port, shared by every engine of the process: the
      * extension's background keeps the port it opened first, so a delegate per engine left the
-     * second app's page talking to the first app's closed screen (measured: its composer opened
-     * there, unseen, and the focused field got no answer). The page's messages go to the engine
+     * second app's page talking to the first app's closed screen (measured: the old composer
+     * opened there, unseen, and the focused field got no answer). The page's messages go to the engine
      * in front ([current]), which hears only its own origin's.
      *
      * It also keeps the extension's site scripts those of the app in front ([want]): the set goes

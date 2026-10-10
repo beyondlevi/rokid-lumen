@@ -32,12 +32,14 @@ import org.json.JSONObject;
  * pixel viewport on an additive display (black is transparent) and drives it with arrow keys,
  * Enter and a history-based Back; this activity reproduces that around a {@link WebEngine}
  * chosen per app (GeckoView or the system WebView): the band's swipes are arrow keys, the index
- * tap is Enter, the middle tap is Back, and a text field opens the dictation composer on Enter.
+ * tap is Enter, the middle tap is Back. A text field types with Lumen's keyboard, the glasses'
+ * input method ({@link LumenKeyboard}): the band's index tap on it opens the keyboard's panel
+ * before it reaches here.
  *
  * Opens an app of the library (EXTRA_APP_ID). Adding one, from outside or from a page's
  * {@code navigator.install()}, goes through {@link InstallConfirmActivity}.
  */
-public final class WebAppActivity extends Activity implements BandAccessibilityService.InputTarget, WebEngine.Host, PhoneKeyboard.Target {
+public final class WebAppActivity extends Activity implements BandAccessibilityService.InputTarget, WebEngine.Host {
     public static final String EXTRA_APP_ID = "app_id";
     /** A page of the app to open instead of its start ("/chat/…"): a phone notification's. */
     public static final String EXTRA_PATH = "path";
@@ -57,8 +59,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
      * glasses' 1.8 GB need for the app in front when memory runs short ([releaseHidden]).
      */
     private static final java.util.Set<WebAppActivity> LIVE = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
-    /** After the phone keyboard's Enter, the page's own change to the field (a sent message clears it). */
-    private static final long KEYBOARD_SYNC_MS = 500;
+    private static final int REQUEST_MICROPHONE = 77;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private WebEngine engine;
@@ -75,7 +76,6 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     /** Between onStart and onStop: someone sees this app. */
     private boolean shown;
     private boolean loaded;
-    private WebComposer composer;
     /** The app's gesture card or band hint, the first times it opens. */
     private WebAppGuide guide;
     private TextView notice;
@@ -141,7 +141,6 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         root.addView(notice, new FrameLayout.LayoutParams(side - 2 * pad, FrameLayout.LayoutParams.WRAP_CONTENT,
                 Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM));
         setContentView(root);
-        composer = new WebComposer(this, root, side);
         guide = new WebAppGuide(this, root, side);
         guide.open(app, kind == WebEngineKind.GECKO);
 
@@ -164,6 +163,12 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         });
         appName = app.getName();
         Log.d(TAG, "Opening " + app.getName() + " (" + app.getUrl() + ") on " + kind + " side=" + side);
+        // Dictation records here only where the phone doesn't listen (not on the Rokid glasses), and
+        // Lumen's keyboard, a service, can't ask for the microphone itself.
+        if (!PhoneDictation.applies(this)
+                && checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[] {android.Manifest.permission.RECORD_AUDIO}, REQUEST_MICROPHONE);
+        }
         WebAppConfig.addListener(configListener);
         if (app.getOffline()) {
             engine.load(startUrl(app));
@@ -302,22 +307,23 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     protected void onResume() {
         super.onResume();
         BandAccessibilityService.setInputTarget(this);
+        // The phone's keyboard names the field after the app it's in.
+        LumenKeyboard.setWebAppName(appName);
+        KeyboardDefault.apply(this);
         if (PhoneDictation.applies(this)) {
             PhoneDictation.announce();
         }
         if (engine != null) {
             engine.onResume();
-            PhoneKeyboard.attach(this);
         }
     }
 
     @Override
     protected void onPause() {
-        if (composer != null) {
-            composer.closeNow();
-        }
         BandAccessibilityService.clearInputTarget(this);
-        PhoneKeyboard.detach(this);
+        if (appName.equals(LumenKeyboard.getWebAppName())) {
+            LumenKeyboard.setWebAppName("");
+        }
         if (engine != null) {
             engine.onPause();
         }
@@ -424,10 +430,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
             Log.d(TAG, "Band " + command + " closed the gesture card");
             return true;
         }
-        Log.d(TAG, "Band " + command + (composer != null && composer.isOpen() ? " to the composer" : " to the page"));
-        if (composer != null && composer.onBandCommand(command)) {
-            return true;
-        }
+        Log.d(TAG, "Band " + command + " to the page");
         if (engine == null) {
             return false;
         }
@@ -481,9 +484,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         }
         if (code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_ESCAPE) {
             if (event.getAction() == KeyEvent.ACTION_UP) {
-                if (composer != null && composer.isOpen()) {
-                    composer.onBandCommand(BandCommand.BACK);
-                } else if (engine != null) {
+                if (engine != null) {
                     engine.back();
                 } else {
                     finish();
@@ -491,23 +492,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
             }
             return true;
         }
-        if (composer != null && composer.isOpen()) {
-            // The touchpad drives the open composer as the band does.
-            if (event.getAction() == KeyEvent.ACTION_UP) {
-                if (code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_DPAD_CENTER) {
-                    composer.onBandCommand(BandCommand.ACTIVATE);
-                } else if (code == KeyEvent.KEYCODE_DPAD_LEFT) {
-                    composer.onBandCommand(BandCommand.LEFT);
-                } else if (code == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                    composer.onBandCommand(BandCommand.RIGHT);
-                } else if (code == KeyEvent.KEYCODE_DPAD_UP) {
-                    composer.onBandCommand(BandCommand.UP);
-                } else if (code == KeyEvent.KEYCODE_DPAD_DOWN) {
-                    composer.onBandCommand(BandCommand.DOWN);
-                }
-            }
-            return true;
-        }
+        // The touchpad's keys reach Lumen's keyboard first: its open panel never lets them here.
         return super.dispatchKeyEvent(event);
     }
 
@@ -517,15 +502,6 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
                 || code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT || code == KeyEvent.KEYCODE_TAB;
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == WebComposer.REQUEST_MICROPHONE && composer != null) {
-            composer.onPermissionResult(grantResults.length > 0
-                    && grantResults[0] == PackageManager.PERMISSION_GRANTED);
-        }
-    }
-
     // WebEngine.Host
 
     @Override
@@ -533,67 +509,6 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         if (engine == null || !engine.historyBack()) {
             finish();
         }
-    }
-
-    @Override
-    public void onOpenComposer(String value, boolean multiline) {
-        Log.d(TAG, "Composer opens (multiline=" + multiline + ", " + value.length() + " chars)");
-        composer.open(value, new WebComposer.Target() {
-            @Override
-            public void composerInput(String text) {
-                engine.composerInput(text);
-            }
-
-            @Override
-            public void composerClose() {
-                engine.composerClose();
-            }
-        });
-    }
-
-    @Override
-    public void onTextFocus(String value, String type, boolean multiline, String label, String reason) {
-        // The kind of field only: never its value (a password, an address).
-        Log.d(TAG, "Text field focused (" + type + ", " + reason + ")");
-        PhoneKeyboard.focus(this, appName, label, type, multiline, value, reason);
-    }
-
-    @Override
-    public void onTextBlur() {
-        PhoneKeyboard.blur(this);
-    }
-
-    /** The phone's keyboard opened or closed; open, it takes the composer's place. */
-    @Override
-    public void keyboardOpen(boolean open) {
-        if (engine == null) {
-            return;
-        }
-        engine.keyboardState(open);
-        if (open && composer != null && composer.isOpen()) {
-            composer.closeNow();
-        }
-    }
-
-    @Override
-    public void keyboardText(String text) {
-        if (engine != null) {
-            engine.keyboardInput(text);
-        }
-    }
-
-    /** The phone keyboard's Enter: a real Enter to the page, then the field's value read again. */
-    @Override
-    public void keyboardEnter() {
-        if (engine == null) {
-            return;
-        }
-        engine.key(KeyEvent.KEYCODE_ENTER);
-        mainHandler.postDelayed(() -> {
-            if (engine != null) {
-                engine.keyboardSync();
-            }
-        }, KEYBOARD_SYNC_MS);
     }
 
     /** The page's navigator.install(): the user confirms it on the glasses first. */

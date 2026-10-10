@@ -4,11 +4,12 @@
 <style>
   body { margin: 0; background: #000; color: #fff; font: 16px sans-serif; }
   #react { width: 240px; height: 80px; margin: 20px; display: flex; align-items: center; justify-content: center; border: 1px solid #888; }
-  #name { display: block; margin: 20px; width: 240px; height: 40px; }
+  #name, #secret { display: block; margin: 20px; width: 240px; height: 40px; }
   #after { display: block; margin: 20px; width: 240px; height: 40px; }
 </style>
 <div id="react" role="button" tabindex="0"><span id="label">Press me</span></div>
 <input id="name" type="text" placeholder="Name">
+<input id="secret" type="password" placeholder="Password">
 <button id="after">After</button>
 <script>
   window.counts = { pointerdown: 0, mousedown: 0, pointerup: 0, mouseup: 0, click: 0, ownEnter: 0, documentEnter: 0, after: 0 };

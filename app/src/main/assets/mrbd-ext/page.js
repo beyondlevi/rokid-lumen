@@ -2,23 +2,18 @@
 // Runs at document_start in the page's own world (manifest: "world": "MAIN").
 // GeckoView has no addJavascriptInterface: this stands in for WebAppActivity's `MrbdHost`,
 // passing calls to content.js by window messages (the app's replies come back the same way).
+// Typing isn't here: Lumen's keyboard is the glasses' input method and types into the page's
+// fields as any keyboard does.
 (function () {
   if (window.MrbdHost) return;
   var back = false;
-  var keyboard = false;
   function send(message) { window.postMessage({ __mrbdToHost: message }, '*'); }
   window.addEventListener('message', function (event) {
     var data = event.data && event.data.__mrbdFromHost;
     if (!data) return;
     if (data.type === 'canGoBack') back = !!data.value;
-    if (data.type === 'phoneKeyboard') keyboard = !!data.value;
-    if (data.type === 'keyboardInput' && window.__mrbdKeyboardInput) window.__mrbdKeyboardInput(data.text);
-    if (data.type === 'keyboardSync' && window.__mrbdKeyboardSync) window.__mrbdKeyboardSync();
     if (data.type === 'back' && window.__mrbdBack) window.__mrbdBack();
     if (data.type === 'speech' && window.__mrbdSpeech) window.__mrbdSpeech(data.id, data.event, data.code);
-    if (data.type === 'composerInput' && window.__mrbdComposerInput) window.__mrbdComposerInput(data.text);
-    if (data.type === 'composerClose' && window.__mrbdComposerClose) window.__mrbdComposerClose();
-    if (data.type === 'keyboardWanted' && window.__mrbdKeyboardWanted) window.__mrbdKeyboardWanted();
     if (data.type === 'config' && window.__lumenConfig) window.__lumenConfig(data.id, data.values);
     if (data.type === 'configChanged' && window.__lumenConfigChanged) window.__lumenConfigChanged(data.values);
     if (data.type === 'audio' && window.__lumenAudio) window.__lumenAudio(data.event);
@@ -30,13 +25,6 @@
     speak: function (id, text, lang, rate, pitch) { send({ type: 'speak', id: id, text: text, lang: lang, rate: rate, pitch: pitch }); },
     cancelSpeech: function () { send({ type: 'cancelSpeech' }); },
     backResult: function (handled) { send({ type: 'backResult', handled: !!handled }); },
-    openComposer: function (value, multiline) { send({ type: 'openComposer', value: value, multiline: !!multiline }); },
-    noTextField: function () { send({ type: 'noTextField' }); },
-    phoneKeyboard: function () { return keyboard; },
-    textFocus: function (value, type, multiline, label, reason) {
-      send({ type: 'textFocus', value: value, fieldType: type, multiline: !!multiline, label: label, reason: reason });
-    },
-    textBlur: function () { send({ type: 'textBlur' }); },
     getConfig: function (id) { send({ type: 'getConfig', id: id }); },
     audio: function (json) { send({ type: 'audio', message: JSON.parse(json) }); }
   };
@@ -473,11 +461,12 @@
     };
   }
 
-  // MRBD's composer: activating a text field (Enter on it) opens the system's dictation panel
-  // instead of reaching the page; its text comes back through the value setter and `input`,
-  // then `change` when the panel closes. Focus alone never opens it.
-  var TEXT_TYPES = ['text', 'search', 'email', 'url', 'tel', 'number'];
-  var composerTarget = null;
+  // Text fields: Lumen's keyboard (the glasses' input method) types into them as any keyboard
+  // does, so the page sees real input. The shim only tells them apart where the band reaches
+  // them: the generic navigation focuses a ringed field (Gecko then asks for the keyboard, whose
+  // hint shows), and Enter on a focused field is the field's own (the keyboard's Enter key, its
+  // action), never a band handler's or a click.
+  var TEXT_TYPES = ['text', 'search', 'email', 'url', 'tel', 'number', 'password'];
   function isTextField(el) {
     if (!el || el.disabled || el.readOnly) return false;
     if (el.isContentEditable) return true;
@@ -485,89 +474,6 @@
     if (el.tagName !== 'INPUT') return false;
     return TEXT_TYPES.indexOf((el.getAttribute('type') || 'text').toLowerCase()) >= 0;
   }
-  if (host && host.openComposer) {
-    window.addEventListener('keydown', function (event) {
-      // No guard on an earlier target: while the composer is open the host keeps Enter from
-      // the page, and a composer the host closed without telling us mustn't block the next.
-      if (event.key !== 'Enter') return;
-      // The phone's keyboard open takes the composer's place: Enter goes on to the page.
-      if (phoneKeyboard()) return;
-      var el = document.activeElement;
-      if (!isTextField(el)) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      composerTarget = el;
-      host.openComposer(el.isContentEditable ? el.textContent : el.value,
-        el.tagName === 'TEXTAREA' || el.isContentEditable);
-    }, true);
-  }
-  // GeckoView asked for a keyboard (a field got focus): a field the composer takes waits for
-  // Enter; anything else (a password, say) gets the system's keyboard.
-  // The phone's keyboard types into any of these, a password included.
-  window.__mrbdKeyboardWanted = function () {
-    var el = document.activeElement;
-    if (phoneKeyboard() && isKeyboardField(el)) return;
-    if (host && host.noTextField && !isTextField(el)) host.noTextField();
-  };
-  function setFieldValue(el, text) {
-    if (el.isContentEditable) {
-      el.textContent = text;
-    } else {
-      // The prototype's setter, so frameworks that track the value (React) see the change.
-      var proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-      Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, text);
-    }
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-  window.__mrbdComposerInput = function (text) {
-    if (composerTarget) setFieldValue(composerTarget, text);
-  };
-  window.__mrbdComposerClose = function () {
-    var el = composerTarget;
-    composerTarget = null;
-    if (el) el.dispatchEvent(new Event('change', { bubbles: true }));
-  };
-
-  // Rokid Lumen's phone keyboard: the companion types into the page's focused field. The host
-  // hears which field has focus (its value, type and label) and when none has; the phone's
-  // text replaces the field's whole value, as the composer's does.
-  function phoneKeyboard() { return !!(host && host.phoneKeyboard && host.phoneKeyboard()); }
-  function isKeyboardField(el) {
-    if (isTextField(el)) return true;
-    return !!el && el.tagName === 'INPUT' && !el.disabled && !el.readOnly &&
-      (el.getAttribute('type') || '').toLowerCase() === 'password';
-  }
-  function fieldLabel(el) {
-    var text = el.getAttribute('aria-label') || el.getAttribute('placeholder') || '';
-    if (!text && el.labels && el.labels.length) text = el.labels[0].textContent || '';
-    if (!text) text = el.getAttribute('title') || el.getAttribute('name') || '';
-    return String(text).replace(/\s+/g, ' ').trim().slice(0, 80);
-  }
-  function reportField(reason) {
-    var el = document.activeElement;
-    if (!isKeyboardField(el)) return host.textBlur();
-    var type = el.tagName === 'INPUT' ? (el.getAttribute('type') || 'text').toLowerCase() : 'text';
-    host.textFocus(el.isContentEditable ? el.textContent : el.value, type,
-      el.tagName === 'TEXTAREA' || el.isContentEditable, fieldLabel(el), reason);
-  }
-  if (host && host.textFocus) {
-    document.addEventListener('focusin', function (event) {
-      if (isKeyboardField(event.target)) reportField('focus');
-    }, true);
-    document.addEventListener('focusout', function (event) {
-      if (!isKeyboardField(event.target)) return;
-      // Where the focus went is known only after the event.
-      setTimeout(function () { if (!isKeyboardField(document.activeElement)) host.textBlur(); }, 0);
-    }, true);
-  }
-  window.__mrbdKeyboardInput = function (text) {
-    var el = document.activeElement;
-    if (isKeyboardField(el)) setFieldValue(el, text);
-  };
-  // After an Enter the page may have changed the value (a sent message clears its box).
-  window.__mrbdKeyboardSync = function () {
-    if (host && host.textFocus) reportField('sync');
-  };
 
   // Rokid Lumen's band API, for site scripts (an online app package's lumen_scripts) and any
   // page: lumen.band.on() takes the band's keys and Back before the page, lumen.highlight() and
@@ -628,8 +534,8 @@
     window.removeEventListener('keydown', navKeydown);
     window.addEventListener('keydown', navKeydown);
     if (!bandHandlers.length) return;
-    // Enter on a text field is the composer's.
-    if (key === 'enter' && isKeyboardField(deepActive())) return;
+    // Enter on a text field is the field's (the keyboard's Enter).
+    if (key === 'enter' && isTextField(deepActive())) return;
     if (!askBand(key, event)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -762,15 +668,15 @@
       requestAnimationFrame(follow);
     }
   }
-  // A highlighted text field has the focus, so Enter reaches the composer; leaving a field
-  // blurs it, so Enter (and the composer) don't stay on a field the ring has left.
+  // A highlighted text field has the focus, so the keyboard's hint shows and the index tap opens
+  // its panel; leaving a field blurs it, so the keyboard doesn't stay on a field the ring has left.
   function focusForHighlight(el) {
     var active = deepActive();
     if (isTextField(el)) {
       if (active !== el) {
         try { el.focus({ preventScroll: true }); } catch (e) {}
       }
-    } else if (active && active !== el && isKeyboardField(active)) {
+    } else if (active && active !== el && isTextField(active)) {
       active.blur();
     }
   }
@@ -1187,8 +1093,8 @@
       navMove(key);
       return;
     }
-    // Enter on a field is the composer's (or, with the phone's keyboard, the page's).
-    if (isKeyboardField(deepActive())) return;
+    // Enter on a field is the field's (the keyboard's Enter, its action).
+    if (isTextField(deepActive())) return;
     var el = lumen.highlighted();
     if (!el) return;
     event.preventDefault();
