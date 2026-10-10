@@ -82,8 +82,18 @@ ADB on those glasses. How to undo it: [getting-started.md](getting-started.md#un
 - **Packages.** A package is unpacked with zip-slip protection, at most 200 MB and 5,000 files,
   into a staging folder that is deleted when the install is cancelled.
 - **Backups** are off (`allowBackup="false"`).
-- **Debug builds only:** the simulated band's broadcast receiver and GeckoView's remote
-  debugging. Release builds have neither.
+- **Lumen's keyboard.** The app is the glasses' input method (`LumenKeyboard`, bound by Android
+  with `BIND_INPUT_METHOD`), made the default with the self-arm's `WRITE_SECURE_SETTINGS`; the
+  companion's *Lumen keyboard* setting gives Rokid's back. As any keyboard, it sees the focused
+  field of every app on the glasses: its kind, its label and its text, and so what is typed,
+  dictated or written there, passwords included. It keeps none of it (no history, no dictionary,
+  nothing on storage), and its log names the kind of field and the text's length, never the
+  text. It never dictates into a password field (that would say it aloud). The field's text
+  leaves the glasses only for the phone's keyboard, while that keyboard is open or the wearer
+  chose it on the glasses; otherwise the phone hears the field's label, its type and the app.
+- **Debug builds only:** the simulated band's broadcast receiver, GeckoView's remote
+  debugging, and the band's written letters in the log (to test its handwriting). Release builds
+  have none of them.
 
 ## Web app isolation
 
@@ -107,10 +117,11 @@ ADB on those glasses. How to undo it: [getting-started.md](getting-started.md#un
   the WebView the main frame's address is checked, so a cross-origin iframe inside the app's
   own page still reaches the bridge.
 - **Navigation.** An offline app can't leave its own origin. An online app may go anywhere over
-  HTTPS, and other origins get nothing from the bridge but typing (GeckoView): the page the app
-  shows can report a focused field and ask for the composer, and gets what the wearer types on
-  the phone's keyboard or in the composer. That's what a sign-in page on another site needs. It
-  gets no settings, no microphone, no speech, no installs, and can't hold Back.
+  HTTPS, and other origins get nothing from the bridge but the band navigation's state
+  (GeckoView: whether there's history behind, and the navigation on), so the band moves through
+  a sign-in page on another site. There is no typing exception any more: typing needs no bridge
+  (Lumen's keyboard types into any page's fields, as a keyboard does). Such a page gets no
+  settings, no microphone, no speech, no installs, and can't hold Back.
 - **Settings and secrets.** `window.lumen.config` answers only a page on the app's origin, with
   only the keys its manifest declares. An update downloaded on the glasses from another origin
   than the installed app's forgets its secrets, since any package can claim a manifest `id`.
@@ -153,6 +164,7 @@ ADB on those glasses. How to undo it: [getting-started.md](getting-started.md#un
 ## The link between the glasses and the phone
 
 All messages go over Rokid's CXR link, through the Hi Rokid app: the band's settings, the
-grid, notifications, the dictation audio and text, web app settings (secrets included, from
-the phone to the glasses) and the hotspot's credentials. Lumen adds no encryption of its own on
+grid, notifications, the dictation audio and text, the focused field's text while the phone's
+keyboard types into it (a password's included), web app settings (secrets included, from the
+phone to the glasses) and the hotspot's credentials. Lumen adds no encryption of its own on
 top of that link.

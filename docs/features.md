@@ -120,7 +120,7 @@ exist:
   banner shows). `--es grid_order <ids> --es grid_hidden <ids>` (comma-separated, as in
   `lumen_grid.xml`) arranges the apps grid.
 
-  The simulated band also writes: once the composer is writing, `--es handwriting_text "<text>"`
+  The simulated band also writes: once Lumen's keyboard is writing, `--es handwriting_text "<text>"`
   comes into the field a letter at a time, as from the band's model. On the phone, with the
   handwriting keyboard writing, the debug build takes the same from
   `adb shell run-as dev.lumen.companion am startservice --user 0 -n
@@ -224,7 +224,7 @@ app goes back in its history, or closes when there is none.
   first three times.
 - **The band on any site** (online apps). Swipes move a highlight between what can be clicked
   on the page; when nothing more is that way, the page scrolls. The index tap opens what's
-  highlighted, and a text field gets the composer. A page that handles the arrows itself (a game)
+  highlighted, and a highlighted text field gets Lumen's keyboard. A page that handles the arrows itself (a game)
   keeps them. Details: [site-scripts.md](site-scripts.md).
 - **Dark pages** (GeckoView). Sites are asked for their dark theme (`prefers-color-scheme`): on
   the glasses black is see-through, and a white page washes out the view.
@@ -343,30 +343,53 @@ Without the self-arm the glasses can't join the hotspot, and the app says so.
 
 ## Phone keyboard
 
-The companion's Home tab has a **Keyboard** row that names the text field focused in the web app
-on the glasses ("Field in focus: Message · WhatsApp"). Tapping it opens a keyboard page: what
-you type there goes into that field live, as its whole value, and the keyboard's Send key (or
-the Enter button) is an Enter on the glasses. Passwords, email, URL, phone and number fields get
-the matching keyboard on the phone; a multi-line field gets new lines instead of Send.
+The companion's Home tab has a **Keyboard** row that names the text field focused on the glasses,
+in any app there ("Field in focus: Message · WhatsApp"). Tapping it opens a keyboard page: what
+you type there goes into that field live, as its whole text, and the keyboard's Send key (or
+the Enter button) is the field's own Enter on the glasses (its search, its send, the next field).
+Passwords, email, URL, phone and number fields get the matching keyboard on the phone; a
+multi-line field gets new lines instead of Send.
 
-While the page is open the phone keyboard takes the composer's place: Enter on a field there goes
-to the page instead of opening dictation. Leaving the page (or the companion) closes it; the
-glasses also forget a keyboard they stop hearing from for 75 seconds (it confirms every 30).
+Choosing **Phone** in Lumen's keyboard on the glasses (below) asks for it: the phone shows a
+silent notification naming the field and the app, which opens the keyboard page, and the
+glasses' panel says *Type on the phone* and shows the text as it comes. The middle tap there,
+the phone's Enter, or leaving the page ends it. With the page open the phone types into whatever
+field is focused, with or without the glasses' panel. Leaving the page (or the companion) closes
+it; the glasses also forget a keyboard they stop hearing from for 75 seconds (it confirms every 30).
 
-How: the page script reports `focusin`/`focusout` of text fields (with the value, type and
-label) to the glasses, which pass it on as `nb.keyboard.field`; the phone sends `nb.keyboard`
-(open, close, text with a growing sequence number so a late one never wins, enter). After an
-Enter the glasses read the field again, so a box the app clears (a sent message) clears on the
-phone too.
+How: Lumen's keyboard, the glasses' input method, reports the focused field (its label, type and
+app) as `nb.keyboard.field`, with its text only while the phone's keyboard is open or asked for;
+the phone sends `nb.keyboard` (open, close, text with a growing sequence number so a late one
+never wins, enter). After an Enter the glasses read the field again, so a box the app clears (a
+sent message) clears on the phone too; what's dictated or written there reaches the phone's box
+as well.
 
 ## Dictation and handwriting
 
 <!-- media: composer -->
 ![The dictation composer over a web app's text field](media/composer.png)
 
-Enter on a text field of a web app opens the **composer** instead of reaching the page. Focus
-alone never opens it. It first asks **Dictate or write?**, with the last one used preselected:
-a swipe switches, the index tap starts, the middle tap cancels. Password fields never open it.
+**Lumen's keyboard** is the glasses' input method, in every app: web apps on GeckoView or the
+system WebView, Rokid's settings (a Wi-Fi password), any native app. It replaces Rokid's
+keyboard as the default once the self-arm is done (it needs its `WRITE_SECURE_SETTINGS`), and the
+companion's Band tab (Glasses) has **Lumen keyboard** to give Rokid's back.
+
+- **A focused field shows only a hint**, in the strip under the web app's square: *Index:
+  dictate, write or phone* (with text in it: *Index: search or continue*, after its Enter
+  action). Nothing covers the app, and the app isn't moved or resized.
+- **The index tap opens the panel** over the dimmed app, anchored to the bottom: what it's
+  doing, the field's label and its Enter action, the field's text, and **Dictate · Write ·
+  Phone**, the last one used preselected. A swipe moves, the index tap starts, the middle tap
+  cancels. With text in the field the panel also offers its Enter action (**Search**, **Send**,
+  **Go**, **Next**, **Done**, or the app's own label), focused first: the index tap runs it and
+  closes the panel.
+- **Password fields** offer **Write · Phone** only, never dictation, and show the text masked.
+- In a web app, activating a focused field opens the panel even when the page didn't ask for a
+  keyboard (MRBD's composer); in a native app the field must have asked (the hint shows).
+
+Text goes into the field as it comes, through Android's input connection, as any keyboard types:
+the app sees ordinary typing. The panel's middle tap (or the end of the writing) leaves the
+text in the field and the hint back.
 
 ### Handwriting
 
@@ -378,7 +401,8 @@ pause (30 s before the first letter, 15 s after one).
 
 While it writes, the band reads every stroke as writing, so only its middle tap gets through:
 the swipes, the other taps, the pause (holding the middle finger) and pinch and turn are off.
-The band doesn't vibrate in this mode; the composer shows each letter instead.
+The band doesn't vibrate in this mode; the panel shows each letter instead (as dots in a
+password).
 
 How: the model runs while two of the band's settings are changed (`data-collection` on,
 `data-collection-model` 5), found by name (28 and 29 on current firmware). Lumen reads each
@@ -391,10 +415,10 @@ o and 0 or 6).
 
 ### Dictation
 
-The Rokid firmware silences a third-party microphone on the glasses, so The Rokid firmware silences a third-party microphone on the glasses, so
-the companion streams the glasses' microphone over Rokid's CXR-L link (16 kHz mono) and
-transcribes it on the phone. The text goes into the field through `input` events, then
-`change` when the composer closes.
+The Rokid firmware silences a third-party microphone on the glasses, so the companion streams
+the glasses' microphone over Rokid's CXR-L link (16 kHz mono) and transcribes it on the phone.
+Each phrase goes into the field as it's transcribed, after what the field held; the panel shows
+the words still being heard in grey.
 
 While dictating: the index tap pauses or resumes, a left swipe deletes the last word, and the
 middle tap finishes. Finishing waits for the last words still being transcribed; a second
@@ -402,7 +426,7 @@ middle tap closes at once.
 
 Listening is continuous. Audio reaches an engine only once someone speaks (with a 600 ms
 lead-in); a pause of the chosen **patience** (Quick 1.5 s, Normal 2.5 s, Patient 4 s) ends a
-sentence and sends it to the composer, and the next one starts. After 90 seconds with nobody
+sentence and sends it to the field, and the next one starts. After 90 seconds with nobody
 speaking, the phone gives the microphone back.
 
 The engines, chosen in the companion (Settings, Dictation):
@@ -548,8 +572,8 @@ tab.
 
 **Lumen handwriting** is a keyboard for the phone's own apps. Turn it on in the system's keyboard
 settings (Band tab, *Handwriting keyboard*) and pick it when you type: on a text field it switches
-the band's handwriting model on, as the glasses' composer does, and each letter goes in at the
-cursor. The middle tap ends the writing and hides the keyboard; a pause stops it (30 s before the
+the band's handwriting model on, as Lumen's keyboard on the glasses does, and each letter goes in
+at the cursor. The middle tap ends the writing and hides the keyboard; a pause stops it (30 s before the
 first letter, 15 s after), and **Write** starts again. It needs the band on the phone: with the
 band on the glasses it says so and offers **Use the band on this phone**, never taking it by
 itself. Password fields never get the band. The keyboard also has Space, Delete, Enter and

@@ -27,7 +27,7 @@ demo mode and simulated notifications.
 
 | Part | What it is |
 | --- | --- |
-| `app/` | The glasses app, `dev.lumen.glasses`: the apps grid, the web app host (GeckoView 156 or the system WebView), the notification inbox and banner, the dictation and handwriting composer, and the accessibility service that connects to the band and drives the glasses. Rokid RG glasses, Android 12, a 480x640 monochrome green HUD. |
+| `app/` | The glasses app, `dev.lumen.glasses`: the apps grid, the web app host (GeckoView 156 or the system WebView), the notification inbox and banner, Lumen's keyboard (the glasses' input method: dictation, band handwriting, the phone's keyboard), and the accessibility service that connects to the band and drives the glasses. Rokid RG glasses, Android 12, a 480x640 monochrome green HUD. |
 | `phone/` | Rokid Lumen Companion, `dev.lumen.companion`: the band's settings, notification forwarding, dictation engines, the Apps tab (arrange the grid, install by address, set an app's server URL or API key), and the hotspot and proxy that give the glasses internet. |
 | `band/`, `rust/` | The Neural Band link, in Rust (`liblumen_band.so` over JNI), from [air-gestures](https://gitlab.com/896kb/air-gestures) and [kinesis](https://github.com/callbacked/kinesis). |
 | `protocol/` | The messages between the glasses and the phone, sent over Rokid's CXR link. |
@@ -38,7 +38,7 @@ demo mode and simulated notifications.
  Meta Neural Band --(Bluetooth L2CAP, Rust bridge)--> glasses: BandAccessibilityService
                                                          |  gestures -> D-pad, Enter, Back
                                                          v
-                         apps grid, web apps (GeckoView / WebView), inbox, composer
+                         apps grid, web apps (GeckoView / WebView), inbox, keyboard
                                                          ^
                        Rokid CXR link (through Hi Rokid) |  notifications, dictation,
                                                          |  settings, grid, hotspot offer
@@ -76,10 +76,12 @@ demo mode and simulated notifications.
   with it.
 - **Notifications.** A banner over any app and an inbox grouped by app. Dismiss on the glasses
   (it clears on the phone too), snooze the banners for 15 minutes, hide the text.
-- **Dictation and handwriting.** Enter on a text field opens a composer: dictate, or write with
-  a finger on any surface through the band's own handwriting model. The phone transcribes the
-  glasses' microphone with the engine you choose: the Android recognizer, OpenAI, ElevenLabs,
-  Azure, or Vosk offline in English or Portuguese.
+- **Dictation and handwriting.** Lumen's keyboard is the glasses' input method, in any app (web
+  apps, Rokid's settings): the index tap on a focused field opens it, to dictate, write with a
+  finger on any surface through the band's own handwriting model, or type on the phone. A
+  password gets writing and the phone, masked. The phone transcribes the glasses' microphone
+  with the engine you choose: the Android recognizer, OpenAI, ElevenLabs, Azure, or Vosk offline
+  in English or Portuguese.
 - **Internet through the phone.** When no saved Wi-Fi is in range, the companion opens a
   local-only hotspot and a proxy, and the glasses join it on their own.
 - **The band on the phone.** The companion can take the band over and control the phone

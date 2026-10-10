@@ -42,7 +42,7 @@ The band never reaches the page as a pointer. The glasses turn its gestures into
 | --- | --- |
 | Swipe up, down, left, right | `keydown`/`keyup` for `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight` |
 | Pinch and turn, when set to Navigation | `ArrowUp` and `ArrowDown` |
-| Index tap | `Enter` |
+| Index tap | `Enter` (on a focused text field, Lumen's keyboard instead: below) |
 | Middle tap | Back (below) |
 
 Other gestures (the middle double tap, the middle hold, a mapped index double tap, volume)
@@ -68,14 +68,30 @@ its Back always goes to history, then close.
 
 ### Text fields and dictation
 
-`Enter` on a text field opens Lumen's **composer** instead of reaching the page: the person
-dictates (the phone transcribes the glasses' microphone) or writes with the band. Focus alone
-never opens it. Either way the text goes into the field through the value setter and an `input` event, then a `change` event when the
-composer closes. React and other frameworks that track an input's value see the change.
+A real text field gets **Lumen's keyboard**, the glasses' input method, as it would get a phone's
+keyboard: `<input>` (`text`, `search`, `email`, `url`, `tel`, `number`, `password`, or no type),
+`<textarea>` and `contenteditable`, on both engines. There is nothing to call and no shim
+message to handle: a field that takes text is all an app needs.
 
-The composer takes `<textarea>`, `contenteditable`, and `<input>` of type `text`, `search`,
-`email`, `url`, `tel` and `number` (or no type), when not disabled or read-only. Any other
-field (a password) gets the system keyboard on GeckoView. The page never gets the microphone.
+- **Focus alone shows only a hint**, under the app's square ("Index: dictate, write or phone").
+  It never covers the page, and the page isn't resized or panned for it.
+- **The index tap on the focused field opens the keyboard's panel** instead of reaching the page
+  (MRBD's composer, as before): the person dictates (the phone transcribes the glasses'
+  microphone), writes with the band, or types on the phone's keyboard. A password field offers
+  writing and the phone only, and its text shows masked.
+- **The text arrives as typing does**: the engine's own `beforeinput` and `input` events, the
+  value updated as it comes (a dictated phrase at a time, a written letter at a time, or the
+  phone's whole text). React and other frameworks that track an input's value see it. `change`
+  fires as in any browser, when the field loses focus or on Enter.
+- **Enter is the field's**: once the field has text, the panel offers its Enter action as a button
+  (the field's `enterkeyhint`, else the form's: *Search*, *Send*, *Go*, *Next*, *Done*), and the
+  phone keyboard's Send is the same. The page gets it as an `Enter` key (`keydown`, `keyup`), as
+  from any keyboard, so a form submits. The band's own index tap on a focused field never reaches
+  the page: use the field's Enter (or a separate button) to submit.
+
+The page never gets the microphone or the band. Don't build an on-screen keyboard, and don't
+expect text on focus alone. On a focused field the arrows still reach the page (the band's
+swipes move on, the middle tap is Back).
 
 ## What the host adds to the page
 
@@ -159,10 +175,10 @@ stopped hearing from the phone).
 
 **The host bridge answers the app's own origin only.** An offline app's origin is its loopback
 server (`http://127.0.0.1:<port>`), an online app's is the origin of its URL. A page on any
-other origin gets no settings, no install, no speech, no audio and no say on Back. One
-exception, on GeckoView: the HTTPS page an online app shows on another site can be typed into
-(the phone's keyboard, and the composer on Enter), because signing in often happens there (a
-Google sign-in page in a YouTube app).
+other origin gets no settings, no install, no speech, no audio and no say on Back; on GeckoView,
+the HTTPS page an online app shows on another site (a Google sign-in page in a YouTube app) gets
+the band navigation, nothing else. Typing needs no bridge: Lumen's keyboard types into any
+page's fields, that sign-in page's included.
 
 ## The manifest
 
@@ -293,8 +309,8 @@ adb shell am start -n dev.lumen.glasses/.InstallConfirmActivity \
 ```
 
 An online app may browse anywhere over HTTPS, but only pages on its own origin get the host
-bridge, and Back skips the others; the others' text fields still work with the phone's keyboard
-and the composer. It reaches the internet through a saved Wi-Fi or the phone
+bridge, and Back skips the others; the others' text fields work with Lumen's keyboard as any
+page's do. It reaches the internet through a saved Wi-Fi or the phone
 (see [features.md](features.md#internet-through-the-phone)), so it opens a few seconds later
 when the glasses have to join the phone's hotspot.
 
@@ -405,7 +421,7 @@ its cookies between apps.
 [Evolution API](https://github.com/evolution-foundation/evolution-api) server you run. It uses most of
 what this guide describes: `lumen_config` for the server address, the instance and the API key
 (a `secret`), `lumen_internet` to reach the server through the phone, D-pad focus on every
-element, Enter on the reply field for dictation, and Back to leave a conversation. Its source:
+element, the index tap on the reply field for dictation, and Back to leave a conversation. Its source:
 [beyondlevi/lumen-whatsapp](https://github.com/beyondlevi/lumen-whatsapp) (MIT).
 
 The screenshots below come from its demo mode (fictitious chats, no server), set from the
@@ -427,8 +443,11 @@ reaction, the chat, a dictated reply. Recorded with `adb shell screenrecord`, in
   goes to logcat too):
 
   ```sh
-  adb logcat -v time -s BandWebApp:D BandGecko:D BandWebView:D BandLocalServer:D *:S
+  adb logcat -v time -s BandWebApp:D BandGecko:D BandWebView:D BandLocalServer:D BandKeyboardIme:D *:S
   ```
+
+  `BandKeyboardIme` is Lumen's keyboard: the kind of each focused field and its Enter action,
+  and the length of what goes into it (never the text).
 
 - Debug builds of the glasses app enable GeckoView's remote debugging (Firefox's
   `about:debugging`). Release builds don't.
@@ -452,7 +471,9 @@ reaction, the chat, a dictated reply. Recorded with `adb shell screenrecord`, in
   and `X-Content-Type-Options: nosniff`.
 - On GeckoView each app has its own session context; on the WebView cookies are shared.
 - The host bridge answers the app's own origin only (another site's HTTPS page in an online
-  app can only be typed into), and the settings go only to a page on that origin.
+  app gets the band navigation, nothing else), and the settings go only to a page on that origin.
+- Lumen's keyboard, the glasses' input method, sees what is typed in every field, as any
+  keyboard does; it keeps nothing, and logs no text.
 - Installs from outside the phone are confirmed on the glasses.
 - A package's site scripts run only in the `https://` sites it names, only while its app is in
   front, on GeckoView, and the confirmation names those sites.
