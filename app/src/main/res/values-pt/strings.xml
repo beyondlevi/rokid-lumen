@@ -284,6 +284,8 @@
     <string name="controls_battery_phone">Bateria do celular</string>
     <string name="controls_battery_unknown">–</string>
     <string name="status_wifi">Wi-Fi conectado</string>
+    <string name="status_bar_description">%1$s, bateria dos óculos %2$d%%</string>
+    <string name="status_bar_description_charging">%1$s, bateria dos óculos %2$d%%, carregando</string>
     <string name="update_banner_title">Lumen atualizado · %1$s</string>
     <string name="update_banner_text">As novidades estão no celular</string>
     <string name="controls_level">%1$d%%</string>

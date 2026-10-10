@@ -114,6 +114,7 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
 
         // The time at the top right, level with the tabs, and Wi-Fi's icon left of it while
         // connected (the phone's hotspot for a web app counts): as the glasses' status row.
+        // With the status bar on, the time is up there and only Wi-Fi's icon stays ([applyStatusBar]).
         clock = TextView(this).apply {
             setTextColor(MetaStyle.TEXT)
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, MetaStyle.textPx(context, 24f))
@@ -212,6 +213,8 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
             addAction(Intent.ACTION_TIMEZONE_CHANGED)
         })
         updateClock()
+        StatusBar.addListener(statusBarListener)
+        applyStatusBar()
         wifiNetworks.clear()
         updateWifi()
         runCatching {
@@ -237,6 +240,7 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
 
     override fun onPause() {
         runCatching { unregisterReceiver(clockReceiver) }
+        StatusBar.removeListener(statusBarListener)
         runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(wifiCallback) }
         BandAccessibilityService.clearInputTarget(this)
         NotificationInbox.removeListener(this)
@@ -249,6 +253,18 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
 
     private fun updateClock() {
         clock.text = android.text.format.DateFormat.getTimeFormat(this).format(java.util.Date())
+    }
+
+    private val statusBarListener: () -> Unit = { applyStatusBar() }
+
+    /** The status bar shows the time above the square: the home's own clock goes while it's on. */
+    private fun applyStatusBar() {
+        val bar = StatusBar.enabled(this)
+        clock.visibility = if (bar) View.GONE else View.VISIBLE
+        (wifi.layoutParams as? LinearLayout.LayoutParams)?.let {
+            it.marginEnd = if (bar) 0 else px(8f)
+            wifi.layoutParams = it
+        }
     }
 
     private fun updateWifi() {

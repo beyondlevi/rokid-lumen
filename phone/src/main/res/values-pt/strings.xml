@@ -214,6 +214,8 @@
     <string name="band_setting_power_saving">Economia de energia da banda</string>
     <string name="band_section_glasses">Óculos</string>
     <string name="band_setting_screen_timeout">Apagar a tela após</string>
+    <string name="band_setting_status_bar">Barra de status</string>
+    <string name="band_setting_status_bar_hint">A hora e a bateria dos óculos acima de qualquer app, fora da página.</string>
     <string name="band_option_screen_off_30">30 segundos</string>
     <string name="band_option_screen_off_60">1 minuto</string>
     <string name="band_option_screen_off_120">2 minutos</string>

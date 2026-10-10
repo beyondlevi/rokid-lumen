@@ -5,6 +5,13 @@
 
 ## [0.2.0-beta.21]
 
+### Glasses
+
+- **Status bar**: the time and the glasses' battery in the strip above the app, over any app
+  but the Rokid launcher (which has its own), so a page is never covered. The battery turns
+  amber at 20 % or less and shows a bolt while charging. Lumen's home moves its clock up there.
+  Turn it off in the companion's Glasses settings.
+
 ### Web apps
 
 - **No more blinking pages**: since beta.19 a page in any web app went black for a moment, and

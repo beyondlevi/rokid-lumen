@@ -43,6 +43,7 @@ object BandSettings {
     const val KEY_POWER_SAVING = "power_saving"
     const val KEY_SCREEN_TIMEOUT = "screen_timeout"
     const val KEY_LUMEN_KEYBOARD = "lumen_keyboard"
+    const val KEY_STATUS_BAR = "status_bar"
     private const val SCREEN_TIMEOUT_PREFIX = "screen_off."
     const val ACTION_RECONNECT = "reconnect"
     const val ACTION_FORGET = "forget"
@@ -164,6 +165,10 @@ object BandSettings {
             KEY_LUMEN_KEYBOARD, Setting.Kind.TOGGLE, "Lumen keyboard",
             GestureMappings.isLumenKeyboard(context).toString(), section = SECTION_GLASSES,
         )
+        settings += Setting(
+            KEY_STATUS_BAR, Setting.Kind.TOGGLE, "Status bar",
+            GestureMappings.showsStatusBar(context).toString(), section = SECTION_GLASSES,
+        )
         val actions = listOf(
             SettingsAction(ACTION_RESET_GESTURES, "Restore the default gestures"),
             SettingsAction(ACTION_RECONNECT, "Reconnect"),
@@ -224,6 +229,11 @@ object BandSettings {
                 val seconds = ScreenTimeout.CHOICES.firstOrNull { screenTimeoutId(it) == value } ?: return "unknown screen timeout $value"
                 GestureMappings.setScreenTimeout(context, seconds)
                 ScreenTimeout.apply(context)
+                return null
+            }
+            key == KEY_STATUS_BAR -> {
+                GestureMappings.setShowsStatusBar(context, value == "true")
+                StatusBar.changed()
                 return null
             }
             key == KEY_LUMEN_KEYBOARD -> {

@@ -87,6 +87,7 @@ public final class BandAccessibilityService extends AccessibilityService {
     private AccessibilityNavigator navigator;
     private NotificationBanner banner;
     private BandBatteryOverlay batteryOverlay;
+    private StatusBarOverlay statusBar;
     private SelfArmWirelessDebuggingAutomator selfArmWirelessDebuggingAutomator;
     private PowerManager powerManager;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -253,6 +254,9 @@ public final class BandAccessibilityService extends AccessibilityService {
         banner = new NotificationBanner(this);
         batteryOverlay = new BandBatteryOverlay(this);
         batteryOverlay.start();
+        // The time and the glasses' battery above any app (but the Rokid launcher).
+        statusBar = new StatusBarOverlay(this);
+        statusBar.start();
         PhoneLink.setAlertListener(notification -> banner.show(notification));
         AppUpdateNotice.showIfUpdated(this, banner);
         PhoneLink.start(this);
@@ -281,6 +285,10 @@ public final class BandAccessibilityService extends AccessibilityService {
             batteryOverlay.stop();
             batteryOverlay = null;
         }
+        if (statusBar != null) {
+            statusBar.stop();
+            statusBar = null;
+        }
         unregisterScreenStateReceiver();
         unregisterSimulateReceiver();
         if (selfArmWirelessDebuggingAutomator != null) {
@@ -296,6 +304,9 @@ public final class BandAccessibilityService extends AccessibilityService {
         SystemControls.onAccessibilityEvent(this, event);
         if (batteryOverlay != null) {
             batteryOverlay.onAccessibilityEvent(event);
+        }
+        if (statusBar != null) {
+            statusBar.onAccessibilityEvent(event);
         }
         if (selfArmWirelessDebuggingAutomator != null) {
             selfArmWirelessDebuggingAutomator.onAccessibilityEvent(event);

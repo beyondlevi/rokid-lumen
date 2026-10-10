@@ -1,0 +1,46 @@
+Piscadas nas páginas: medição nos óculos (Google Notícias aberto), 2026-10-10
+
+ANTES (0.2.0-beta.19.6, com o vigia de memória): brilho médio do quadrado do app (0-255) a cada captura
+19:15:47.006 57.1
+19:15:54.525 48.7
+19:15:58.501 0.0   <- preta
+19:16:01.881 67.8
+19:16:06.069 109.4
+19:16:10.275 0.0   <- preta
+19:16:13.709 75.6
+19:16:17.910 75.6
+19:16:22.112 0.0   <- preta
+19:16:25.776 0.0
+19:16:29.441 0.0
+
+Log do Lumen no mesmo intervalo:
+10-10 19:15:48.229 I/BandGecko: Memory low (306 MB free): asked Gecko to free memory
+10-10 19:15:58.259 I/BandGecko: Memory low (307 MB free): asked Gecko to free memory
+10-10 19:16:10.301 I/BandGecko: Memory low (332 MB free): asked Gecko to free memory
+10-10 19:16:20.344 I/BandGecko: Memory low (318 MB free): asked Gecko to free memory
+
+DEPOIS (0.2.0-beta.20.1, sem o vigia): mesma página, rolando e parando
+19:20:21.699 0.0   <- a página abrindo (carregando)
+19:20:27.169 33.3
+19:20:32.701 44.9
+19:20:38.461 46.1
+19:20:44.487 67.7
+19:20:50.536 85.0
+19:20:56.059 237.5
+19:21:01.574 183.4
+19:21:07.850 167.9
+19:21:14.672 180.8
+19:21:22.009 208.8
+19:21:29.052 218.6
+19:21:35.337 69.8
+19:21:41.622 46.1
+19:21:47.426 46.1
+19:21:53.168 46.1
+19:21:58.930 46.1
+19:22:04.706 46.1
+19:22:10.470 46.1
+19:22:16.522 46.1
+19:22:22.311 46.1
+19:22:28.579 46.1
+
+Log depois da instalação: 0 linhas "Memory low", 0 páginas perdidas (Page reopened).

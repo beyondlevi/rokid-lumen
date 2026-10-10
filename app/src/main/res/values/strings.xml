@@ -296,6 +296,8 @@
     <string name="controls_battery_phone">Phone battery</string>
     <string name="controls_battery_unknown">–</string>
     <string name="status_wifi">Wi-Fi connected</string>
+    <string name="status_bar_description">%1$s, glasses battery %2$d%%</string>
+    <string name="status_bar_description_charging">%1$s, glasses battery %2$d%%, charging</string>
     <string name="update_banner_title">Lumen updated · %1$s</string>
     <string name="update_banner_text">What\'s new is on your phone</string>
     <string name="controls_level">%1$d%%</string>
