@@ -100,6 +100,8 @@ services they work with; each README lists what you need and the risks.
 | **Unofficial Telegram for Lumen** | The same screens for Telegram, straight to Telegram over MTProto (GramJS), no server | Your own `api_id` and `api_hash` from my.telegram.org | [beyondlevi/lumen-telegram](https://github.com/beyondlevi/lumen-telegram) | GPL-3.0 |
 | **Reddit for Lumen** | Home, Popular, communities and inbox; posts, pictures and comments | Your Reddit session cookies (an optional Worker renews them) | [beyondlevi/lumen-reddit](https://github.com/beyondlevi/lumen-reddit) | MIT |
 | **Instagram for Lumen** | Reels and Direct: likes, saves, comments, replies by dictation, voice messages | A small bridge you run at home ([instagrapi](https://github.com/subzeroid/instagrapi)) | [beyondlevi/lumen-instagram](https://github.com/beyondlevi/lumen-instagram) | MIT |
+| **Calendar for Lumen** | Google Calendar: today and the next 7 days, an event with its guests, description and your reply, new events dictated or written with the band | Your own Google Cloud OAuth client and its refresh token (a script in the repository gets it) | [beyondlevi/lumen-calendar](https://github.com/beyondlevi/lumen-calendar) | MIT |
+| **Unofficial TickTick for Lumen** | Every pending task by day; complete, view, edit, delete and add tasks, dictated or written with the band | Your TickTick API token (Settings › Account › API Token) | [beyondlevi/lumen-lists](https://github.com/beyondlevi/lumen-lists) | MIT |
 
 Each one builds an offline package (`npm run package`, a `.mrbd.zip`); install it from the
 companion's Apps tab (**Add**, or **Replace the package** to update) and fill in its settings
@@ -109,6 +111,19 @@ your own: [docs/building-apps.md](docs/building-apps.md).
 | WhatsApp | Telegram | Reddit | Volund OS (private) |
 | --- | --- | --- | --- |
 | ![WhatsApp for Lumen: the chat list](docs/media/whatsapp-chats-lens.png) | ![Unofficial Telegram for Lumen: a group conversation](docs/media/telegram-thread-lens.png) | ![Reddit for Lumen: a post](docs/media/reddit-post-lens.png) | ![A Volund OS client: the conversations with agents](docs/media/volund-conversations-lens.png) |
+
+### Games
+
+Played with the band, and offline: they need neither a server nor the phone's internet. Install
+them the same way.
+
+| Game | How it plays | Source | License |
+| --- | --- | --- | --- |
+| **Goat Climb** | A mountain goat leaps from ledge to ledge: swipe left, up or right to jump, and climb through five phases that keep getting harder | [beyondlevi/lumen-goat-climb](https://github.com/beyondlevi/lumen-goat-climb) | MIT |
+| **2048** | The sliding-tiles classic: swipe to slide the tiles, merge equal ones and reach 2048; undo the last move, and the game waits, saved, for the next time | [beyondlevi/lumen-2048](https://github.com/beyondlevi/lumen-2048) | MIT |
+| **Four in a Row** | The classic against the computer: swipe to aim, swipe down to drop; three levels and a tally kept on the glasses | [beyondlevi/lumen-four-in-a-row](https://github.com/beyondlevi/lumen-four-in-a-row) | MIT |
+| **Goat Run** | An endless three-lane runner: swipe to change lanes, up to jump, down to slide, through zones that keep getting faster | [beyondlevi/lumen-goat-run](https://github.com/beyondlevi/lumen-goat-run) | MIT |
+| **Goat Crossing** | Hop across roads, rivers and rails, one swipe per hop, before the eagle catches up | [beyondlevi/lumen-goat-crossing](https://github.com/beyondlevi/lumen-goat-crossing) | MIT |
 
 ## Install
 

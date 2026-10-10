@@ -28,6 +28,11 @@ For coding agents there is a condensed version: [skills/lumen-app/SKILL.md](../s
   loads the page again when it's shown), so keep what the wearer was doing (the open chat, the
   post) in the URL or in storage.
 - **Animations run at 30 fps**, and an animated GIF plays once.
+- **A `<canvas>` can come back reset.** While the display sleeps, Android may end GeckoView's
+  GPU process. The page lives on, but a 2D canvas comes back with its context at the defaults:
+  no transform, no fill or font. A scale set once at load is gone, and the drawing comes back
+  too big and cut. Set the transform and the styles at the start of every frame (and redo the
+  sizing on `contextrestored`).
 
 ## Input
 
