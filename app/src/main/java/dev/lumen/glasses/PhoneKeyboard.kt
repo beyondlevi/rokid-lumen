@@ -10,17 +10,18 @@ import dev.lumen.protocol.Link
 import org.json.JSONObject
 
 /**
- * The companion's keyboard, typing into the web app in front ([WebAppActivity] while resumed):
- * the phone hears which text field has focus ([KeyboardField]) and sends the field's whole text
- * as it's typed ([KeyboardCommand]). While the phone's keyboard is open, Enter on a field
- * reaches the page instead of opening the dictation composer. A keyboard the phone stops
- * confirming (its screen gone without a word, the companion killed) is forgotten after
- * [KeyboardCommand.EXPIRY_MS]. Main thread.
+ * The companion's keyboard, typing into the field focused on the glasses through Lumen's input
+ * method ([LumenKeyboard], the [Target] while a text field has the input, in any app): the phone
+ * hears which field it is ([KeyboardField]) and sends the field's whole text as it's typed
+ * ([KeyboardCommand]). The field's text goes to the phone only while its keyboard is open (or
+ * the wearer asks for it, [ask]); otherwise the phone hears the field's name and type only. A
+ * keyboard the phone stops confirming (its screen gone without a word, the companion killed) is
+ * forgotten after [KeyboardCommand.EXPIRY_MS]. Main thread.
  */
 object PhoneKeyboard {
     private const val TAG = "BandKeyboard"
 
-    /** What a web app does with the phone's keyboard. */
+    /** What types for the phone: the input method's focused field. */
     interface Target {
         fun keyboardOpen(open: Boolean)
         fun keyboardText(text: String)
@@ -45,14 +46,14 @@ object PhoneKeyboard {
         }
     }
 
-    /** [target] is in front: it hears the keyboard's state now. */
+    /** [target] has a text field now: it hears the keyboard's state. */
     @JvmStatic
     fun attach(target: Target) {
         this.target = target
         target.keyboardOpen(open)
     }
 
-    /** [target] left the front: no field is focused for the phone any more. */
+    /** [target] lost its field: no field is focused for the phone any more. */
     @JvmStatic
     fun detach(target: Target) {
         if (this.target !== target) return
@@ -60,11 +61,18 @@ object PhoneKeyboard {
         blur()
     }
 
-    /** The page's focused field in [from], or its value again ([KeyboardField.SYNC]); only the app in front counts. */
+    /** The focused field in [from], or its text again ([KeyboardField.SYNC]); only the attached target counts. */
     @JvmStatic
     fun focus(from: Target, app: String, label: String, type: String, multiline: Boolean, value: String, reason: String) {
         if (from !== target) return
         report(KeyboardField(true, app, label, type.ifEmpty { "text" }, multiline, value, reason))
+    }
+
+    /** The wearer chose the phone's keyboard for the field: the phone offers to open it ([KeyboardField.ASK]). */
+    @JvmStatic
+    fun ask(from: Target, app: String, label: String, type: String, multiline: Boolean, value: String) {
+        if (from !== target) return
+        report(KeyboardField(true, app, label, type.ifEmpty { "text" }, multiline, value, KeyboardField.ASK), force = true)
     }
 
     @JvmStatic
@@ -107,10 +115,15 @@ object PhoneKeyboard {
         target?.keyboardOpen(next)
     }
 
+    /** Keeps the field whole here; what goes out leaves its text behind unless the phone types into it. */
     private fun report(next: KeyboardField, force: Boolean = false) {
-        val same = next == field
+        val sent = sendable(next)
+        val same = sent == sendable(field)
         field = next
         if (same && !force) return
-        PhoneLink.send(Link.KEYBOARD_FIELD, next.toJson())
+        PhoneLink.send(Link.KEYBOARD_FIELD, sent.toJson())
     }
+
+    private fun sendable(field: KeyboardField): KeyboardField =
+        if (open || field.reason == KeyboardField.ASK) field else field.copy(value = "")
 }

@@ -316,7 +316,8 @@ private enum class Tab(@StringRes val label: Int, val icon: ImageVector) {
 
 @Composable
 fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: String? = null) {
-    var tab by rememberSaveable { mutableStateOf(if (startPage != null) Tab.SETTINGS else Tab.HOME) }
+    // The keyboard is Home's page; the updates and their notes are Settings'.
+    var tab by rememberSaveable { mutableStateOf(if (startPage != null && startPage != PAGE_KEYBOARD) Tab.SETTINGS else Tab.HOME) }
     var page by rememberSaveable(startPage) { mutableStateOf(startPage) }
     androidx.activity.compose.BackHandler(enabled = page != null) {
         page = if (page?.startsWith(PAGE_NOTES) == true && tab == Tab.SETTINGS) PAGE_UPDATES else null

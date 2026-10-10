@@ -33,9 +33,10 @@ skill is the short version.
 4. **Back.** Handle `Escape` on `keydown` for in-app levels (close a dialog, go up) and call
    `event.preventDefault()` when you did. Don't prevent it at the top level: Lumen then goes back
    in history, or closes the app.
-5. **Text input.** `Enter` on a text field opens Lumen's dictation composer; the text arrives
-   through the value setter, `input`, then `change`. Don't build an on-screen keyboard. Don't
-   expect text on focus alone.
+5. **Text input.** Use real fields (`<input>`, `<textarea>`): Lumen's keyboard, the glasses'
+   input method, types into them (the index tap on a focused field opens it: dictation, band
+   handwriting, the phone). The text arrives as typing does (`input` events; `change` on blur or
+   Enter). Don't build an on-screen keyboard. Don't expect text on focus alone.
 6. **Settings from the phone.** Declare them in `lumen_config`; read them with
    `await window.lumen.config.get()`, follow them with `window.lumen.config.onChange(cb)`.
    Feature-detect `window.lumen` so the app also runs in a desktop browser.
@@ -99,8 +100,9 @@ another origin or inside a cross-origin iframe.
   where each app has its own context.
 - **Focus.** Nothing is focused at load: focus your first control in code. Keep one focused
   element at all times, or the arrow keys do nothing.
-- **Enter on a text field never reaches your `keydown` handler**: the composer takes it. Use a
-  separate button to submit.
+- **The band's index tap on a focused text field never reaches your `keydown` handler**: Lumen's
+  keyboard takes it. The field's own Enter (the keyboard's action button, the phone's Send) does
+  arrive as `Enter`, so a form submits; a separate button works too.
 - **`Escape` arrives as a synthetic event** on `document.activeElement`; listen on `keydown`
   (bubbling to `document` is fine). Handling only `keyup` doesn't stop Lumen's Back.
 - **Offline apps can't navigate to another origin.** Links out open nowhere. Fetching is fine

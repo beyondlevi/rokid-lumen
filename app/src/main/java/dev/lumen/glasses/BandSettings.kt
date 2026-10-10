@@ -42,6 +42,7 @@ object BandSettings {
     const val KEY_LAUNCHER_BATTERY = "launcher_battery"
     const val KEY_POWER_SAVING = "power_saving"
     const val KEY_SCREEN_TIMEOUT = "screen_timeout"
+    const val KEY_LUMEN_KEYBOARD = "lumen_keyboard"
     private const val SCREEN_TIMEOUT_PREFIX = "screen_off."
     const val ACTION_RECONNECT = "reconnect"
     const val ACTION_FORGET = "forget"
@@ -159,6 +160,10 @@ object BandSettings {
             KEY_SCREEN_TIMEOUT, Setting.Kind.CHOICE, "Screen off after", screenTimeoutId(GestureMappings.screenTimeout(context)),
             ScreenTimeout.CHOICES.map { SettingOption(screenTimeoutId(it), screenTimeoutTitle(it)) }, SECTION_GLASSES,
         )
+        settings += Setting(
+            KEY_LUMEN_KEYBOARD, Setting.Kind.TOGGLE, "Lumen keyboard",
+            GestureMappings.isLumenKeyboard(context).toString(), section = SECTION_GLASSES,
+        )
         val actions = listOf(
             SettingsAction(ACTION_RESET_GESTURES, "Restore the default gestures"),
             SettingsAction(ACTION_RECONNECT, "Reconnect"),
@@ -219,6 +224,12 @@ object BandSettings {
                 val seconds = ScreenTimeout.CHOICES.firstOrNull { screenTimeoutId(it) == value } ?: return "unknown screen timeout $value"
                 GestureMappings.setScreenTimeout(context, seconds)
                 ScreenTimeout.apply(context)
+                return null
+            }
+            key == KEY_LUMEN_KEYBOARD -> {
+                GestureMappings.setLumenKeyboard(context, value == "true")
+                // Without the self-arm the switch is kept for when it's done.
+                KeyboardDefault.apply(context)
                 return null
             }
             key == SettingsOps.KEY_WIRELESS_DEBUG -> {

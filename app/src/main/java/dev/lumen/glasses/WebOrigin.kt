@@ -50,17 +50,17 @@ object WebOrigin {
     }
 
     /**
-     * The page messages about typing: the page is ready, a field got or lost the focus, Enter
-     * on a field asks for the composer. An online app's page on another site sends them too,
-     * because signing in often happens there (a Google sign-in page in a YouTube app), and the
-     * wearer types into it with the phone's keyboard or the composer.
+     * The one page message another site's page may send: it's ready. An online app's page on
+     * another HTTPS site (a Google sign-in page in a YouTube app) then gets the band navigation's
+     * state ([navigationPage]), so the band moves through it. Typing there needs nothing from the
+     * bridge: Lumen's keyboard is the glasses' input method, on any page.
      */
-    private val TYPING = setOf("hello", "openComposer", "noTextField", "textFocus", "textBlur")
+    private const val READY = "hello"
 
     /**
      * Whether a page message of [type] from [sender] is heard while the session shows [pageUrl]:
      * any message from the app's own origin (a page with no origin yet doesn't rule it out), and
-     * typing from the page an online app shows on another HTTPS site. The app's settings (which
+     * [READY] from the page an online app shows on another HTTPS site. The app's settings (which
      * may hold secrets), the microphone, speech, installing and Back stay with the app's origin.
      */
     @JvmStatic
@@ -68,15 +68,16 @@ object WebOrigin {
         val appOrigin = ofApp(app)
         val page = of(pageUrl)
         if (matches(sender, appOrigin) && (page.isEmpty() || page == appOrigin)) return true
-        return type in TYPING && typingPage(pageUrl, app) && of(sender) == page
+        return type == READY && navigationPage(pageUrl, app) && of(sender) == page
     }
 
     /**
-     * Whether the page the session shows may type with the host's help: the app's own, or for an
-     * online app any HTTPS page it went to.
+     * Whether the page the session shows gets the band navigation's state (whether there's
+     * history behind it, the navigation on): the app's own, or for an online app any HTTPS page
+     * it went to.
      */
     @JvmStatic
-    fun typingPage(pageUrl: String?, app: WebApp): Boolean {
+    fun navigationPage(pageUrl: String?, app: WebApp): Boolean {
         val page = of(pageUrl)
         if (page.isEmpty() || page == ofApp(app)) return true
         return !app.offline && page.startsWith("https://")

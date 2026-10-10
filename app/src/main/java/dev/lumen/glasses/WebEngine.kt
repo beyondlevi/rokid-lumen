@@ -7,14 +7,13 @@ import android.view.View
  * on the Rokid) or GeckoView ([GeckoWebEngine]). Both show a 600x600 CSS pixel viewport in the
  * HUD's square, inject assets/mrbd-shim.js before the app's scripts and bridge the shim's
  * `MrbdHost` calls to [Host]; the activity keeps what doesn't depend on the engine (the band,
- * the composer, speech).
+ * speech). Typing isn't theirs: Lumen's keyboard ([LumenKeyboard]) is the input method of both.
  */
 interface WebEngine {
     /** What the page asks of the app, through the shim. Called on the main thread. */
     interface Host {
         /** The shim's Back found nothing to do (no Escape handler, no navigation). */
         fun onBackUnhandled()
-        fun onOpenComposer(value: String, multiline: Boolean)
         fun onInstall(url: String, name: String)
         fun onSpeak(id: Int, text: String, lang: String, rate: Float, pitch: Float)
         fun onCancelSpeech()
@@ -29,12 +28,6 @@ interface WebEngine {
 
         /** A `window.lumen.audio` request from the page at [pageUrl] ([GlassesAudio]). */
         fun onAudio(message: org.json.JSONObject, pageUrl: String?)
-
-        /** A text field got focus, or its value was read again ([PhoneKeyboard]). */
-        fun onTextFocus(value: String, type: String, multiline: Boolean, label: String, reason: String)
-
-        /** No text field has focus any more. */
-        fun onTextBlur()
 
         /** The page's process died again soon after a reload: it waits for [retry] ([held]). */
         fun onPageHeld()
@@ -60,17 +53,6 @@ interface WebEngine {
     /** Goes back in the session history; false when there's nothing behind. */
     fun historyBack(): Boolean
 
-    fun composerInput(text: String)
-    fun composerClose()
-
-    /** Whether the phone's keyboard is open: Enter on a field then reaches the page. */
-    fun keyboardState(open: Boolean)
-
-    /** The phone keyboard's text, the focused field's whole value. */
-    fun keyboardInput(text: String)
-
-    /** Has the page report its focused field again ([Host.onTextFocus], reason sync). */
-    fun keyboardSync()
     fun speechEvent(id: String, type: String, code: String?)
 
     /** The answer to [Host.onGetConfig], for the page at [origin] only. */

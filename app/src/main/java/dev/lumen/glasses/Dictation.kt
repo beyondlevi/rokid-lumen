@@ -23,7 +23,7 @@ import kotlin.concurrent.thread
  * zeros on the glasses; the glasses' microphone reaches apps only on the phone, over CXR-L
  * (as Rokid Nexus does). Kept for devices where a local AudioRecord works.
  *
- * Offline speech to text for the web app composer, on Vosk (Kaldi): the glasses have no
+ * Offline speech to text for Lumen's keyboard ([LumenKeyboard]), on Vosk (Kaldi): the glasses have no
  * RecognitionService, and dictation must work without Wi-Fi. The Portuguese small model
  * (~31 MB) is downloaded once into the app's files and loaded once per process.
  */
@@ -34,7 +34,7 @@ object Dictation {
     private const val SAMPLE_RATE = 16_000f
 
     interface Listener {
-        /** Model download or loading progress, for the composer's status line. */
+        /** Model download or loading progress, for the keyboard's status line. */
         fun onStatus(status: String)
         fun onPartial(text: String)
 

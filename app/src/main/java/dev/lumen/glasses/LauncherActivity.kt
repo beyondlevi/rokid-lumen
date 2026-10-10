@@ -153,6 +153,20 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
             marginStart = px(24f)
             marginEnd = px(24f)
         })
+        // The open notification's hint goes in the strip under the square (the HUD is 480 x 640),
+        // centred in it; a screen without one has no room for it.
+        val strip = (metrics.heightPixels - side) / 2
+        if (strip >= px(HINT_HEIGHT + 8f)) {
+            root.addView(notifications.hint, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, px(HINT_HEIGHT), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                bottomMargin = (strip - px(HINT_HEIGHT)) / 2
+            })
+        }
+        // A notification's picture full screen has the square to itself: no tabs, no clock.
+        notifications.onFullScreen = { full ->
+            val shown = if (full) View.INVISIBLE else View.VISIBLE
+            pill.visibility = shown
+            statusRow.visibility = shown
+        }
         setContentView(root)
 
         tab = requestedTab(intent) ?: lastTab
@@ -207,6 +221,8 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         BandAccessibilityService.setInputTarget(this)
         NotificationInbox.addListener(this)
         GridStore.addListener(this)
+        // The self-arm may have finished since, or Rokid's assistant taken the keyboard back.
+        KeyboardDefault.apply(this)
         pages[tab].onShow()
         refreshApps()
         refreshDot()
@@ -367,6 +383,10 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // A notification's reply field has the focus: Enter from the input method is its send.
+        if (currentFocus is android.widget.EditText && (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
+            return super.dispatchKeyEvent(event)
+        }
         val command = when (event.keyCode) {
             KeyEvent.KEYCODE_DPAD_UP -> BandCommand.UP
             KeyEvent.KEYCODE_DPAD_DOWN -> BandCommand.DOWN
@@ -435,6 +455,8 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
         private const val FADE_MS = 300L
         private val EASE = android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f)
         private const val STATUS_MS = 6_000L
+        /** The notifications' hint pill under the square (the canvas's 40 px strip). */
+        private const val HINT_HEIGHT = 50f
         /** The tab the home was last on, while the process lives. */
         private var lastTab = TAB_APPS
     }

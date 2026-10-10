@@ -6,9 +6,10 @@ import dev.lumen.protocol.Link
 import dev.lumen.protocol.NotifyCommand
 
 /**
- * Quick replies to a phone notification: sent to the companion, which answers through the
- * notification's own reply action (a reaction is its emoji, as text). Main thread only. The
- * outcome comes back as [onReplied]; with no answer in [TIMEOUT_MS] it counts as failed.
+ * Replies to a phone notification, quick ones and the reply field's text ([ReplyRow]): sent to
+ * the companion, which answers through the notification's own reply action (a reaction is its
+ * emoji, as text). Main thread only. The outcome comes back as [onReplied]; with no answer in
+ * [TIMEOUT_MS] it counts as failed.
  */
 object NotificationReplies {
     private const val TIMEOUT_MS = 20_000L

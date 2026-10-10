@@ -41,7 +41,8 @@ import java.util.concurrent.Executor
  * The bridge acts only while the WebView shows a page on the app's origin ([WebOrigin]): the
  * checks read the main frame's address, since `addJavascriptInterface` can't tell which frame
  * called (a cross-origin iframe inside the app's own page still reaches `MrbdHost`; GeckoView's
- * bridge, top frame only, doesn't have that gap).
+ * bridge, top frame only, doesn't have that gap). Its fields type with the glasses' input method,
+ * Lumen's keyboard ([LumenKeyboard]), as the WebView asks for it.
  */
 class SystemWebEngine(
     private val activity: Activity,
@@ -169,25 +170,6 @@ class SystemWebEngine(
         return true
     }
 
-    override fun composerInput(text: String) =
-        evaluateOnAppPage("window.__mrbdComposerInput && window.__mrbdComposerInput(${JSONObject.quote(text)})")
-
-    override fun composerClose() =
-        evaluateOnAppPage("window.__mrbdComposerClose && window.__mrbdComposerClose()")
-
-    /** Read by the shim (from a binder thread) when Enter lands on a field. */
-    @Volatile private var phoneKeyboard = false
-
-    override fun keyboardState(open: Boolean) {
-        phoneKeyboard = open
-    }
-
-    override fun keyboardInput(text: String) =
-        evaluateOnAppPage("window.__mrbdKeyboardInput && window.__mrbdKeyboardInput(${JSONObject.quote(text)})")
-
-    override fun keyboardSync() =
-        evaluateOnAppPage("window.__mrbdKeyboardSync && window.__mrbdKeyboardSync()")
-
     override fun speechEvent(id: String, type: String, code: String?) {
         val codeJs = if (code == null) "null" else JSONObject.quote(code)
         evaluateOnAppPage("window.__mrbdSpeech && window.__mrbdSpeech(${id.toIntOrNull() ?: 0}, ${JSONObject.quote(type)}, $codeJs)")
@@ -250,22 +232,6 @@ class SystemWebEngine(
 
         @JavascriptInterface
         fun cancelSpeech() = fromAppPage("cancelSpeech") { host.onCancelSpeech() }
-
-        @JavascriptInterface
-        fun openComposer(value: String?, multiline: Boolean) = fromAppPage("openComposer") {
-            host.onOpenComposer(value.orEmpty(), multiline)
-        }
-
-        @JavascriptInterface
-        fun phoneKeyboard(): Boolean = phoneKeyboard
-
-        @JavascriptInterface
-        fun textFocus(value: String?, type: String?, multiline: Boolean, label: String?, reason: String?) = fromAppPage("textFocus") {
-            host.onTextFocus(value.orEmpty(), type.orEmpty(), multiline, label.orEmpty(), reason.orEmpty())
-        }
-
-        @JavascriptInterface
-        fun textBlur() = fromAppPage("textBlur") { host.onTextBlur() }
 
         @JavascriptInterface
         fun getConfig(id: Int) = fromAppPage("getConfig") { host.onGetConfig(id, web.url) }

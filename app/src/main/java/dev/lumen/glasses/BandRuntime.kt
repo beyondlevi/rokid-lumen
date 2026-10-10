@@ -135,7 +135,7 @@ object BandRuntime {
         return start(context, current)
     }
 
-    /** Who hears the band's handwriting (the composer while it writes). */
+    /** Who hears the band's handwriting (Lumen's keyboard while it writes, [LumenKeyboard]). */
     fun interface HandwritingListener {
         fun onHandwriting(event: JSONObject)
     }

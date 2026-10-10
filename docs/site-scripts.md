@@ -49,8 +49,9 @@ How it picks:
 - **Fixed bars:** a site's fixed or sticky bars (YouTube's top bar and bottom tabs) are skipped
   while the content can still scroll that way, and reached at the page's end, or from another
   bar's item. From a bar, nothing scrolls.
-- **Text fields:** a ringed text field gets the focus, so Enter opens Lumen's composer (dictation
-  or band handwriting); moving away blurs it.
+- **Text fields:** a ringed text field (a password too) gets the focus, so Lumen's keyboard shows
+  its hint and the index tap opens it (dictation, band handwriting or the phone); moving away
+  blurs it.
 - **The ring goes** when the page navigates away, when its element leaves the page or turns
   invisible, and while it's scrolled off screen (it comes back with it). The next swipe after
   it's gone starts from the first visible clickable again.
@@ -85,7 +86,8 @@ handled). Handlers added later are asked first; the first that returns `true` en
   key gets `preventDefault()` and `stopImmediatePropagation()`, so no listener of the page's
   sees its `keydown` or its `keyup`. `event` is that `keydown`.
 - `'enter'` isn't offered while a text field (or a password) has the focus: Enter there is the
-  composer's.
+  field's own (the keyboard's Enter, its action). The band's index tap on a focused field opens
+  Lumen's keyboard before it reaches the page.
 - `'back'` (the middle tap) comes without an event, before the Escape that Back sends the page.
   Handled, Back is done: no Escape, and the app stays where it is.
 - A handler that throws is logged (`[Lumen] band handler failed on <key>`) and counts as not

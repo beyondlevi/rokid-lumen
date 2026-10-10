@@ -3,6 +3,7 @@ package dev.lumen.glasses
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
+import dev.lumen.protocol.NotificationPicture
 
 /** A phone notification as the glasses show it. Held in memory only. */
 data class PhoneNotification(
@@ -22,6 +23,11 @@ data class PhoneNotification(
     val replyable: Boolean = false,
     /** The conversation's shortcut id on the phone ("" if none): WhatsApp's is the chat's JID. */
     val shortcut: String = "",
+    /**
+     * The pictures it shows, oldest first (none when its content stays on the phone): named
+     * only, the phone sends one when it's opened ([NotificationPictures]).
+     */
+    val pictures: List<NotificationPicture> = emptyList(),
 ) {
     companion object {
         /** The last [count] non-blank lines of [text] (a chat's last messages), oldest first. */

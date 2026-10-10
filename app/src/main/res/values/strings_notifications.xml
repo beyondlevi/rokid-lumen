@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- A notification's pictures (the phone sends one when it's opened). -->
+    <string name="notification_picture">Photo</string>
+    <string name="notification_picture_loading">Loading the photo…</string>
+    <string name="notification_picture_description">Photo from %1$s</string>
+    <!-- The photo didn't come: the phone's app keeps it to itself, or the link failed. -->
+    <string name="notification_picture_denied">Only on the phone</string>
+    <string name="notification_picture_retry">Index: try again</string>
+    <!-- Full screen: who sent it, and which of how many. -->
+    <string name="notification_picture_position">%1$s · %2$d of %3$d</string>
+    <string name="notification_picture_hint">← →: other photo · Middle: back</string>
+    <string name="notification_picture_hint_single">Middle: back</string>
+
+    <!-- The reply field under an open notification, sent through the phone's reply action. -->
+    <string name="notification_reply_placeholder">Reply to %1$s</string>
+    <string name="notification_reply_send">Send</string>
+    <string name="notification_reply_field_hint">Index: dictate, write or phone</string>
+    <string name="notification_reply_send_hint">Index: send · ←: edit</string>
+    <string name="notification_reply_retry_hint">Index: try again</string>
+    <string name="notification_reply_via_phone">Via the phone</string>
+</resources>

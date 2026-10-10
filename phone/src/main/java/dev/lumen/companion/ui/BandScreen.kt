@@ -507,7 +507,9 @@ private fun GlassesSettingsTab(state: CompanionUiState, actions: CompanionAction
                 val title = BandLabels.setting(setting.key)?.let { stringResource(it) } ?: setting.label
                 when (setting.kind) {
                     Setting.Kind.TOGGLE -> SwitchRow(
-                        title, if (setting.key in sending) stringResource(R.string.band_sending) else null, setting.checked,
+                        title,
+                        if (setting.key in sending) stringResource(R.string.band_sending) else BandLabels.description(setting.key)?.let { stringResource(it) },
+                        setting.checked,
                         { actions.setBandSetting(setting.key, it.toString()) },
                     )
                     Setting.Kind.CHOICE -> ListRow(

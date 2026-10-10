@@ -170,7 +170,8 @@ class CompanionService : Service() {
             ACTION_NET_UP -> network.up(intent.getLongExtra("lease_ms", PhoneNetwork.LEASE_MS))
             ACTION_NET_DOWN -> network.down()
             ACTION_BENCH -> bench(intent.getIntExtra("size", 4096), intent.getIntExtra("count", 64))
-            ACTION_TEST_NOTIFICATION -> TestReplyReceiver.post(this)
+            // `--ez picture false`: the test notification without its picture.
+            ACTION_TEST_NOTIFICATION -> TestReplyReceiver.post(this, picture = intent.getBooleanExtra("picture", true))
             ACTION_COLLECT_LOGS -> LogShare.start(this)
             ACTION_DICTATE_FILE -> dictateFile(File(filesDir, intent.getStringExtra("file") ?: "speech.pcm"))
             ACTION_WRITE_TEXT -> Log.d(TAG, "Simulated writing: ${PhoneBand.simulateWriting(intent.getStringExtra("text").orEmpty())}")
@@ -223,6 +224,7 @@ class CompanionService : Service() {
                     main.post {
                         cancelListening("session unavailable")
                         audio.reset()
+                        PictureTransfer.reset()
                     }
                 }
             },
@@ -334,7 +336,9 @@ class CompanionService : Service() {
                 NotifyCommand.snoozeUntil(json)?.let { until -> main.post { PhoneSnooze.onState(until) } }
                 NotifyCommand.dismissedKeys(json)?.let { keys -> NotificationForwarder.dismiss(keys) }
                 NotifyCommand.replyOf(json)?.let { (key, text) -> NotificationForwarder.reply(this, key, text) }
+                NotifyCommand.pictureOf(json)?.let { request -> PictureTransfer.onRequest(this, request) }
             }
+            Link.PICTURE -> PictureTransfer.onMessage(json)
             Link.AUDIO -> audio.onMessage(json, Protocol.binary(data))
             Link.LOGS_EVENT -> LogShare.onGlassesEvent(json, Protocol.binary(data))
             Link.KEYBOARD_FIELD -> main.post { KeyboardLink.onGlassesField(json) }
@@ -763,6 +767,19 @@ class CompanionService : Service() {
             if (service.link == null) return false
             service.main.post { service.sendNotify(json) }
             return true
+        }
+
+        /**
+         * A notification picture's header or chunk ([bytes]) for the glasses
+         * ([dev.lumen.protocol.PictureOps]), on the main thread; false while the link is down.
+         */
+        fun sendPicture(json: JSONObject, bytes: ByteArray? = null): Boolean {
+            val service = instance ?: return false
+            val cxr = service.link ?: return false
+            val caps = Protocol.encode(json).apply { if (bytes != null) write(bytes) }
+            val result = runCatching { cxr.sendCustomCmd(Link.PICTURE_EVENT, caps) }
+            if (bytes == null) Log.d(TAG, "→ glasses picture ${json.optString("type")} ok=${json.optBoolean("ok")} = ${result.getOrNull() ?: result.exceptionOrNull()?.message}")
+            return result.getOrNull() == 0
         }
 
         /** A settings request for the glasses ([SettingsOps]); false while the link is down. */

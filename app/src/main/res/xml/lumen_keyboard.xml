@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lumen's keyboard (LumenKeyboard): no subtypes, and no switching to the next input method
+     from it (the band has no key for that; the phone's Glasses settings turn it off). -->
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:supportsSwitchingToNextInputMethod="false" />

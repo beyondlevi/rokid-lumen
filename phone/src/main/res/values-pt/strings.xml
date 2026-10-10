@@ -445,12 +445,12 @@
     <string name="apps_rename_title">Renomear %1$s</string>
     <string name="apps_copy_dialog_hint">Ela começa sem ajustes e sem dados: configure como um app novo.</string>
     <string name="keyboard_title">Teclado</string>
-    <string name="home_keyboard_no_field">Digite num web app dos óculos</string>
+    <string name="home_keyboard_no_field">Digite num campo dos óculos</string>
     <string name="keyboard_typing_into">Digitando em %1$s · %2$s</string>
-    <string name="keyboard_no_field">Nenhum campo de texto em foco nos óculos. Escolha um no web app; o que você digitar aqui vai para ele.</string>
+    <string name="keyboard_no_field">Nenhum campo de texto em foco nos óculos. Escolha um lá, em qualquer app; o que você digitar aqui vai para ele.</string>
     <string name="keyboard_no_link">Os óculos não estão conectados.</string>
     <string name="keyboard_enter">Enter</string>
-    <string name="keyboard_hint">O que você digita aparece nos óculos na hora. Com esta tela aberta, Enter num campo lá vai para o app em vez de abrir o ditado.</string>
+    <string name="keyboard_hint">O que você digita aparece nos óculos na hora. O Enter é o do próprio campo lá: pesquisa, envia ou vai para o próximo campo.</string>
     <string name="keyboard_field_text">um campo de texto</string>
     <string name="keyboard_field_password">uma senha</string>
     <string name="home_keyboard_field">Campo em foco: %1$s · %2$s</string>

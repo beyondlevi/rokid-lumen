@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lumen's keyboard on the glasses, seen from the phone: its setting, and the notice when the
+     glasses ask for this phone's keyboard (KeyboardLink). -->
+<resources>
+    <string name="band_setting_lumen_keyboard">Lumen keyboard</string>
+    <string name="band_setting_lumen_keyboard_hint">Dictate, write with the band or type on this phone in any field of the glasses. Off: Rokid\'s keyboard.</string>
+    <string name="keyboard_notice_channel">Glasses keyboard</string>
+    <string name="keyboard_notice_title">The glasses ask for the keyboard</string>
+    <!-- %1$s: the field ("Search", "a password"); %2$s: the app on the glasses. -->
+    <string name="keyboard_notice_text">Type into %1$s · %2$s</string>
+    <string name="keyboard_notice_text_field">Type into %1$s</string>
+</resources>

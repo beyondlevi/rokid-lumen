@@ -321,6 +321,13 @@ object GestureMappings {
     fun setShowsLauncherBattery(context: Context, show: Boolean) =
         prefs(context).edit().putBoolean("launcher_battery", show).apply()
 
+    /** Lumen's keyboard is the glasses' input method ([KeyboardDefault]); on by default, off gives Rokid's back. */
+    @JvmStatic
+    fun isLumenKeyboard(context: Context): Boolean = prefs(context).getBoolean("lumen_keyboard", true)
+
+    @JvmStatic
+    fun setLumenKeyboard(context: Context, on: Boolean) = prefs(context).edit().putBoolean("lumen_keyboard", on).apply()
+
     /** Fast mode: repeated swipes on the launcher move two apps at a time (R08's Fast mode). */
     @JvmStatic
     fun isFastNavigation(context: Context): Boolean = prefs(context).getBoolean("fast_navigation", false)
