@@ -141,9 +141,10 @@ An official API, if Meta publishes one, would be a third implementation of the s
 <!-- media: grid -->
 ![The home's Apps tab: the tabs pill, the time and Wi-Fi, and the apps grid](media/grid.png)
 
-Rokid Lumen's icon on the Rokid launcher opens the home, on top of the Rokid launcher. The time
-sits at the top right, level with the tabs, with Wi-Fi's icon beside it while the glasses are on
-Wi-Fi (the phone's hotspot for a web app included). It is the UI Toolkit's SubNavigationPager: a pill of three tabs at the top, **Notifications**,
+Rokid Lumen's icon on the Rokid launcher opens the home, on top of the Rokid launcher. Wi-Fi's
+icon sits at the top right, level with the tabs, while the glasses are on Wi-Fi (the phone's
+hotspot for a web app included); the time is in the status bar above (below), or beside the
+Wi-Fi icon with the status bar off. It is the UI Toolkit's SubNavigationPager: a pill of three tabs at the top, **Notifications**,
 **Apps** and **Controls**, over a page that slides from one to the next.
 
 - **Notifications**: the phone's notification inbox (below). A dot on its tab icon says
@@ -161,6 +162,14 @@ from a page's top, or left (right) from its edge, comes back out, as the toolkit
 handoff does. The middle tap goes back a level, then to the tabs; it never leaves Lumen (the
 Controls tab's Rokid launcher tile does). A banner's index tap opens the Notifications tab on that
 notification.
+
+### The status bar
+
+The time and the glasses' battery, small and grey, in the strip above the app's square, over
+any app but the Rokid launcher (its own status row has both). Apps live in the square, so the
+bar never covers a page, a notification or the keyboard's hint (in the strip under the square).
+The battery turns amber at 20 % or less and shows a bolt while charging. It takes no focus and
+no touch. The companion's **Glasses** settings turn it off (**Status bar**).
 
 ### The Controls tab
 

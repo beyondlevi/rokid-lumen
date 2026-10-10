@@ -321,6 +321,14 @@ object GestureMappings {
     fun setShowsLauncherBattery(context: Context, show: Boolean) =
         prefs(context).edit().putBoolean("launcher_battery", show).apply()
 
+    /** The time and the glasses' battery above any app ([StatusBar]); on by default. */
+    @JvmStatic
+    fun showsStatusBar(context: Context): Boolean = prefs(context).getBoolean("status_bar", true)
+
+    @JvmStatic
+    fun setShowsStatusBar(context: Context, show: Boolean) =
+        prefs(context).edit().putBoolean("status_bar", show).apply()
+
     /** Lumen's keyboard is the glasses' input method ([KeyboardDefault]); on by default, off gives Rokid's back. */
     @JvmStatic
     fun isLumenKeyboard(context: Context): Boolean = prefs(context).getBoolean("lumen_keyboard", true)

@@ -221,6 +221,8 @@
     <string name="band_setting_power_saving">Band power saving</string>
     <string name="band_section_glasses">Glasses</string>
     <string name="band_setting_screen_timeout">Screen off after</string>
+    <string name="band_setting_status_bar">Status bar</string>
+    <string name="band_setting_status_bar_hint">The time and the glasses\' battery above any app, outside the page.</string>
     <string name="band_option_screen_off_30">30 seconds</string>
     <string name="band_option_screen_off_60">1 minute</string>
     <string name="band_option_screen_off_120">2 minutes</string>

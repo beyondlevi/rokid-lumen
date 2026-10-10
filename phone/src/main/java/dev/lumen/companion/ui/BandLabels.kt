@@ -31,6 +31,7 @@ object BandLabels {
         "power_saving" to R.string.band_setting_power_saving,
         "screen_timeout" to R.string.band_setting_screen_timeout,
         "lumen_keyboard" to R.string.band_setting_lumen_keyboard,
+        "status_bar" to R.string.band_setting_status_bar,
         // The phone's own (PhoneSettings).
         "phone.swipe_up" to R.string.phone_gesture_swipe_up,
         "phone.swipe_down" to R.string.phone_gesture_swipe_down,
@@ -133,6 +134,7 @@ object BandLabels {
     /** A line under a setting that says what it does, by setting key. */
     private val descriptions = mapOf(
         "lumen_keyboard" to R.string.band_setting_lumen_keyboard_hint,
+        "status_bar" to R.string.band_setting_status_bar_hint,
     )
 
     /** A slider's hint and the words at its two ends, by setting key. */
