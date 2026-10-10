@@ -75,6 +75,18 @@
             as it does in builds without the helper.
         -->
         <service
+            android:name=".LumenKeyboard"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/lumen_keyboard" />
+        </service>
+        <service
             android:name="org.mozilla.gecko.crashhelper.CrashHelper"
             android:enabled="false"
             tools:replace="android:enabled" />

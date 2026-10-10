@@ -139,7 +139,13 @@ class GeckoWebEngine(
         // composer on it; the shim sends any other field (a password) back to the keyboard.
         session.textInput.setDelegate(object : GeckoSession.TextInputDelegate by keyboard {
             override fun showSoftInput(s: GeckoSession) {
-                if (!post(JSONObject().put("type", "keyboardWanted"), typing = true)) keyboard.showSoftInput(s)
+                Log.d(TAG, "SPIKE: Gecko asks for the keyboard: straight to the input method")
+                keyboard.showSoftInput(s)
+            }
+
+            override fun restartInput(s: GeckoSession, reason: Int) {
+                Log.d(TAG, "SPIKE: Gecko restarts input (reason $reason)")
+                keyboard.restartInput(s, reason)
             }
         })
         // A TextureView, not the default SurfaceView: Gecko's surface otherwise covers the
