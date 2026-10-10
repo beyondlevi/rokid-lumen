@@ -67,6 +67,7 @@ class GeckoWebEngine(
      */
     private val shownLosses = ArrayDeque<Long>()
     private var isHeld = false
+    private var lastLossAt = -SAME_EVENT_MS
     private var visible = false
     private val geckoRuntime = runtime(activity, side.toFloat() / WebEngine.MRBD_VIEWPORT)
     private val startedAt = SystemClock.elapsedRealtime()
@@ -167,6 +168,15 @@ class GeckoWebEngine(
 
     private fun pageGone(how: String) {
         val now = SystemClock.elapsedRealtime()
+        // One shortage can take a page and its other-site frames' processes together: Gecko then
+        // reports each (measured: two kills 20 ms apart). They count as one.
+        if (visible && now - lastLossAt < SAME_EVENT_MS) {
+            Log.w(TAG, "The page's process was $how (the same shortage)")
+            pageLost = true
+            if (!isHeld) reloadLost()
+            return
+        }
+        if (visible) lastLossAt = now
         if (visible) {
             shownLosses.addLast(now)
             while (now - shownLosses.first() > LOSS_WINDOW_MS) shownLosses.removeFirst()
@@ -449,6 +459,8 @@ class GeckoWebEngine(
         /** Two deaths of a shown page within this hold it ([held]). */
         private const val LOSS_WINDOW_MS = 120_000L
         private const val LOSSES_TO_HOLD = 2
+        /** Deaths reported this close to the previous one are the same shortage. */
+        private const val SAME_EVENT_MS = 5_000L
         /** Every id the shim has had starts with this (the earlier one: mrbd-host@airgestures.dev). */
         private const val EXTENSION_PREFIX = "mrbd-host@"
         private var runtime: GeckoRuntime? = null
