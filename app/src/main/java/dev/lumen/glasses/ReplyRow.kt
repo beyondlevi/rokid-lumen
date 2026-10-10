@@ -183,10 +183,21 @@ class ReplyRow(private val activity: Activity, private val onSend: (String) -> U
     /** Android's focus off the field and the input method down; what's typed stays. */
     fun releaseField() {
         val had = input.hasFocus()
-        if (had) imm?.hideSoftInputFromWindow(input.windowToken, 0)
+        // Android keeps serving a field until another view takes the focus, even unfocused: a
+        // later setText (the field cleared after a reply) would start the keyboard on it again.
+        val served = imm?.isActive(input) == true
+        if (had || served) imm?.hideSoftInputFromWindow(input.windowToken, 0)
         input.isFocusableInTouchMode = false
         input.isFocusable = false
         if (had) input.clearFocus()
+        if (had || served) {
+            // The row takes the focus (no text field there), and Lumen's keyboard lets the index
+            // tap be the page's again (the send button's).
+            view.isFocusable = true
+            view.isFocusableInTouchMode = true
+            view.requestFocus()
+            LumenKeyboard.fieldReleased()
+        }
     }
 
     private fun sendNow() {

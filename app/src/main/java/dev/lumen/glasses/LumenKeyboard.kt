@@ -133,13 +133,19 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
     }
 
     override fun onFinishInput() {
+        leaveField()
+        super.onFinishInput()
+    }
+
+    /** No field any more: the panel closes and the phone hears it. */
+    private fun leaveField() {
         closeNow()
         if (field != null) Log.d(TAG, "field left")
         field = null
         PhoneKeyboard.detach(this)
         main.removeCallbacks(reread)
         main.removeCallbacks(syncPhone)
-        super.onFinishInput()
+        render()
     }
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
@@ -740,5 +746,15 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
          */
         @JvmStatic
         fun onBandCommand(command: String, bannerUp: Boolean): Boolean = instance?.onBand(command, bannerUp) ?: false
+
+        /**
+         * One of Lumen's screens took Android's focus off its field (the band moved to a send
+         * button): Android may keep serving it until the next field, and the index tap would
+         * still open the panel there. The field counts as left now; focusing it again restarts.
+         */
+        @JvmStatic
+        fun fieldReleased() {
+            instance?.let { ime -> if (ime.field?.packageName == ime.packageName) ime.leaveField() }
+        }
     }
 }

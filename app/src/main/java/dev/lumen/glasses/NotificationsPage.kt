@@ -335,6 +335,8 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
                 applyDetailFocus()
                 placeBar()
                 if (!again) scroll.scrollTo(0, 0)
+                // Opened on a picture: it shows above the reply row and the bar, not under them.
+                if (zone == DetailZone.CONTENT) revealPhoto()
                 if (fullIndex >= 0) showFullScreen(item, fullIndex)
                 NotificationPictures.want(activity, item, first = photos.getOrNull(photoFocus)?.index ?: 0)
                 return
@@ -942,6 +944,8 @@ class NotificationsPage(private val activity: Activity) : HomePage, Notification
         val item = openItem()?.takeIf { it.key == key } ?: return
         photos.filter { it.index == index }.forEach { showPicture(it, state) }
         if (fullIndex == index) showFullScreen(item, index)
+        // The bubble grew with the picture: the focused one stays in view.
+        if (zone == DetailZone.CONTENT && photos.getOrNull(photoFocus)?.index == index) revealPhoto()
     }
 
     /** Sends the field's text through the notification's reply action on the phone. */
