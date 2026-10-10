@@ -3,6 +3,24 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.20]
+
+### Glasses
+
+- **Lumen's keyboard**: Lumen is the glasses' input method, in any app (web apps, Rokid's
+  settings). A focused field shows a hint under the page; the index tap opens a panel to
+  dictate, write with the band, or type on the phone (the companion offers its keyboard for that
+  field and the text shows on the glasses as you type). The panel names the field and its Enter
+  action (Search, Send, Sign in…) and offers it once there is text. A password gets writing and
+  the phone, masked. It replaces the shim's typing in web apps: no script is injected for it any
+  more. Turn it off in the companion's Glasses settings to go back to Rokid's keyboard.
+- **Pictures in notifications**: a notification's photo (a chat photo, a post's picture) shows
+  in its bubble, fetched from the phone when you open it, full screen on the index tap. Never for
+  hidden or redacted notifications.
+- **Reply with your own words**: a field and a send button above the quick replies, typed with
+  Lumen's keyboard and sent through the notification's own reply on the phone, without opening
+  the app. The reply shows in the conversation; a failure keeps the text.
+
 ## [0.2.0-beta.19]
 
 ### Band
