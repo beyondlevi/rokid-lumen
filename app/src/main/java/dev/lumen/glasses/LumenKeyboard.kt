@@ -99,7 +99,10 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
     override fun onEvaluateFullscreenMode() = false
 
     // The glasses report keys (the touchpad): Android would keep the window for a "hardware keyboard".
-    override fun onEvaluateInputViewShown() = field != null
+    override fun onEvaluateInputViewShown(): Boolean {
+        super.onEvaluateInputViewShown()
+        return field != null
+    }
 
     override fun onShowInputRequested(flags: Int, configChange: Boolean) = field != null
 

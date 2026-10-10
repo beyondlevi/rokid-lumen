@@ -290,7 +290,10 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
         private var strokeUnits = 2f
 
         fun show(next: Icon?, color: Int, stroke: Float) {
-            icon = next
+            if (next != icon) {
+                icon = next
+                next?.let { build(it) }
+            }
             paint.color = color
             strokeUnits = stroke
             visibility = if (next == null) View.GONE else View.VISIBLE
@@ -298,12 +301,18 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
         }
 
         override fun onDraw(canvas: Canvas) {
-            val icon = icon ?: return
+            if (icon == null) return
             val unit = minOf(width, height) / 24f
             canvas.save()
             canvas.scale(unit, unit)
             // In grid units: the canvas is scaled to the view.
             paint.strokeWidth = strokeUnits
+            canvas.drawPath(path, paint)
+            canvas.restore()
+        }
+
+        /** The icon's path on the 24-unit grid, built once per icon (not while drawing). */
+        private fun build(icon: Icon) {
             path.reset()
             when (icon) {
                 Icon.MIC -> {
@@ -348,8 +357,6 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
                     path.lineTo(13f, 18f)
                 }
             }
-            canvas.drawPath(path, paint)
-            canvas.restore()
         }
     }
 

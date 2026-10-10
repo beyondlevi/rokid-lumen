@@ -115,7 +115,8 @@ object PhoneLink {
     private fun onMessage(name: String, json: JSONObject) {
         when (name) {
             Link.DICTATION_EVENT -> {
-                Log.d(TAG, "← phone $name $json")
+                // What was said goes into a field (Lumen's keyboard): its length only.
+                Log.d(TAG, "← phone $name ${json.optString("type")} (${json.optString("text").length} chars)")
                 dictationListener?.invoke(name, json)
             }
             Link.NOTIFY_EVENT -> onNotify(json)
