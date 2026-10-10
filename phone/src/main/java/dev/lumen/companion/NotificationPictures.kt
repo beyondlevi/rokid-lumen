@@ -1,3 +1,6 @@
+// The platform's EXIF reader: its old bugs end with Android 7.1, and the companion needs 12.
+@file:Suppress("ExifInterface")
+
 package dev.lumen.companion
 
 import android.app.Notification

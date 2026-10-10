@@ -84,11 +84,12 @@ object PhoneLink {
             CXRServiceBridge().also { cxr ->
                 val callback = CXRServiceBridge.MsgCallback { name, args, bytes ->
                     if (name == Link.BENCH) return@MsgCallback onBench(args, bytes)
-                    if (name == Link.AUDIO_EVENT) {
+                    if (name == Link.AUDIO_EVENT || name == Link.PICTURE_EVENT) {
                         val json = runCatching { JSONObject(args.at(0).string) }.getOrDefault(JSONObject())
                         // A chunk's bytes ride in the Caps after the JSON.
                         val piece = runCatching { args.at(1).binary.let { it.data.copyOfRange(it.offset, it.offset + it.length) } }.getOrNull()
-                        main.post { GlassesAudio.onPhoneEvent(json, piece) }
+                        if (name == Link.AUDIO_EVENT) main.post { GlassesAudio.onPhoneEvent(json, piece) }
+                        else main.post { NotificationPictures.onPhoneEvent(json, piece) }
                         return@MsgCallback
                     }
                     val json = runCatching { JSONObject(args.at(0).string) }.getOrDefault(JSONObject())
@@ -149,17 +150,17 @@ object PhoneLink {
         }
     }
 
-    /**
-     * post   {key, app, pkg, title, text, when, redacted, live, alert, icon (base64 PNG, optional)}
-     * remove {key}
-     * reset  {} (a full sync follows as posts with alert false)
-     */
     /** Debug builds: [notification] as if the phone had alerted it (its banner shows). */
     @JvmStatic
     fun debugAlert(notification: PhoneNotification) {
         alertListener?.onAlert(notification)
     }
 
+    /**
+     * post   {key, app, pkg, title, text, when, redacted, live, alert, icon (base64 PNG, optional), pictures}
+     * remove {key}
+     * reset  {} (a full sync follows as posts with alert false)
+     */
     private fun onNotify(json: JSONObject) {
         Log.d(TAG, "← phone notify ${json.optString("type")} ${json.optString("key").takeLast(24)}")
         when (json.optString("type")) {
@@ -203,6 +204,8 @@ object PhoneLink {
             focus = json.optBoolean("focus"),
             replyable = json.optBoolean("reply"),
             shortcut = json.optString("shortcut"),
+            // Never for a notification whose content stays on the phone (it sends none then).
+            pictures = if (json.optBoolean("redacted")) emptyList() else NotifyEvent.picturesOf(json),
         )
     }
 }

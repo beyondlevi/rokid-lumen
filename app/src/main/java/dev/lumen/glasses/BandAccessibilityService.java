@@ -50,8 +50,9 @@ public final class BandAccessibilityService extends AccessibilityService {
      * Debug builds: a notification put in the inbox as if the phone sent it (title, then text).
      * Optional: `notify_app` (the app's name), `notify_pkg`, `notify_icon` (a PNG's file name in the
      * app's external files folder), `notify_time` (minutes ago), `notify_reply`, `notify_shortcut`
-     * `notify_key` (the same key updates the notification) and `notify_alert` (its banner shows, as
-     * for news from the phone). For screenshots and demos.
+     * `notify_key` (the same key updates the notification), `notify_alert` (its banner shows, as
+     * for news from the phone) and `notify_picture` (a drawn test picture, captioned with the
+     * text's last line) or `notify_pictures` (that many). For screenshots and demos.
      * `grid_order` and `grid_hidden` (comma-separated item ids) arrange the apps grid instead.
      */
     public static final String EXTRA_NOTIFY_TITLE = "notify_title";
@@ -133,12 +134,23 @@ public final class BandAccessibilityService extends AccessibilityService {
                 String app = intent.getStringExtra("notify_app");
                 String key = intent.getStringExtra("notify_key");
                 long postedAt = System.currentTimeMillis() - intent.getIntExtra("notify_time", 0) * 60_000L;
+                String body = text == null ? "" : text.replace("\\n", "\n");
+                int pictureCount = Math.min(dev.lumen.protocol.PictureOps.MAX_PICTURES,
+                        intent.getIntExtra("notify_pictures", intent.getBooleanExtra("notify_picture", false) ? 1 : 0));
+                java.util.List<dev.lumen.protocol.NotificationPicture> pictures = new java.util.ArrayList<>();
+                String[] lines = body.trim().split("\n");
+                for (int i = 0; i < pictureCount; i++) {
+                    // The newest takes the text's last line as its caption, as a chat's photo would.
+                    String caption = i == pictureCount - 1 ? lines[lines.length - 1].trim() : "";
+                    pictures.add(new dev.lumen.protocol.NotificationPicture(postedAt + i, caption));
+                }
                 PhoneNotification notification = new PhoneNotification("debug|" + (key == null ? notifyTitle : key),
                         app == null ? "Lumen debug" : app,
-                        pkg == null ? getPackageName() : pkg, notifyTitle, text == null ? "" : text.replace("\\n", "\n"),
+                        pkg == null ? getPackageName() : pkg, notifyTitle, body,
                         postedAt, false, debugIcon(intent.getStringExtra("notify_icon")), false,
                         intent.getBooleanExtra("notify_reply", false),
-                        intent.getStringExtra("notify_shortcut") == null ? "" : intent.getStringExtra("notify_shortcut"));
+                        intent.getStringExtra("notify_shortcut") == null ? "" : intent.getStringExtra("notify_shortcut"),
+                        pictures);
                 boolean alert = intent.getBooleanExtra("notify_alert", false);
                 mainHandler.post(() -> {
                     NotificationInbox.put(notification, true);

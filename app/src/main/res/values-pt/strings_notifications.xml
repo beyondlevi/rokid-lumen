@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notification_picture">Foto</string>
+    <string name="notification_picture_loading">Carregando a foto…</string>
+    <string name="notification_picture_description">Foto de %1$s</string>
+    <string name="notification_picture_denied">Só no celular</string>
+    <string name="notification_picture_retry">Indicador: tentar de novo</string>
+    <string name="notification_picture_position">%1$s · %2$d de %3$d</string>
+    <string name="notification_picture_hint">← →: outra foto · Médio: voltar</string>
+    <string name="notification_picture_hint_single">Médio: voltar</string>
+
+    <string name="notification_reply_placeholder">Responder a %1$s</string>
+    <string name="notification_reply_send">Enviar</string>
+    <string name="notification_reply_field_hint">Indicador: ditar, escrever ou celular</string>
+    <string name="notification_reply_send_hint">Indicador: enviar · ←: editar</string>
+    <string name="notification_reply_retry_hint">Indicador: tentar de novo</string>
+    <string name="notification_reply_via_phone">Pelo celular</string>
+</resources>

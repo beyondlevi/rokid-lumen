@@ -106,7 +106,8 @@
             android:noHistory="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
-        <!-- The app's home and its one icon on the Rokid launcher: the apps grid. -->
+        <!-- The app's home and its one icon on the Rokid launcher: the apps grid. The keyboard
+             over a notification's reply field covers the bottom; the square doesn't move. -->
         <activity
             android:name=".LauncherActivity"
             android:exported="true"
@@ -114,6 +115,7 @@
             android:launchMode="singleTask"
             android:taskAffinity="dev.lumen.glasses.apps"
             android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustNothing|stateHidden"
             tools:ignore="DiscouragedApi,LockedOrientationActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
