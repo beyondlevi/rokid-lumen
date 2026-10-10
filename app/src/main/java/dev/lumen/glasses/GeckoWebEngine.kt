@@ -60,6 +60,13 @@ class GeckoWebEngine(
     private var savedState: GeckoSession.SessionState? = null
     /** The page's content process died (killed or crashed): load it again when shown. */
     private var pageLost = false
+    /**
+     * When the page's process died while it was shown: on the glasses that's lmkd, and a page
+     * that runs them out of memory (Instagram's Reels, measured) dies again right after each
+     * reload. The second death within [LOSS_WINDOW_MS] holds the page until [retry].
+     */
+    private val shownLosses = ArrayDeque<Long>()
+    private var isHeld = false
     private var visible = false
     private val geckoRuntime = runtime(activity, side.toFloat() / WebEngine.MRBD_VIEWPORT)
     private val startedAt = SystemClock.elapsedRealtime()
@@ -159,8 +166,27 @@ class GeckoWebEngine(
     }
 
     private fun pageGone(how: String) {
-        Log.w(TAG, "The page's process was $how (${if (visible) "reloading" else "reload when shown"})")
+        val now = SystemClock.elapsedRealtime()
+        if (visible) {
+            shownLosses.addLast(now)
+            while (now - shownLosses.first() > LOSS_WINDOW_MS) shownLosses.removeFirst()
+        }
         pageLost = true
+        isHeld = shownLosses.size >= LOSSES_TO_HOLD
+        Log.w(TAG, "The page's process was $how (" + when {
+            isHeld -> "again within ${LOSS_WINDOW_MS / 1000} s: held"
+            visible -> "reloading"
+            else -> "reload when shown"
+        } + ")")
+        if (isHeld) host.onPageHeld() else if (visible) reloadLost()
+    }
+
+    override val held: Boolean get() = isHeld
+
+    override fun retry() {
+        if (!isHeld) return
+        isHeld = false
+        shownLosses.clear()
         if (visible) reloadLost()
     }
 
@@ -247,7 +273,7 @@ class GeckoWebEngine(
         HostLink.current = this
         visible = true
         session.setActive(true)
-        reloadLost()
+        if (!isHeld) reloadLost()
         focus()
     }
 
@@ -420,6 +446,9 @@ class GeckoWebEngine(
         private const val TAG = "BandGecko"
         private const val EXTENSION_URI = "resource://android/assets/mrbd-ext/"
         private const val EXTENSION_ID = "mrbd-host@lumen.dev"
+        /** Two deaths of a shown page within this hold it ([held]). */
+        private const val LOSS_WINDOW_MS = 120_000L
+        private const val LOSSES_TO_HOLD = 2
         /** Every id the shim has had starts with this (the earlier one: mrbd-host@airgestures.dev). */
         private const val EXTENSION_PREFIX = "mrbd-host@"
         private var runtime: GeckoRuntime? = null
@@ -445,6 +474,18 @@ class GeckoWebEngine(
             "browser.safebrowsing.malware.enabled" to false,
             "browser.safebrowsing.phishing.enabled" to false,
             "dom.ipc.processPriorityManager.enabled" to false,
+            // Memory (RG glasses, 1.8 GB, measured 2026-10-09): scrolling Instagram's Reels ran
+            // the glasses out of memory, and lmkd killed the page and then Lumen's own process
+            // (all at oom_score_adj 0), so the whole app went down. What Gecko keeps for later:
+            // no spare content process waiting for the next page (~130 MB with its swap),
+            // no pages kept alive for Back, smaller caches for decoded images and the network,
+            // and a cap on what a streamed video or audio track keeps buffered.
+            "dom.ipc.processPrelaunch.enabled" to false,
+            "browser.sessionhistory.max_total_viewers" to 0,
+            "browser.cache.memory.capacity" to 8192,
+            "image.mem.surfacecache.max_size_kb" to 65536,
+            "media.mediasource.eviction_threshold.video" to 25 * 1024 * 1024,
+            "media.mediasource.eviction_threshold.audio" to 3 * 1024 * 1024,
         )
 
         /** Writes [PREFS] as GeckoView's config file (YAML, `prefs:`) and returns its path. */
@@ -465,8 +506,31 @@ class GeckoWebEngine(
          * viewport. Once it exists, removed apps' contexts are cleared right away, and those
          * removed before it are cleared now.
          */
+        /**
+         * Gecko binds its child processes (pages, GPU, media) with BIND_IMPORTANT while in front,
+         * which gives them the app's own oom_score_adj (0). Out of memory, lmkd then took the page
+         * and Lumen's process together (measured, Instagram's Reels): the whole app went down.
+         * Bound without it, a child stays at VISIBLE_APP_ADJ (100) while Lumen is in front, so
+         * lmkd takes the page first and Lumen reloads it (or holds it, [held]). Nothing changes
+         * in the background, where the client's own adj is already higher. GeckoView has no API
+         * for this: its PriorityLevel.FOREGROUND flag is set before any child process starts.
+         */
+        private fun bindChildrenBelowTheApp() {
+            runCatching {
+                val level = Class.forName("org.mozilla.gecko.process.ServiceAllocator\$PriorityLevel")
+                val foreground = level.getField("FOREGROUND").get(null)
+                level.getDeclaredField("mAndroidFlag").apply { isAccessible = true }.setInt(foreground, 0)
+            }.onSuccess { Log.d(TAG, "Child processes bound below the app") }
+                .onFailure { Log.w(TAG, "Couldn't bind the child processes below the app", it) }
+        }
+
         @Synchronized
-        private fun runtime(context: Context, density: Float): GeckoRuntime = runtime ?: GeckoRuntime.create(
+        private fun runtime(context: Context, density: Float): GeckoRuntime = runtime ?: run {
+            bindChildrenBelowTheApp()
+            createRuntime(context, density)
+        }
+
+        private fun createRuntime(context: Context, density: Float): GeckoRuntime = GeckoRuntime.create(
             context.applicationContext,
             GeckoRuntimeSettings.Builder()
                 .configFilePath(preferencesFile(context))

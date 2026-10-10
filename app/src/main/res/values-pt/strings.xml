@@ -202,6 +202,7 @@
     <string name="webapp_load_failed">O app não carregou (%1$s).</string>
     <string name="webapp_error_code">erro %1$d (categoria %2$d)</string>
     <string name="webapp_no_internet">Sem internet: o app não carregou.</string>
+    <string name="webapp_out_of_memory">Os óculos ficaram sem memória neste app duas vezes, então ele foi parado e o Lumen continuou. Indicador: tentar de novo.</string>
     <string name="webapp_navigation_blocked">Este app não pode abrir outros sites</string>
     <string name="launcher_downloading">Baixando o pacote…</string>
     <string name="launcher_installed">Instalado: %1$s</string>

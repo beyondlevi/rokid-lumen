@@ -209,6 +209,7 @@
     <string name="webapp_load_failed">The app didn\'t load (%1$s).</string>
     <string name="webapp_error_code">error %1$d (category %2$d)</string>
     <string name="webapp_no_internet">No internet: the app didn\'t load.</string>
+    <string name="webapp_out_of_memory">The glasses ran out of memory on this app twice, so it was stopped and Lumen kept running. Index tap: try again.</string>
     <string name="webapp_navigation_blocked">This app can\'t open other sites</string>
     <string name="launcher_downloading">Downloading the package…</string>
     <string name="launcher_installed">Installed: %1$s</string>

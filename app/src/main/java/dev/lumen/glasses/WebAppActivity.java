@@ -382,6 +382,17 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         if (engine == null) {
             return false;
         }
+        if (engine.getHeld()) {
+            // The page ran the glasses out of memory twice: the index tap tries again, Back leaves.
+            if (BandCommand.ACTIVATE.equals(command)) {
+                hideNotice();
+                engine.retry();
+                return true;
+            }
+            if (!BandCommand.BACK.equals(command)) {
+                return true;
+            }
+        }
         hideNotice();
         switch (command) {
             case BandCommand.UP:
@@ -568,6 +579,11 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
                 engine.speechEvent(utteranceId, type, code);
             }
         });
+    }
+
+    @Override
+    public void onPageHeld() {
+        showNotice(getString(R.string.webapp_out_of_memory));
     }
 
     private void showNotice(String text) {
