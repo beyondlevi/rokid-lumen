@@ -1,26 +1,26 @@
-Piscadas nas páginas: medição nos óculos (Google Notícias aberto), 2026-10-10
+Blinking pages: measured on the glasses (Google News open), 2026-10-10
 
-ANTES (0.2.0-beta.19.6, com o vigia de memória): brilho médio do quadrado do app (0-255) a cada captura
+BEFORE (0.2.0-beta.19.6, with MemoryWatch): mean brightness of the app's square (0-255) per screen capture
 19:15:47.006 57.1
 19:15:54.525 48.7
-19:15:58.501 0.0   <- preta
+19:15:58.501 0.0   <- black
 19:16:01.881 67.8
 19:16:06.069 109.4
-19:16:10.275 0.0   <- preta
+19:16:10.275 0.0   <- black
 19:16:13.709 75.6
 19:16:17.910 75.6
-19:16:22.112 0.0   <- preta
+19:16:22.112 0.0   <- black
 19:16:25.776 0.0
 19:16:29.441 0.0
 
-Log do Lumen no mesmo intervalo:
+Lumen's log over the same span:
 10-10 19:15:48.229 I/BandGecko: Memory low (306 MB free): asked Gecko to free memory
 10-10 19:15:58.259 I/BandGecko: Memory low (307 MB free): asked Gecko to free memory
 10-10 19:16:10.301 I/BandGecko: Memory low (332 MB free): asked Gecko to free memory
 10-10 19:16:20.344 I/BandGecko: Memory low (318 MB free): asked Gecko to free memory
 
-DEPOIS (0.2.0-beta.20.1, sem o vigia): mesma página, rolando e parando
-19:20:21.699 0.0   <- a página abrindo (carregando)
+AFTER (0.2.0-beta.20.1, without MemoryWatch): the same page, scrolling and pausing
+19:20:21.699 0.0   <- the page opening (loading)
 19:20:27.169 33.3
 19:20:32.701 44.9
 19:20:38.461 46.1
@@ -43,4 +43,4 @@ DEPOIS (0.2.0-beta.20.1, sem o vigia): mesma página, rolando e parando
 19:22:22.311 46.1
 19:22:28.579 46.1
 
-Log depois da instalação: 0 linhas "Memory low", 0 páginas perdidas (Page reopened).
+Log after the install: 0 "Memory low" lines, 0 pages lost (Page reopened).
