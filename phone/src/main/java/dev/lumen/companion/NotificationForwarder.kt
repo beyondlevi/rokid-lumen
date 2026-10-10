@@ -14,6 +14,8 @@ import android.util.Log
 import dev.lumen.companion.relay.AndroidSensitiveNotificationDetector
 import dev.lumen.companion.relay.NotificationTextExtractor
 import dev.lumen.protocol.NotifyEvent
+import dev.lumen.protocol.PictureOps
+import dev.lumen.protocol.PictureRequest
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 
@@ -23,10 +25,11 @@ import java.io.ByteArrayOutputStream
  * through the notification's own reply action ([reply]). Nothing is written to disk: the text
  * goes straight to the link.
  *
- *   post   {key, app, pkg, title, text, when, group, redacted, live, alert, focus, icon}
+ *   post   {key, app, pkg, title, text, when, group, redacted, live, alert, focus, icon, pictures}
  *          (when: the time of what it says, [NotificationAlerts.contentTime]; live: news, not a
  *          re-post of something already seen or old; alert: the glasses should show a banner;
- *          focus: the banner blacks out the rest of the HUD)
+ *          focus: the banner blacks out the rest of the HUD; pictures: what it shows, only when
+ *          its content goes to the glasses, the bytes on demand: [picture])
  *   remove {key}
  *   reset  {} (then a post per active notification, alert false)
  */
@@ -157,18 +160,7 @@ class NotificationForwarder : NotificationListenerService() {
             val flags = notification.flags
             if (!admitted(context, sbn.packageName, flags, notification.category, sbn.isClearable, isOurs = sbn.packageName == context.packageName)) return null
             val extras = notification.extras
-            val title = (extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)
-                ?: extras.getCharSequence(Notification.EXTRA_TITLE))?.toString().orEmpty().trim()
-            val body = NotificationTextExtractor.extract(NotificationTextExtractor.fromExtras(extras), messageLimit = 4)
-            if (title.isEmpty() && body.isBlank()) return null
-            val sensitive = AndroidSensitiveNotificationDetector.isRedacted(title, body)
-            // A private notification shows its public version, as on the lock screen.
-            val public = notification.publicVersion?.extras
-            val content = NotificationPrivacy.decide(
-                Build.VERSION.SDK_INT, notification.visibility, sensitive, CompanionPrefs.hideContent(context),
-                publicTitle = public?.getCharSequence(Notification.EXTRA_TITLE)?.toString(),
-                publicText = public?.let { NotificationTextExtractor.extract(NotificationTextExtractor.fromExtras(it), messageLimit = 4) },
-            )
+            val (title, body, content) = privacyOf(context, notification) ?: return null
             val shownTitle = if (content is NotificationContent.Public) content.title else title
             val shownText = when (content) {
                 is NotificationContent.Public -> content.text
@@ -200,6 +192,53 @@ class NotificationForwarder : NotificationListenerService() {
                 .put("reply", !hidden && replyAction(notification) != null)
                 // The conversation, for a web app that opens it (WhatsApp's is the chat's JID).
                 .put("shortcut", notification.shortcutId.orEmpty())
+                // What it shows, named only: the glasses ask for a picture when they open it.
+                // A notification whose content stays on the phone keeps its pictures there too.
+                .let { post ->
+                    if (content != NotificationContent.Full) post
+                    else NotifyEvent.putPictures(post, NotificationPictures.sourcesOf(sbn).map { it.picture })
+                }
+        }
+
+        /** A notification's title and text, and how much of it the glasses may get ([NotificationPrivacy]); null when it says nothing. */
+        private fun privacyOf(context: Context, notification: Notification): Triple<String, String, NotificationContent>? {
+            val extras = notification.extras
+            val title = (extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)
+                ?: extras.getCharSequence(Notification.EXTRA_TITLE))?.toString().orEmpty().trim()
+            val body = NotificationTextExtractor.extract(NotificationTextExtractor.fromExtras(extras), messageLimit = 4)
+            if (title.isEmpty() && body.isBlank()) return null
+            val sensitive = AndroidSensitiveNotificationDetector.isRedacted(title, body)
+            // A private notification shows its public version, as on the lock screen.
+            val public = notification.publicVersion?.extras
+            val content = NotificationPrivacy.decide(
+                Build.VERSION.SDK_INT, notification.visibility, sensitive, CompanionPrefs.hideContent(context),
+                publicTitle = public?.getCharSequence(Notification.EXTRA_TITLE)?.toString(),
+                publicText = public?.let { NotificationTextExtractor.extract(NotificationTextExtractor.fromExtras(it), messageLimit = 4) },
+            )
+            return Triple(title, body, content)
+        }
+
+        /**
+         * The picture the glasses asked for, read and encoded ([NotificationPictures]); throws
+         * [PictureFailure]. Only of a notification this listener sent them, still in the shade,
+         * whose content still goes to the glasses (*Hide the text* may be on since the post).
+         * Any thread.
+         */
+        fun picture(context: Context, request: PictureRequest): EncodedPicture {
+            if (!CompanionPrefs.notificationsEnabled(context)) throw PictureFailure(PictureOps.REASON_HIDDEN, "notifications are off")
+            val listener = instance ?: throw PictureFailure(PictureOps.REASON_GONE, "no notification access")
+            if (forwarded.sentOf(listOf(request.key)).isEmpty()) throw PictureFailure(PictureOps.REASON_GONE, "never sent to the glasses")
+            val sbn = runCatching { listener.activeNotifications.orEmpty().firstOrNull { it.key == request.key } }.getOrNull()
+                ?: throw PictureFailure(PictureOps.REASON_GONE, "gone from the shade")
+            val notification = sbn.notification
+            val isOurs = sbn.packageName == context.packageName
+            if (!admitted(context, sbn.packageName, notification.flags, notification.category, sbn.isClearable, isOurs)) {
+                throw PictureFailure(PictureOps.REASON_HIDDEN, "the app's notifications stay on the phone")
+            }
+            if (privacyOf(context, notification)?.third != NotificationContent.Full) throw PictureFailure(PictureOps.REASON_HIDDEN, "its content stays on the phone")
+            val source = PictureSizing.resolve(NotificationPictures.sourcesOf(sbn), request.index, request.at)
+                ?: throw PictureFailure(PictureOps.REASON_GONE, "no such picture now")
+            return NotificationPictures.encode(context, sbn, source)
         }
 
         /**

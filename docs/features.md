@@ -115,10 +115,18 @@ exist:
 
   For screenshots and demos, a simulated notification also takes `--es notify_app WhatsApp`,
   `--es notify_pkg com.whatsapp`, `--es notify_icon <a PNG's name in the app's external files
-  folder>`, `--ei notify_time <minutes ago>`, `--ez notify_reply true` (quick replies, which
-  answer "Sent" on the glasses alone), `--es notify_key <key>` and `--ez notify_alert true` (its
+  folder>`, `--ei notify_time <minutes ago>`, `--ez notify_reply true` (the reply row and quick
+  replies, which answer "Sent" on the glasses alone), `--ez notify_picture true` (a drawn test
+  picture, captioned with the text's last line, that "arrives" after a moment; `--ei
+  notify_pictures 3` for several), `--es notify_key <key>` and `--ez notify_alert true` (its
   banner shows). `--es grid_order <ids> --es grid_hidden <ids>` (comma-separated, as in
   `lumen_grid.xml`) arranges the apps grid.
+
+  On the phone, the debug build posts the test notification (a chat whose last message is a
+  generated photo, with a reply action) with `adb shell run-as dev.lumen.companion am
+  startservice --user 0 -n dev.lumen.companion/.CompanionService -a
+  dev.lumen.companion.TEST_NOTIFICATION` (`--ez picture false` without the photo); the
+  Notifications tab's **Send a test notification** posts the same.
 
   The simulated band also writes: once Lumen's keyboard is writing, `--es handwriting_text "<text>"`
   comes into the field a letter at a time, as from the band's model. On the phone, with the
@@ -283,8 +291,18 @@ the Meta Ray-Ban Display UI Toolkit's look.
 <!-- media: notification-replies -->
 ![An open WhatsApp notification with the quick replies; a thumbs up was just sent](media/notification-reaction.png)
 
+**Pictures.** A notification that shows a picture (a chat's photo, a big picture) has a camera
+before its preview in the inbox. Opened, the picture is in its bubble with its caption, in the
+message's place; *Loading the photo…* shows while it comes from the phone, which sends it only
+then, small (480 px at most, gray, as the HUD shows it) and one at a time. The index tap on a
+picture shows it over the whole square, with who sent it and which of how many; left and right
+go through the notification's pictures, the middle tap comes back. Up to four per notification
+(the newest); the last few decoded stay in memory for a moment, and go when the glasses run low.
+When the phone's app doesn't let other apps read its photo, the bubble says *Only on the phone*;
+when the link failed, the index tap tries again.
+
 **Opening a notification** (the banner's index tap, or the inbox) shows a row of the toolkit's
-QuickReplyButtons under it, with the focus on the first:
+QuickReplyButtons under it, with the focus on the first (on the picture, when it has one):
 
 - the **web app** that declares that phone app (`lumen_notifications`, see
   [building apps](building-apps.md)), its icon only: it opens the app at the notification's
@@ -294,8 +312,19 @@ QuickReplyButtons under it, with the focus on the first:
   notification's own reply action, as typing in the shade would; a reaction goes as its emoji,
   as text. *Sent* or *Couldn't reply* comes back in a moment.
 
-Left and right move along the row, up and down scroll the text, the index tap acts, the middle
-tap goes back. A notification whose text is hidden from the glasses offers no replies.
+**Replying with your own words.** When the phone can answer it, a reply field (*Reply to …*) and a
+send button sit above the row. It's a real text field: the index tap on it brings up the
+glasses' keyboard (Lumen's: dictation, writing with the band, or the phone), and the send button
+(or the keyboard's Enter) sends the text through the notification's own reply action on the
+phone, as the quick replies go. *Sent* puts it in the conversation, right-aligned, *Via the
+phone* under it, and empties the field; *Couldn't reply from the phone* keeps the text, and the
+index tap on send tries again. A strip under the square says what the index tap does there.
+
+The band in an open notification: down goes from the pictures (scrolling the text to its end
+first) to the reply field and then to the row of buttons, up comes back; left and right move
+between the field and send, along the row, or between pictures; the index tap acts; the middle
+tap leaves the field, then goes back. A notification whose text is hidden from the glasses
+offers no replies and no pictures.
 
 What the phone sends:
 
@@ -309,7 +338,8 @@ What the phone sends:
 - **Privacy.** Content Android already redacted (a one-time code, say), a secret
   notification's text, and every notification's text when **Hide the text** is on never leave
   the phone: the glasses show the app and the title. A private notification (on Android 14 and
-  older) goes as its public version, as on the lock screen, or hidden when it has none.
+  older) goes as its public version, as on the lock screen, or hidden when it has none. Pictures
+  go only for notifications whose own text goes, and only when the glasses open them.
 - **Banner only with the phone screen off** is on by default: with the phone's screen on, the
   notification goes to the inbox only.
 - Notifications live in memory on both sides. They leave the inbox when they're removed on the

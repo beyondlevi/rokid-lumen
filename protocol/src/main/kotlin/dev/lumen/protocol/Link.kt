@@ -77,11 +77,17 @@ object Link {
      */
     const val BAND_KEY = "nb.band.key"
 
+    /** glasses → phone: a notification picture's acks and cancel ([PictureOps]; the request goes on [NOTIFY]). */
+    const val PICTURE = "nb.picture"
+
+    /** phone → glasses: a notification picture's header and chunks ([PictureOps]). */
+    const val PICTURE_EVENT = "nb.picture.event"
+
     /** What the glasses subscribe to (phone → glasses). */
-    val TO_GLASSES = listOf(DICTATION_EVENT, NOTIFY_EVENT, NET_EVENT, BENCH, SETTINGS, GRID, AUDIO_EVENT, PHONE_EVENT, LOGS, KEYBOARD, BAND_KEY)
+    val TO_GLASSES = listOf(DICTATION_EVENT, NOTIFY_EVENT, NET_EVENT, BENCH, SETTINGS, GRID, AUDIO_EVENT, PHONE_EVENT, LOGS, KEYBOARD, BAND_KEY, PICTURE_EVENT)
 
     /** What the phone handles (glasses → phone). */
-    val TO_PHONE = listOf(DICTATION, NOTIFY, NET, SETTINGS_EVENT, GRID_EVENT, AUDIO, LOGS_EVENT, KEYBOARD_FIELD)
+    val TO_PHONE = listOf(DICTATION, NOTIFY, NET, SETTINGS_EVENT, GRID_EVENT, AUDIO, LOGS_EVENT, KEYBOARD_FIELD, PICTURE)
 
     private val ids = AtomicLong(System.currentTimeMillis())
 

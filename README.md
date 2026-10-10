@@ -74,8 +74,11 @@ demo mode and simulated notifications.
   Reels, YouTube's player) and keeps the sign-ins of the app it replaces. Pages are dark, videos
   no bigger than the display, and a page too heavy for the glasses goes without taking Lumen
   with it.
-- **Notifications.** A banner over any app and an inbox grouped by app. Dismiss on the glasses
-  (it clears on the phone too), snooze the banners for 15 minutes, hide the text.
+- **Notifications.** A banner over any app and an inbox grouped by app. Received photos show in
+  the notification, full screen on the index tap. Reply with a reaction, a short reply or your
+  own words (dictated, written with the band or typed on the phone) through the phone's reply
+  action, without opening the app. Dismiss on the glasses (it clears on the phone too), snooze
+  the banners for 15 minutes, hide the text.
 - **Dictation and handwriting.** Lumen's keyboard is the glasses' input method, in any app (web
   apps, Rokid's settings): the index tap on a focused field opens it, to dictate, write with a
   finger on any surface through the band's own handwriting model, or type on the phone. A

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notifications_test_you">Você</string>
+    <string name="notifications_test_picture">Uma foto de teste: ela aparece nos óculos?</string>
+</resources>
