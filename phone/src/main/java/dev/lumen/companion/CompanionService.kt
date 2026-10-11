@@ -175,6 +175,16 @@ class CompanionService : Service() {
             ACTION_COLLECT_LOGS -> LogShare.start(this)
             ACTION_DICTATE_FILE -> dictateFile(File(filesDir, intent.getStringExtra("file") ?: "speech.pcm"))
             ACTION_WRITE_TEXT -> Log.d(TAG, "Simulated writing: ${PhoneBand.simulateWriting(intent.getStringExtra("text").orEmpty())}")
+            // A test build of the glasses app, from this app's files, through Rokid's link (the
+            // updater's way): for when the glasses' adb is off.
+            ACTION_INSTALL_GLASSES_APK -> {
+                val apk = File(filesDir, intent.getStringExtra("file") ?: "glasses.apk")
+                Thread {
+                    Log.d(TAG, "installing ${apk.name} (${apk.length()} bytes) on the glasses")
+                    val ok = apk.isFile && installOnGlasses(apk)
+                    Log.d(TAG, "glasses test build ${if (ok) "installed" else "not installed"}")
+                }.start()
+            }
         }
         // Not sticky: a crash here must not become a restart loop.
         return START_NOT_STICKY
@@ -751,6 +761,7 @@ class CompanionService : Service() {
         const val ACTION_BENCH = "dev.lumen.companion.BENCH"
         const val ACTION_DICTATE_FILE = "dev.lumen.companion.DICTATE_FILE"
         const val ACTION_WRITE_TEXT = "dev.lumen.companion.WRITE_TEXT"
+        const val ACTION_INSTALL_GLASSES_APK = "dev.lumen.companion.INSTALL_GLASSES_APK"
 
         private const val AUDIO_START_ATTEMPTS = 4
 
