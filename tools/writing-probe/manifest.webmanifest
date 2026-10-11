@@ -2,7 +2,7 @@
   "id": "dev.lumen.writing-probe",
   "name": "Writing probe",
   "short_name": "Writing probe",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "start_url": "/",
   "icons": [{ "src": "icon.png", "sizes": "192x192", "type": "image/png" }]
 }

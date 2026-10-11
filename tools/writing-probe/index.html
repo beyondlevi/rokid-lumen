@@ -13,6 +13,7 @@
   input { height: 64px; border-radius: 32px; border: 2px solid rgba(255,255,255,.45); background: #000; color: #fff; font: inherit; padding: 0 24px; outline: none; }
   input:focus { border: 3px solid rgba(255,255,255,.9); background: #111113; }
   #keys { font-size: 18px; color: #9aa0a6; text-align: center; }
+  #state { font-size: 16px; color: #6b6f76; text-align: center; min-height: 20px; }
 </style>
 <script src="data.en.js"></script>
 <script src="data.pt-BR.js"></script>
@@ -24,6 +25,7 @@
   <div id="how"></div>
   <div id="slot"></div>
   <div id="keys"></div>
+  <div id="state" aria-live="polite"></div>
 </main>
 <script>
   // The writing probe: each step shows a phrase (or a gesture task) and a fresh text field that
@@ -46,6 +48,11 @@
     { id: 'g3', section: ui.gestures, target: ui.g2Target, how: ui.g2 },
   ];
   let at = Math.min(Number(localStorage.getItem('probe-step') || 0), steps.length);
+  // Lumen's writing practice (when the glasses have it): each phrase is what the wearer is about
+  // to write, so the band writes at the index tap with no suggestions or corrections (the
+  // recording stays the band's raw reading), and Lumen learns the wearer's letters from it.
+  const writing = window.lumen && window.lumen.writing;
+  if (writing) writing.onState((state) => { $('state').textContent = state; console.info('[writing-probe] state ' + state); });
   function show() {
     localStorage.setItem('probe-step', String(at));
     $('keys').textContent = ui.keys;
@@ -70,6 +77,10 @@
     // instead, and the band writes after it, so each recording's text says which step it was.
     field.value = step.id + ' ';
     $('slot').appendChild(field);
+    if (writing) {
+      const practice = step.id.startsWith('g') ? null : { text: step.target, lang: step.id.startsWith('pt') ? 'pt' : 'en' };
+      writing.train(practice).then((ok) => console.info('[writing-probe] practice ' + (practice ? 'on' : 'off') + ' ' + ok));
+    }
     field.focus();
     console.info('[writing-probe] step ' + step.id);
   }
