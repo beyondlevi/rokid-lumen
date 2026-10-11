@@ -101,6 +101,7 @@ object BandRuntime {
         device = (if (simulated) SimulatedBand(listener, app) else BandLink(app, listener, config(app))).also {
             it.setMotion(motion)
             it.setGestures(gestures)
+            if (WritingProbe.enabled(app)) it.setHandwritingProbe(true)
             it.start()
         }
         return null
@@ -162,12 +163,20 @@ object BandRuntime {
         device?.resetHandwritingText(text)
     }
 
+    /** Debug builds' writing probe on the band link ([WritingProbe]). */
+    @JvmStatic
+    fun setHandwritingProbe(enabled: Boolean) {
+        device?.setHandwritingProbe(enabled)
+    }
+
     private fun onHandwritingEvent(context: Context, event: JSONObject) {
         if (event.optString("type") == "state") {
             Log.d(HANDWRITING_TAG, "state ${event.optString("phase")}: ${event.optString("message")} " +
                 "problem=${event.optString("problem")} verified=${event.optBoolean("verified")} " +
                 "ids=${event.optInt("collection_id")}/${event.optInt("model_id")}")
-        } else if (context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+        } else if (event.optString("type") == "text" &&
+            context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+        ) {
             // What someone wrote: only a debug build logs it, for testing the classes on the band.
             Log.d(HANDWRITING_TAG, "text \"${event.optString("text")}\" raw \"${event.optString("raw")}\" class ${event.optInt("class")}")
         }

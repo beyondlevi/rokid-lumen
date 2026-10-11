@@ -190,3 +190,42 @@ fn a_silent_model_ends_the_capture_and_restores() {
     assert!(finished["problem"].as_str().unwrap().contains("stopped sending"));
     assert_eq!(band.setting("data-collection-model"), 2);
 }
+
+#[test]
+fn the_writing_probe_records_samples_and_gestures_only_when_on() {
+    let (mut connection, mut band) = connected("middle_tap=nav.back;swipe_right=nav.right");
+    start(&mut connection, &mut band, None);
+    write(&mut connection, &mut band, &[7, 99], 3.0);
+    let off = events(&mut connection);
+    assert!(off.iter().all(|e| e["type"] != "frame" && e["type"] != "gesture"));
+
+    connection.set_handwriting_probe(true);
+    write(&mut connection, &mut band, &[8, 99], 3.1);
+    let swipe = band.gesture(9, 1, 0).unwrap();
+    let reply = connection.feed(&swipe, 3.2).unwrap();
+    pump(&mut connection, &mut band, reply, 3.2);
+    let on = events(&mut connection);
+    let frames: Vec<&Value> = on.iter().filter(|e| e["type"] == "frame").collect();
+    assert_eq!(frames.len(), 2);
+    // The likeliest class first, eight of them, log-probabilities rounded.
+    let top = frames[0]["top"].as_array().unwrap();
+    assert_eq!(top.len(), 8);
+    assert_eq!(top[0][0], 8);
+    assert!(top[0][1].as_f64().unwrap() > -0.2);
+    assert_eq!(frames[1]["top"][0][0], 99);
+    assert!(frames[0]["ts"].as_u64().unwrap() < frames[1]["ts"].as_u64().unwrap());
+    // The text still comes, after its sample.
+    let text_at = on.iter().position(|e| e["type"] == "text").unwrap();
+    assert!(on.iter().position(|e| e["type"] == "frame").unwrap() < text_at);
+    let gesture = on.iter().find(|e| e["type"] == "gesture").unwrap();
+    assert_eq!(gesture["finger"], "thumb");
+    assert_eq!(gesture["at"], 3.2);
+    // The swipe itself still does nothing while writing.
+    assert!(connection.take_actions().is_empty());
+    // Nothing of it reaches the log.
+    assert!(connection.take_log().iter().all(|line| !line.contains("frame") && !line.contains("\"top\"")));
+
+    connection.set_handwriting_probe(false);
+    write(&mut connection, &mut band, &[9, 99], 3.4);
+    assert!(events(&mut connection).iter().all(|e| e["type"] != "frame"));
+}

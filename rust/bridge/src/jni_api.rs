@@ -353,6 +353,16 @@ pub extern "system" fn Java_dev_lumen_band_Bridge_resetHandwritingText<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_setHandwritingProbe<'local>(
+    _env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    enabled: jboolean,
+) {
+    unsafe { connection(handle) }.set_handwriting_probe(enabled != 0);
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_lumen_band_Bridge_handwritingEvents<'local>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,

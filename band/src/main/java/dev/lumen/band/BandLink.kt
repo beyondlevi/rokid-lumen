@@ -103,6 +103,8 @@ class BandLink(
     /** The air mouse runs: [drain] fetches its records. */
     @Volatile private var pointer = false
     @Volatile private var gestures = true
+    /** The writing probe (debug builds), kept for the next connection. */
+    @Volatile private var probe = false
     /** The input-channel read of the current attempt answered. */
     @Volatile private var psmRead = false
     /** Writes to the open channel (the claim's answers come from other threads). */
@@ -233,6 +235,20 @@ class BandLink(
 
     override fun resetHandwritingText(text: String) = synchronized(lock) {
         if (handle != 0L) Bridge.resetHandwritingText(handle, text)
+    }
+
+    override fun setHandwritingProbe(enabled: Boolean) = synchronized(lock) {
+        probe = enabled
+        if (handle != 0L) applyProbe()
+    }
+
+    /** Under [lock], with a handle. A band library from before the probe has none. */
+    private fun applyProbe() {
+        try {
+            Bridge.setHandwritingProbe(handle, probe)
+        } catch (_: UnsatisfiedLinkError) {
+            probe = false
+        }
     }
 
     /** A capture never finished (the marker survived): put the band's settings back first. */
@@ -450,6 +466,7 @@ class BandLink(
                 handle = Bridge.open(key.readBytes(), guess, config.paused(), "", config.mapping())
                 if (!motion) Bridge.setMotion(handle, false)
                 if (!gestures) Bridge.setGestures(handle, false)
+                if (probe) applyProbe()
             }
             true
         } catch (e: Exception) {

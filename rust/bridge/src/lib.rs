@@ -31,6 +31,8 @@ fn config_with(mapping: &str) -> Config {
 const BATTERY_EVERY: f64 = 60.0;
 const QUIET_QUERY: f64 = 2.0;
 const QUIET_QUERY_NO_MOTION: f64 = 30.0;
+/// The classes a writing probe's sample record keeps, likeliest first.
+const PROBE_TOP: usize = 8;
 
 pub struct Connection {
     session: BandSession,
@@ -52,6 +54,9 @@ pub struct Connection {
     claim_pending: Option<Vec<u8>>,
     /// The handwriting capture's events, as JSON lines for the app.
     handwriting: Vec<String>,
+    /// Debug builds' writing probe: each sample's likeliest classes and the gestures that come
+    /// while the band writes also go out with the handwriting events (see `set_handwriting_probe`).
+    probe: bool,
     /// When the air mouse's motion delay was last logged.
     delay_logged: f64,
 }
@@ -140,6 +145,7 @@ impl Connection {
             claim: Vec::new(),
             claim_pending: None,
             handwriting: Vec::new(),
+            probe: false,
             delay_logged: 0.0,
         }
     }
@@ -290,6 +296,16 @@ impl Connection {
         Ok(outgoing)
     }
 
+    /// Debug builds' writing probe on or off: while the band writes, each of its samples goes
+    /// out as `{"type":"frame","seq","ts","lat","at","top":[[class,logp],…]}` (its 8 likeliest
+    /// classes) and each gesture message as `{"type":"gesture","finger","action","derived",
+    /// "synthetic","seq","ts","at"}` (`ts` the band's clock in µs, `at` the host's in seconds),
+    /// with the other handwriting events. What someone writes: only for a test's recording.
+    pub fn set_handwriting_probe(&mut self, on: bool) {
+        self.probe = on;
+        self.session.set_handwriting_frames(on);
+    }
+
     /// The handwriting capture's events since the last call, one JSON object each:
     /// `{"type":"state","phase","message","problem","verified","mutated","collection_id","model_id"}`
     /// and `{"type":"text","text","raw","class"}`.
@@ -426,6 +442,9 @@ impl Connection {
     }
 
     fn on_event(&mut self, event: &Event, now: f64) -> Result<Vec<u8>, String> {
+        if self.probe {
+            self.probe_event(event, now);
+        }
         match event {
             Event::CeremonyStage(stage) => {
                 self.log.push(format!("claim: {stage}"));
@@ -516,6 +535,48 @@ impl Connection {
             self.log.push(format!("gesture {gesture}"));
         }
         Ok(outgoing)
+    }
+
+    /// The writing probe's records (see `set_handwriting_probe`).
+    fn probe_event(&mut self, event: &Event, now: f64) {
+        match event {
+            Event::HandwritingFrame { sequence, timestamp_us, latency_us, values } => {
+                let mut top: Vec<(usize, f32)> = values.iter().copied().enumerate().collect();
+                top.sort_by(|a, b| b.1.total_cmp(&a.1));
+                let top: Vec<serde_json::Value> = top
+                    .iter()
+                    .take(PROBE_TOP)
+                    .map(|&(class, value)| serde_json::json!([class, (f64::from(value) * 1000.0).round() / 1000.0]))
+                    .collect();
+                self.handwriting.push(
+                    serde_json::json!({
+                        "type": "frame",
+                        "seq": sequence,
+                        "ts": timestamp_us,
+                        "lat": latency_us,
+                        "at": now,
+                        "top": top,
+                    })
+                    .to_string(),
+                );
+            }
+            Event::Gesture(message) if self.session.handwriting_active() => {
+                self.handwriting.push(
+                    serde_json::json!({
+                        "type": "gesture",
+                        "finger": message.finger,
+                        "action": message.action,
+                        "derived": message.derived_action,
+                        "synthetic": message.synthetic,
+                        "seq": message.sequence,
+                        "ts": message.timestamp_us,
+                        "at": message.received_at,
+                    })
+                    .to_string(),
+                );
+            }
+            _ => {}
+        }
     }
 
     fn apply(&mut self, command: Command, now: f64) -> Result<Vec<u8>, String> {

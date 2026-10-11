@@ -55,6 +55,9 @@ interface GestureDevice {
     /** Start the written text over from [text] (what the field holds). */
     fun resetHandwritingText(text: String) = Unit
 
+    /** Debug builds' writing probe on or off (see [Bridge.setHandwritingProbe]); kept for the next connection. */
+    fun setHandwritingProbe(enabled: Boolean) = Unit
+
     /**
      * The air mouse on or off (see [Bridge.setPointer]); false when it can't run here. Its
      * movement and buttons come to [Listener.onPointer]. It ends with the connection.

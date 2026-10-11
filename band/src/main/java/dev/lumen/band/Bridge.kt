@@ -55,6 +55,12 @@ object Bridge {
     /** Start the written text over from [text], what the field holds. */
     @JvmStatic external fun resetHandwritingText(handle: Long, text: String)
     /**
+     * Debug builds' writing probe: while the band writes, each sample's likeliest classes
+     * (`frame`) and each gesture message (`gesture`) also come with [handwritingEvents], for a
+     * test's recording. What someone writes: never log it.
+     */
+    @JvmStatic external fun setHandwritingProbe(handle: Long, enabled: Boolean)
+    /**
      * The handwriting capture's events since the last call, '\n'-joined JSON objects: `state`
      * (phase idle|preparing|ready|restoring|finished, message, problem, verified, mutated,
      * collection_id, model_id) and `text` (text, raw, class). The text is what someone wrote:

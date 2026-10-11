@@ -422,6 +422,7 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
         }
         // The band writes after what the field already holds.
         BandRuntime.resetHandwritingText(text)
+        WritingProbe.begin(this, field?.label.orEmpty())
         remember(KeyboardChoice.WRITE)
         mode = Mode.WRITING
         status = getString(R.string.composer_write_preparing)
@@ -435,6 +436,7 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
         main.removeCallbacks(idleCheck)
         BandRuntime.removeHandwritingListener(handwriting)
         BandRuntime.setHandwriting(false)
+        WritingProbe.end()
         Log.d(TAG, "writing ends")
     }
 
@@ -453,6 +455,7 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
                     val problem = event.optString("problem").takeIf { it.isNotEmpty() && it != "null" }
                     main.removeCallbacks(idleCheck)
                     BandRuntime.removeHandwritingListener(handwriting)
+                    WritingProbe.end()
                     mode = Mode.CHOOSING
                     status = if (problem != null) getString(R.string.composer_write_failed, problem) else ""
                 }
@@ -462,6 +465,8 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
                 wrote = true
                 putText(event.optString("text"))
             }
+            // A debug build's probe records ([WritingProbe]): nothing to show.
+            else -> return
         }
         render()
     }
