@@ -77,6 +77,21 @@ class WebCamera(private val activity: Activity, root: FrameLayout, side: Int, pr
 
     fun onKey(event: KeyEvent): Boolean = prompt.onKey(event) || capture.onKey(event)
 
+    /**
+     * A band command while the ask or the capture screen is up: they take it as the touchpad's
+     * key (a press and its release), before the page. Without this the band's gestures went to
+     * the page under them and only the touchpad worked there. False when neither is up, or for a
+     * command that isn't theirs (the volume).
+     */
+    fun onBandCommand(command: String): Boolean {
+        if (!shown) return false
+        val code = keyFor(command) ?: return false
+        val now = android.os.SystemClock.uptimeMillis()
+        onKey(KeyEvent(now, now, KeyEvent.ACTION_DOWN, code, 0))
+        onKey(KeyEvent(now, now, KeyEvent.ACTION_UP, code, 0))
+        return true
+    }
+
     /** The screen goes (hidden or closed): a question is Not now, a capture is cancelled. */
     fun dismiss() {
         prompt.dismiss()
@@ -85,5 +100,17 @@ class WebCamera(private val activity: Activity, root: FrameLayout, side: Int, pr
 
     companion object {
         const val REQUEST = 78
+
+        /** The touchpad key a band command stands for on the camera's screens. */
+        @JvmStatic
+        fun keyFor(command: String): Int? = when (command) {
+            BandCommand.ACTIVATE -> KeyEvent.KEYCODE_DPAD_CENTER
+            BandCommand.BACK -> KeyEvent.KEYCODE_BACK
+            BandCommand.LEFT, BandCommand.BACKWARD -> KeyEvent.KEYCODE_DPAD_LEFT
+            BandCommand.RIGHT, BandCommand.FORWARD -> KeyEvent.KEYCODE_DPAD_RIGHT
+            BandCommand.UP -> KeyEvent.KEYCODE_DPAD_UP
+            BandCommand.DOWN -> KeyEvent.KEYCODE_DPAD_DOWN
+            else -> null
+        }
     }
 }

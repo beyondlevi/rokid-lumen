@@ -19,6 +19,8 @@
 
 ### Web apps
 
+- The band drives the camera's ask and capture screen (take the photo, Use photo or Take
+  another, cancel): only the glasses' touchpad did.
 - **`window.lumen.writing`**, for apps that teach writing with the band: `train({text, lang})`
   makes the index tap write at once, with a small bar under the app instead of the keyboard's
   panel and no suggestions, and teaches Lumen the wearer's letters from the expected text;
