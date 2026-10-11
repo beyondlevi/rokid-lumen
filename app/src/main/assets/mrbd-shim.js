@@ -283,13 +283,30 @@
       mediaDevices = navigator.mediaDevices;
     }
     if (mediaDevices) {
+      // SPIKE (web camera): video from Gecko's own getUserMedia (the glasses' camera), audio
+      // from the host's microphone as before, together in one stream when both are asked.
+      var nativeGetUserMedia = mediaDevices.getUserMedia ? mediaDevices.getUserMedia.bind(mediaDevices) : null;
+      var nativeEnumerate = mediaDevices.enumerateDevices ? mediaDevices.enumerateDevices.bind(mediaDevices) : null;
       mediaDevices.getUserMedia = function (constraints) {
         if (!constraints || (!constraints.audio && !constraints.video)) return Promise.reject(new TypeError('audio or video required'));
-        if (constraints.video) return Promise.reject(domError('NotFoundError', 'the glasses have no camera for web apps'));
-        return liveStream();
+        if (!constraints.video) return liveStream();
+        if (!nativeGetUserMedia) return Promise.reject(domError('NotFoundError', 'the glasses have no camera for web apps'));
+        return nativeGetUserMedia({ video: constraints.video, audio: false }).then(function (video) {
+          if (!constraints.audio) return video;
+          return liveStream().then(function (audio) {
+            return new MediaStream(video.getVideoTracks().concat(audio.getAudioTracks()));
+          }, function (e) {
+            video.getTracks().forEach(function (t) { t.stop(); });
+            throw e;
+          });
+        });
       };
       mediaDevices.enumerateDevices = function () {
-        return Promise.resolve([{ kind: 'audioinput', deviceId: 'glasses', groupId: 'glasses', label: 'Glasses microphone', toJSON: function () { return this; } }]);
+        var mic = { kind: 'audioinput', deviceId: 'glasses', groupId: 'glasses', label: 'Glasses microphone', toJSON: function () { return this; } };
+        if (!nativeEnumerate) return Promise.resolve([mic]);
+        return nativeEnumerate().then(function (list) {
+          return [mic].concat(Array.prototype.filter.call(list, function (d) { return d.kind === 'videoinput'; }));
+        }, function () { return [mic]; });
       };
     }
 

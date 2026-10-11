@@ -114,6 +114,33 @@ class GeckoWebEngine(
                 return null
             }
         }
+        // SPIKE (web camera): every camera request granted, file prompts logged.
+        session.permissionDelegate = object : GeckoSession.PermissionDelegate {
+            override fun onAndroidPermissionsRequest(s: GeckoSession, permissions: Array<out String>?, callback: GeckoSession.PermissionDelegate.Callback) {
+                val ctx = geckoView.context
+                val missing = permissions.orEmpty().filter { ctx.checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED }
+                Log.i(TAG, "SPIKE Android permissions ${permissions?.joinToString()} missing=$missing")
+                if (missing.isEmpty()) callback.grant() else callback.reject()
+            }
+
+            override fun onMediaPermissionRequest(
+                s: GeckoSession,
+                uri: String,
+                video: Array<out GeckoSession.PermissionDelegate.MediaSource>?,
+                audio: Array<out GeckoSession.PermissionDelegate.MediaSource>?,
+                callback: GeckoSession.PermissionDelegate.MediaCallback,
+            ) {
+                Log.i(TAG, "SPIKE media request $uri video=${video?.joinToString { "${it.id}/${it.name}/${it.source}" }} audio=${audio?.size}")
+                val camera = video?.firstOrNull { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_CAMERA }
+                if (camera == null) callback.reject() else callback.grant(camera, null)
+            }
+        }
+        session.promptDelegate = object : GeckoSession.PromptDelegate {
+            override fun onFilePrompt(s: GeckoSession, prompt: GeckoSession.PromptDelegate.FilePrompt): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                Log.i(TAG, "SPIKE file prompt type=${prompt.type} capture=${prompt.capture} mime=${prompt.mimeTypes?.joinToString()}")
+                return GeckoResult.fromValue(prompt.dismiss())
+            }
+        }
         session.progressDelegate = object : GeckoSession.ProgressDelegate {
             override fun onPageStop(s: GeckoSession, success: Boolean) {
                 Log.d(TAG, "Page stop success=$success after ${SystemClock.elapsedRealtime() - startedAt} ms")
