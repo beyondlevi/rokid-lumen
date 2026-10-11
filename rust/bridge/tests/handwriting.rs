@@ -229,3 +229,23 @@ fn the_writing_probe_records_samples_and_gestures_only_when_on() {
     write(&mut connection, &mut band, &[9, 99], 3.4);
     assert!(events(&mut connection).iter().all(|e| e["type"] != "frame"));
 }
+
+#[test]
+fn the_middle_tap_ends_the_writing_even_while_the_controls_are_paused() {
+    let (mut connection, mut band) = connected("middle_tap=nav.back;middle_hold=band.pause");
+    connection.set_paused(true, 1.5);
+    assert!(connection.status_json().contains(r#""paused":true"#));
+    let started = start(&mut connection, &mut band, None);
+    assert_eq!(phases(&started), vec!["preparing", "ready"]);
+    let tap = band.gesture(3, MIDDLE, 0).unwrap();
+    let reply = connection.feed(&tap, 3.0).unwrap();
+    pump(&mut connection, &mut band, reply, 3.0);
+    assert_eq!(connection.take_actions(), vec!["nav.back".to_owned()]);
+    // A second tap right after (the band's report repeated) is one action, not two.
+    let again = band.gesture(3, MIDDLE, 0).unwrap();
+    let reply = connection.feed(&again, 3.1).unwrap();
+    pump(&mut connection, &mut band, reply, 3.1);
+    assert!(connection.take_actions().is_empty());
+    // The controls stay paused for everything else.
+    assert!(connection.status_json().contains(r#""paused":true"#));
+}

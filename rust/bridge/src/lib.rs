@@ -159,7 +159,7 @@ impl Connection {
     pub fn feed(&mut self, bytes: &[u8], now: f64) -> Result<Vec<u8>, String> {
         self.last_read = now;
         let result = self.session.feed(bytes, now).map_err(|e| e.to_string())?;
-        self.controller.set_writing(self.session.handwriting_active());
+        self.controller.set_writing(self.session.handwriting_active(), now);
         let mut outgoing = result.outgoing;
         for event in &result.events {
             outgoing.extend(self.on_event(event, now)?);
@@ -198,7 +198,7 @@ impl Connection {
     /// Call every ~50 ms (held single taps fire on time); returns bytes to write.
     pub fn tick(&mut self, now: f64) -> Result<Vec<u8>, String> {
         let mut outgoing = Vec::new();
-        self.controller.set_writing(self.session.handwriting_active());
+        self.controller.set_writing(self.session.handwriting_active(), now);
         for event in self.session.tick(now) {
             outgoing.extend(self.on_event(&event, now)?);
         }
@@ -268,7 +268,7 @@ impl Connection {
         self.session
             .set_handwriting(enabled, hints, now)
             .map_err(|e| e.to_string())?;
-        self.controller.set_writing(self.session.handwriting_active());
+        self.controller.set_writing(self.session.handwriting_active(), now);
         self.flush_handwriting(now)
     }
 
