@@ -65,10 +65,22 @@ object GridStore {
         set(context, swap(stored(context, KEY_ORDER)), swap(stored(context, KEY_HIDDEN)))
     }
 
-    /** Takes an id out of the stored lists (a deleted web app). */
+    /** Takes an id out of the stored lists (a deleted web app), and a web app's camera answer with it. */
     @JvmStatic
     fun forget(context: Context, id: String) {
         set(context, stored(context, KEY_ORDER) - id, stored(context, KEY_HIDDEN) - id)
+        if (id.startsWith(GridItem.WEB_PREFIX)) CameraAccess.forget(context, id.removePrefix(GridItem.WEB_PREFIX))
+    }
+
+    /**
+     * A web app's camera answer set from the phone (the `camera` op, [CameraAccess]): `allowed`,
+     * `denied`, or "" to ask again. The error for the phone, or null.
+     */
+    @JvmStatic
+    fun setCamera(context: Context, id: String, value: String): String? {
+        val app = WebAppLibrary.find(context, id.removePrefix(GridItem.WEB_PREFIX)) ?: return "not a web app: $id"
+        CameraAccess.set(context, app.id, CameraAccess.State.of(value))
+        return null
     }
 
     /** Everything the grid could show, by id, described for the phone. */
@@ -80,7 +92,8 @@ object GridStore {
             out[id] = GridItem(id, GridItem.Kind.WEB, app.name, if (app.offline) "" else app.remoteUrl, app.offline, app.engine.name,
                 config = WebAppConfig.fields(context, app), version = if (app.hasPackage) app.version else "",
                 iconStamp = app.icon?.let { java.io.File(it).lastModified() } ?: 0,
-                copyOf = app.copyOf.takeIf { it.isNotEmpty() }?.let { GridItem.WEB_PREFIX + it }.orEmpty())
+                copyOf = app.copyOf.takeIf { it.isNotEmpty() }?.let { GridItem.WEB_PREFIX + it }.orEmpty(),
+                camera = CameraAccess.of(context, app.id).id)
         }
         nativeApps(context).forEach { (pkg, label) ->
             val id = GridItem.APP_PREFIX + pkg

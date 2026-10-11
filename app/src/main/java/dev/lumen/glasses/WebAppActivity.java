@@ -78,6 +78,8 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     private boolean loaded;
     /** The app's gesture card or band hint, the first times it opens. */
     private WebAppGuide guide;
+    /** The glasses' camera for the page: the ask, the capture screen. */
+    private WebCamera camera;
     private TextView notice;
     private TextToSpeech tts;
     private boolean ttsReady;
@@ -143,6 +145,7 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         setContentView(root);
         guide = new WebAppGuide(this, root, side);
         guide.open(app, kind == WebEngineKind.GECKO);
+        camera = new WebCamera(this, root, side, app.getId(), app.getName());
 
         tts = new TextToSpeech(this, status -> ttsReady = status == TextToSpeech.SUCCESS);
         tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
@@ -353,6 +356,9 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     @Override
     protected void onStop() {
         shown = false;
+        if (camera != null) {
+            camera.dismiss();
+        }
         GlassesAudio.closeAll(this);
         WebRecognition.closeAll(this);
         if (engine != null) {
@@ -399,6 +405,9 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     @Override
     protected void onDestroy() {
         LIVE.remove(this);
+        if (camera != null) {
+            camera.dismiss();
+        }
         mainHandler.removeCallbacks(hiddenStop);
         GlassesAudio.closeAll(this);
         WebRecognition.closeAll(this);
@@ -475,6 +484,10 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int code = event.getKeyCode();
+        // The camera's ask and capture screen take every key while they're up.
+        if (camera != null && camera.onKey(event)) {
+            return true;
+        }
         // The touchpad closes the gesture card as the band does (the key goes nowhere else).
         if (guide != null && guide.isShowingCard() && isGuideKey(code)) {
             if (event.getAction() == KeyEvent.ACTION_UP) {
@@ -503,6 +516,32 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     }
 
     // WebEngine.Host
+
+    @Override
+    public void onCameraRequest(WebEngine.Answer<Boolean> answer) {
+        if (camera == null || !shown) {
+            answer.done(false);
+            return;
+        }
+        camera.cameraRequest(answer);
+    }
+
+    @Override
+    public void onPhotoRequest(WebEngine.Answer<android.net.Uri> answer) {
+        if (camera == null || !shown) {
+            answer.done(null);
+            return;
+        }
+        camera.photoRequest(answer);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == WebCamera.REQUEST && camera != null) {
+            camera.onPermissionResult(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED);
+        }
+    }
 
     @Override
     public void onBackUnhandled() {

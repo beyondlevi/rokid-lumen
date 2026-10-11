@@ -32,6 +32,8 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Dictation in the web app composer (offline, Vosk): the page never gets the microphone. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- No POST_NOTIFICATIONS and no foreground service: notifications don't reach the HUD, so
          the band link lives in the accessibility service (as R08 Access Bridge keeps its ring). -->
 

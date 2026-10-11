@@ -111,4 +111,31 @@ class GridTest {
         assertEquals(item, GridItem.from(item.toJson()))
         assertFalse(GridItem("web:x", GridItem.Kind.WEB, "X").toJson().has("version"))
     }
+
+    @Test
+    fun `a web app's camera answer round-trips, absent while it never asked`() {
+        val allowed = GridItem("web:cam", GridItem.Kind.WEB, "Camera", camera = GridItem.CAMERA_ALLOWED)
+        assertEquals("allowed", allowed.toJson().getString("camera"))
+        assertEquals(allowed, GridItem.from(allowed.toJson()))
+        val denied = allowed.copy(camera = GridItem.CAMERA_DENIED)
+        assertEquals(GridItem.CAMERA_DENIED, GridItem.from(denied.toJson()).camera)
+        // Never asked: no field, and an item from older glasses (without it) reads the same.
+        val never = GridItem("web:x", GridItem.Kind.WEB, "X")
+        assertFalse(never.toJson().has("camera"))
+        assertEquals("", GridItem.from(org.json.JSONObject().put("id", "web:x").put("kind", "web").put("name", "X")).camera)
+        assertEquals(never, GridItem.from(never.toJson()))
+    }
+
+    @Test
+    fun `the camera op is an item request, shown on its way`() {
+        val request = GridOps.camera("web:cam", GridItem.CAMERA_DENIED)
+        assertEquals(GridOps.CAMERA, request.getString("op"))
+        assertEquals("camera", request.getString("op"))
+        assertEquals("web:cam", request.getString("id"))
+        assertEquals("denied", request.getString("value"))
+        assertEquals("web:cam", GridOps.item(request))
+        assertEquals(true, GridOps.requestId(request) > 0)
+        val state = GridEvent.State(listOf(GridItem("web:cam", GridItem.Kind.WEB, "Camera", camera = GridItem.CAMERA_ALLOWED)), emptyList())
+        assertEquals(GridItem.CAMERA_DENIED, state.with(listOf(request)).items.single().camera)
+    }
 }

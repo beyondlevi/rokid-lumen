@@ -83,6 +83,7 @@ class StatusBarOverlay(private val service: BandAccessibilityService) {
     private var time: TextView? = null
     private var percent: TextView? = null
     private var glyph: BatteryGlyph? = null
+    private var camera: View? = null
     private var battery: StatusBar.Battery? = null
     private var overFront = true
     private var started = false
@@ -95,6 +96,7 @@ class StatusBarOverlay(private val service: BandAccessibilityService) {
     }
     private val debounced = Runnable { checkFront() }
     private val settingListener: () -> Unit = { update() }
+    private val cameraListener: () -> Unit = { update() }
 
     fun start() {
         if (started) return
@@ -109,6 +111,8 @@ class StatusBarOverlay(private val service: BandAccessibilityService) {
         // The battery's broadcast is sticky: the current reading comes back at once.
         runCatching { service.registerReceiver(receiver, filter) }.getOrNull()?.let(::readBattery)
         StatusBar.addListener(settingListener)
+        CameraState.start(service)
+        CameraState.addListener(cameraListener)
         checkFront()
     }
 
@@ -117,6 +121,7 @@ class StatusBarOverlay(private val service: BandAccessibilityService) {
         started = false
         runCatching { service.unregisterReceiver(receiver) }
         StatusBar.removeListener(settingListener)
+        CameraState.removeListener(cameraListener)
         main.removeCallbacksAndMessages(null)
         remove()
     }
@@ -162,6 +167,8 @@ class StatusBarOverlay(private val service: BandAccessibilityService) {
             visibility = if (reading == null) View.GONE else View.VISIBLE
             show(reading?.percent ?: 0, reading?.charging == true, color)
         }
+        // Anyone has the camera (a web app, the capture screen, Rokid's photos): the camera canvas's pill.
+        camera?.visibility = if (CameraState.inUse) View.VISIBLE else View.GONE
         content.contentDescription = if (reading == null) time?.text else service.getString(
             if (reading.charging) R.string.status_bar_description_charging else R.string.status_bar_description,
             time?.text, reading.percent,
@@ -193,12 +200,38 @@ class StatusBarOverlay(private val service: BandAccessibilityService) {
         setPadding(side, 0, side, 0)
         time = label().also { addView(it) }
         addView(View(service), LinearLayout.LayoutParams(0, 1, 1f))
+        camera = cameraPill().also { addView(it, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, MetaStyle.px(service, 37.5f))) }
+        addView(View(service), LinearLayout.LayoutParams(0, 1, 1f))
         glyph = BatteryGlyph(service).also {
             addView(it, LinearLayout.LayoutParams(MetaStyle.px(service, 34f), MetaStyle.px(service, 17.5f)).apply {
                 marginEnd = MetaStyle.px(service, 9f)
             })
         }
         percent = label().also { addView(it) }
+    }
+
+    /** White, so it shows over anything: the camera and its name. */
+    private fun cameraPill() = LinearLayout(service).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        visibility = View.GONE
+        background = android.graphics.drawable.GradientDrawable().apply {
+            setColor(Color.WHITE)
+            cornerRadius = MetaStyle.px(service, 999f).toFloat()
+        }
+        setPadding(MetaStyle.px(service, 12.5f), 0, MetaStyle.px(service, 15f), 0)
+        addView(android.widget.ImageView(service).apply {
+            setImageResource(R.drawable.ic_camera_outline)
+            setColorFilter(Color.BLACK)
+        }, LinearLayout.LayoutParams(MetaStyle.px(service, 22.5f), MetaStyle.px(service, 22.5f)).apply { marginEnd = MetaStyle.px(service, 7.5f) })
+        addView(TextView(service).apply {
+            text = service.getString(R.string.status_bar_camera)
+            setTextColor(Color.BLACK)
+            setTextSize(TypedValue.COMPLEX_UNIT_PX, MetaStyle.textPx(service, 18.75f))
+            typeface = MetaStyle.BOLD
+            includeFontPadding = false
+            isSingleLine = true
+        })
     }
 
     private fun label() = TextView(service).apply {
@@ -215,6 +248,7 @@ class StatusBarOverlay(private val service: BandAccessibilityService) {
         time = null
         percent = null
         glyph = null
+        camera = null
     }
 
     /** The battery's outline with its level, and a bolt while plugged in (the canvas's 27 x 14). */

@@ -257,6 +257,9 @@
     <string name="apps_config_save">Save</string>
     <string name="apps_config_clear">Clear</string>
     <string name="apps_config_secret_hint">Kept on the glasses only: it can\'t be read back here.</string>
+    <string name="apps_camera">Camera</string>
+    <string name="apps_camera_allowed">Allowed: the app can use the glasses\' camera</string>
+    <string name="apps_camera_blocked">Blocked: the app gets no camera</string>
     <string name="tab_apps">Apps</string>
     <string name="apps_waiting_hint">The grid comes from the glasses: open the glasses and keep this phone connected.</string>
     <string name="apps_engine">Engine</string>

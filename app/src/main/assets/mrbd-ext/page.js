@@ -18,6 +18,7 @@
     if (data.type === 'configChanged' && window.__lumenConfigChanged) window.__lumenConfigChanged(data.values);
     if (data.type === 'audio' && window.__lumenAudio) window.__lumenAudio(data.event);
     if (data.type === 'bandNavigation' && window.__lumenBandNavigation) window.__lumenBandNavigation(data.value);
+    if (data.type === 'cameraStop' && window.__lumenCameraStop) window.__lumenCameraStop();
   });
   window.MrbdHost = {
     canGoBack: function () { return back; },
@@ -314,13 +315,92 @@
       mediaDevices = navigator.mediaDevices;
     }
     if (mediaDevices) {
+      // The glasses' camera, once the host let the app have it (it asks the wearer): Gecko's own
+      // getUserMedia for the video, turned the right way up (the module reports an orientation
+      // that leaves its picture upside down), and the host's microphone for the audio, in one
+      // stream when both are asked. The host stops the camera when the app is hidden.
+      var nativeGetUserMedia = mediaDevices.getUserMedia ? mediaDevices.getUserMedia.bind(mediaDevices) : null;
+      var nativeEnumerate = mediaDevices.enumerateDevices ? mediaDevices.enumerateDevices.bind(mediaDevices) : null;
+      var cameraTracks = [];
+      var upright = function (stream) {
+        var source = stream.getVideoTracks()[0];
+        var canvas = document.createElement('canvas');
+        if (!source || !canvas.captureStream) return stream;
+        var settings = source.getSettings();
+        canvas.width = settings.width || 640;
+        canvas.height = settings.height || 480;
+        var context = canvas.getContext('2d');
+        var video = document.createElement('video');
+        video.muted = true;
+        video.playsInline = true;
+        video.srcObject = new MediaStream([source]);
+        var out = canvas.captureStream(Math.min(30, settings.frameRate || 30));
+        var track = out.getVideoTracks()[0];
+        var live = true;
+        var draw = function () {
+          if (!live) return;
+          var w = video.videoWidth;
+          var h = video.videoHeight;
+          if (w && h) {
+            if (canvas.width !== w || canvas.height !== h) {
+              canvas.width = w;
+              canvas.height = h;
+            }
+            context.setTransform(-1, 0, 0, -1, w, h);
+            context.drawImage(video, 0, 0, w, h);
+          }
+          requestAnimationFrame(draw);
+        };
+        var end = function () {
+          if (!live) return false;
+          live = false;
+          source.stop();
+          video.srcObject = null;
+          var i = cameraTracks.indexOf(track);
+          if (i >= 0) cameraTracks.splice(i, 1);
+          return true;
+        };
+        var stopTrack = track.stop.bind(track);
+        track.stop = function () { end(); stopTrack(); };
+        // Stopped from outside (the app hidden, the camera taken): the page hears 'ended'.
+        track.__lumenEnd = function () {
+          if (!end()) return;
+          stopTrack();
+          track.dispatchEvent(new Event('ended'));
+        };
+        source.addEventListener('ended', track.__lumenEnd);
+        track.getSettings = function () { return source.getSettings(); };
+        track.getCapabilities = function () { return source.getCapabilities ? source.getCapabilities() : {}; };
+        track.applyConstraints = function (c) { return source.applyConstraints(c); };
+        try { Object.defineProperty(track, 'label', { value: source.label || 'Glasses camera' }); } catch (e) {}
+        cameraTracks.push(track);
+        video.play().then(draw, draw);
+        return out;
+      };
+      window.__lumenCameraStop = function () {
+        cameraTracks.slice().forEach(function (track) { track.__lumenEnd(); });
+      };
       mediaDevices.getUserMedia = function (constraints) {
         if (!constraints || (!constraints.audio && !constraints.video)) return Promise.reject(new TypeError('audio or video required'));
-        if (constraints.video) return Promise.reject(domError('NotFoundError', 'the glasses have no camera for web apps'));
-        return liveStream();
+        if (!constraints.video) return liveStream();
+        if (!nativeGetUserMedia) return Promise.reject(domError('NotFoundError', 'the glasses have no camera for web apps'));
+        return nativeGetUserMedia({ video: constraints.video, audio: false }).then(function (camera) {
+          var video = upright(camera);
+          if (!constraints.audio) return video;
+          return liveStream().then(function (audio) {
+            return new MediaStream(video.getVideoTracks().concat(audio.getAudioTracks()));
+          }, function (e) {
+            video.getTracks().forEach(function (t) { t.stop(); });
+            throw e;
+          });
+        });
       };
       mediaDevices.enumerateDevices = function () {
-        return Promise.resolve([{ kind: 'audioinput', deviceId: 'glasses', groupId: 'glasses', label: 'Glasses microphone', toJSON: function () { return this; } }]);
+        var mic = { kind: 'audioinput', deviceId: 'glasses', groupId: 'glasses', label: 'Glasses microphone', toJSON: function () { return this; } };
+        if (!nativeEnumerate) return Promise.resolve([mic]);
+        return nativeEnumerate().then(function (list) {
+          return [mic].concat(Array.prototype.filter.call(list, function (d) { return d.kind === 'videoinput'; }));
+        }, function () { return [mic]; });
       };
     }
 

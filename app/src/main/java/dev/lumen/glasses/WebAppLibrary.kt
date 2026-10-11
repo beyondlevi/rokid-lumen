@@ -204,6 +204,7 @@ object WebAppLibrary {
         WebAppConfig.clear(context, id)
         WebAppContexts.clear(context, app.contextKey)
         WebAppGuide.forget(context, id)
+        CameraAccess.forget(context, id)
     }
 
     /**

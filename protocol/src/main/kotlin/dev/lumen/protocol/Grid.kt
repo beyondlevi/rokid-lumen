@@ -13,7 +13,7 @@ import org.json.JSONObject
  *                                        | {op: install_file, token, name, size, sha256, replace}
  *                                        | {op: config, id, key, value} | {op: rename, id, name}
  *                                        | {op: copy, id, name} (a second install of a web app, see below)
- *                                        | {op: icons, ids}; each a request (id)
+ *                                        | {op: camera, id, value} | {op: icons, ids}; each a request (id)
  *   glasses → phone   [Link.GRID_EVENT]  {type: state, items, available} (after describe and every change)
  *                                        {type: result, ok, subject, error} | {type: icon, id, png (base64)}
  *
@@ -38,6 +38,10 @@ import org.json.JSONObject
  * its own id, so its own cookies, storage and settings (empty at first), and offline its own
  * origin. Updating the original's package updates its copies. A copy's item names the original
  * (`copy_of`). `rename` gives any web app a name that updates keep.
+ *
+ * A web app asks once, on the glasses, whether it may use their camera; the answer is in its item
+ * (`camera`: [GridItem.CAMERA_ALLOWED] or [GridItem.CAMERA_DENIED], absent while it never asked)
+ * and `camera` changes it from the phone (`value`: one of those, or "" to ask again).
  */
 object GridOps {
     /** A grid request: the envelope's id kept as `req` too, since item ops reuse `id` for the item. */
@@ -47,10 +51,10 @@ object GridOps {
     @JvmStatic
     fun requestId(request: JSONObject): Long = request.optLong("req").takeIf { it != 0L } ?: request.optLong("id")
 
-    /** The grid item a request is about (`remove`, `config`, `rename`, `engine`, `copy`), or "". */
+    /** The grid item a request is about (`remove`, `config`, `rename`, `engine`, `copy`, `camera`), or "". */
     @JvmStatic
     fun item(request: JSONObject): String =
-        if (request.optString("op") in setOf(REMOVE, CONFIG, RENAME, ENGINE, COPY)) request.optString("id") else ""
+        if (request.optString("op") in setOf(REMOVE, CONFIG, RENAME, ENGINE, COPY, CAMERA)) request.optString("id") else ""
 
     const val DESCRIBE = "describe"
     const val SET = "set"
@@ -63,6 +67,7 @@ object GridOps {
     const val INSTALL_FILE = "install_file"
     const val RENAME = "rename"
     const val COPY = "copy"
+    const val CAMERA = "camera"
 
     @JvmStatic
     fun rename(id: String, name: String): JSONObject = request().put("op", RENAME).put("id", id).put("name", name)
@@ -98,6 +103,10 @@ object GridOps {
     @JvmStatic
     fun config(id: String, key: String, value: String): JSONObject = request().put("op", CONFIG).put("id", id)
         .put("key", key).put("value", value)
+
+    /** A web app's camera answer: [GridItem.CAMERA_ALLOWED], [GridItem.CAMERA_DENIED], or "" to ask again. */
+    @JvmStatic
+    fun camera(id: String, value: String): JSONObject = request().put("op", CAMERA).put("id", id).put("value", value)
 
     /**
      * An offline package the phone serves at [PACKAGE_PATH] + [token]; [replace] is the grid id of
@@ -178,6 +187,8 @@ data class GridItem(
     val iconStamp: Long = 0,
     /** A copy's original (its item id), "" otherwise. */
     val copyOf: String = "",
+    /** A web app's camera answer ([CAMERA_ALLOWED], [CAMERA_DENIED]); "" while it never asked. */
+    val camera: String = "",
 ) {
     enum class Kind(val id: String) {
         NOTIFICATIONS("notifications"), SETTINGS("settings"), WEB("web"), NATIVE("native");
@@ -193,12 +204,15 @@ data class GridItem(
         .apply { if (version.isNotEmpty()) put("version", version) }
         .apply { if (iconStamp > 0) put("icon", iconStamp) }
         .apply { if (copyOf.isNotEmpty()) put("copy_of", copyOf) }
+        .apply { if (camera.isNotEmpty()) put("camera", camera) }
 
     companion object {
         const val NOTIFICATIONS_ID = "notifications"
         const val SETTINGS_ID = "settings"
         const val WEB_PREFIX = "web:"
         const val APP_PREFIX = "app:"
+        const val CAMERA_ALLOWED = "allowed"
+        const val CAMERA_DENIED = "denied"
 
         fun from(json: JSONObject) = GridItem(
             json.optString("id"),
@@ -212,6 +226,7 @@ data class GridItem(
             json.optString("version"),
             json.optLong("icon"),
             json.optString("copy_of"),
+            json.optString("camera"),
         )
     }
 }
@@ -250,6 +265,7 @@ sealed class GridEvent {
                     }
                     GridOps.RENAME -> request.optString("name").trim().takeIf { it.isNotEmpty() }?.let { name -> edit { it.copy(name = name) } }
                     GridOps.ENGINE -> edit { it.copy(engine = request.optString("engine")) }
+                    GridOps.CAMERA -> edit { it.copy(camera = request.optString("value")) }
                     GridOps.SET -> {
                         val order = GridOps.strings(request, "order")
                         val all = (shown + rest).associateBy { it.id }

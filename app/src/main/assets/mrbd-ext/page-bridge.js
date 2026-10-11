@@ -16,6 +16,7 @@
     if (data.type === 'configChanged' && window.__lumenConfigChanged) window.__lumenConfigChanged(data.values);
     if (data.type === 'audio' && window.__lumenAudio) window.__lumenAudio(data.event);
     if (data.type === 'bandNavigation' && window.__lumenBandNavigation) window.__lumenBandNavigation(data.value);
+    if (data.type === 'cameraStop' && window.__lumenCameraStop) window.__lumenCameraStop();
   });
   window.MrbdHost = {
     canGoBack: function () { return back; },
