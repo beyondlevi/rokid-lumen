@@ -284,66 +284,30 @@
     }
     if (mediaDevices) {
       // The glasses' camera, once the host let the app have it (it asks the wearer): Gecko's own
-      // getUserMedia for the video, turned the right way up (the module reports an orientation
-      // that leaves its picture upside down), and the host's microphone for the audio, in one
-      // stream when both are asked. The host stops the camera when the app is hidden.
+      // getUserMedia for the video, and the host's microphone for the audio, in one stream when
+      // both are asked. The host stops the camera when the app is hidden (the page hears 'ended').
       var nativeGetUserMedia = mediaDevices.getUserMedia ? mediaDevices.getUserMedia.bind(mediaDevices) : null;
       var nativeEnumerate = mediaDevices.enumerateDevices ? mediaDevices.enumerateDevices.bind(mediaDevices) : null;
       var cameraTracks = [];
-      var upright = function (stream) {
-        var source = stream.getVideoTracks()[0];
-        var canvas = document.createElement('canvas');
-        if (!source || !canvas.captureStream) return stream;
-        var settings = source.getSettings();
-        canvas.width = settings.width || 640;
-        canvas.height = settings.height || 480;
-        var context = canvas.getContext('2d');
-        var video = document.createElement('video');
-        video.muted = true;
-        video.playsInline = true;
-        video.srcObject = new MediaStream([source]);
-        var out = canvas.captureStream(Math.min(30, settings.frameRate || 30));
-        var track = out.getVideoTracks()[0];
-        var live = true;
-        var draw = function () {
-          if (!live) return;
-          var w = video.videoWidth;
-          var h = video.videoHeight;
-          if (w && h) {
-            if (canvas.width !== w || canvas.height !== h) {
-              canvas.width = w;
-              canvas.height = h;
-            }
-            context.setTransform(-1, 0, 0, -1, w, h);
-            context.drawImage(video, 0, 0, w, h);
-          }
-          requestAnimationFrame(draw);
-        };
-        var end = function () {
-          if (!live) return false;
-          live = false;
-          source.stop();
-          video.srcObject = null;
-          var i = cameraTracks.indexOf(track);
-          if (i >= 0) cameraTracks.splice(i, 1);
-          return true;
-        };
-        var stopTrack = track.stop.bind(track);
-        track.stop = function () { end(); stopTrack(); };
-        // Stopped from outside (the app hidden, the camera taken): the page hears 'ended'.
-        track.__lumenEnd = function () {
-          if (!end()) return;
-          stopTrack();
-          track.dispatchEvent(new Event('ended'));
-        };
-        source.addEventListener('ended', track.__lumenEnd);
-        track.getSettings = function () { return source.getSettings(); };
-        track.getCapabilities = function () { return source.getCapabilities ? source.getCapabilities() : {}; };
-        track.applyConstraints = function (c) { return source.applyConstraints(c); };
-        try { Object.defineProperty(track, 'label', { value: source.label || 'Glasses camera' }); } catch (e) {}
-        cameraTracks.push(track);
-        video.play().then(draw, draw);
-        return out;
+      var keepCamera = function (stream) {
+        stream.getVideoTracks().forEach(function (track) {
+          var stopTrack = track.stop.bind(track);
+          var forget = function () {
+            var i = cameraTracks.indexOf(track);
+            if (i < 0) return false;
+            cameraTracks.splice(i, 1);
+            return true;
+          };
+          track.stop = function () { forget(); stopTrack(); };
+          track.__lumenEnd = function () {
+            if (!forget()) return;
+            stopTrack();
+            track.dispatchEvent(new Event('ended'));
+          };
+          track.addEventListener('ended', forget);
+          cameraTracks.push(track);
+        });
+        return stream;
       };
       window.__lumenCameraStop = function () {
         cameraTracks.slice().forEach(function (track) { track.__lumenEnd(); });
@@ -353,7 +317,7 @@
         if (!constraints.video) return liveStream();
         if (!nativeGetUserMedia) return Promise.reject(domError('NotFoundError', 'the glasses have no camera for web apps'));
         return nativeGetUserMedia({ video: constraints.video, audio: false }).then(function (camera) {
-          var video = upright(camera);
+          var video = keepCamera(camera);
           if (!constraints.audio) return video;
           return liveStream().then(function (audio) {
             return new MediaStream(video.getVideoTracks().concat(audio.getAudioTracks()));

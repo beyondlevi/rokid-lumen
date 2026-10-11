@@ -168,8 +168,9 @@ notification.
 The time and the glasses' battery, small and grey, in the strip above the app's square, over
 any app but the Rokid launcher (its own status row has both). Apps live in the square, so the
 bar never covers a page, a notification or the keyboard's hint (in the strip under the square).
-The battery turns amber at 20 % or less and shows a bolt while charging. It takes no focus and
-no touch. The companion's **Glasses** settings turn it off (**Status bar**).
+The battery turns amber at 20 % or less and shows a bolt while charging. While any app has the
+camera (a web app, Lumen's capture screen, Rokid's own photos), a white **Camera** pill shows in
+the middle. It takes no focus and no touch. The companion's **Glasses** settings turn it off (**Status bar**).
 
 ### The Controls tab
 
@@ -230,6 +231,12 @@ app goes back in its history, or closes when there is none.
 
 - **Offline apps** are `.mrbd.zip` packages, served from a loopback server
   (`http://127.0.0.1:<port>`, one port per app). They work with no network.
+- **The camera** (GeckoView). A web app may use the glasses' camera with the standard APIs:
+  `getUserMedia` asks the wearer once per app (Allow or Not now; the companion's Apps tab has a
+  Camera switch per app that asked), and a photo field opens Lumen's capture screen (the index
+  tap takes the photo, then Use photo or Take another). A white Camera pill in the status bar
+  shows while any app has the camera, and a hidden app lets it go. See
+  [building-apps.md](building-apps.md#camera).
 - **Online apps** are HTTPS addresses.
 - **Online app packages and site scripts** (GeckoView). An online app can come as a package
   that brings scripts for the sites it opens, so they work with the band (Instagram's Reels,

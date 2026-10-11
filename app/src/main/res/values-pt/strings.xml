@@ -292,6 +292,7 @@
     <string name="camera_ask_hint">Deslizar: escolher · Indicador: selecionar · Médio: agora não</string>
     <string name="camera_capture_for">Foto para %1$s</string>
     <string name="camera_capture_hint">Indicador: tirar foto · Médio: cancelar</string>
+    <string name="camera_capture_taking">Tirando a foto…</string>
     <string name="camera_review_use">Usar foto</string>
     <string name="camera_review_again">Tirar outra</string>
     <string name="camera_review_hint">Deslizar: escolher · Indicador: selecionar · Médio: cancelar</string>

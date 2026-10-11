@@ -39,10 +39,10 @@ import java.io.File
  * photo goes back to the page as a JPEG of at most [LONG_EDGE] px, upright.
  *
  * Camera2 straight from Lumen's process: the camera is free unless Rokid's assistant is taking
- * its own photo. Its sensor reports an orientation of 270 for a module that needs [ROTATION]
- * (measured: Gecko's camera, which trusts the 270, came out upside down). The photo is a frame
- * of the preview's own pipeline (a YUV stream), not a still capture: the RG's still pipeline
- * processes the whole 12 MP sensor, and its memory took Lumen down with it (measured, lmkd).
+ * its own photo. Pictures are turned by the sensor's orientation (270 on the RG), as Gecko's
+ * camera does. The photo is a frame of the preview's own pipeline (a YUV stream), not a still
+ * capture: the RG's still pipeline processes the whole 12 MP sensor, and its memory took Lumen
+ * down with it (measured, lmkd).
  */
 class CameraCapture(private val activity: Activity, root: FrameLayout, private val side: Int) {
     private enum class Stage { PREVIEW, TAKING, REVIEW }
@@ -63,7 +63,7 @@ class CameraCapture(private val activity: Activity, root: FrameLayout, private v
     private var reader: ImageReader? = null
     private var previewSize: Size? = null
     private var previewSurface: Surface? = null
-    /** The sensor's own orientation, which the preview's SurfaceTexture already applies. */
+    /** The sensor's orientation: the photo's turn, which the preview's SurfaceTexture already applies. */
     private var sensor = 0
 
     private val view = FrameLayout(activity).apply {
@@ -297,6 +297,7 @@ class CameraCapture(private val activity: Activity, root: FrameLayout, private v
         val frames = reader ?: return
         val surface = previewSurface ?: return
         stage = Stage.TAKING
+        hint.setText(R.string.camera_capture_taking)
         runCatching {
             val request = s.device.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
                 addTarget(surface)
@@ -307,12 +308,17 @@ class CameraCapture(private val activity: Activity, root: FrameLayout, private v
         }.onFailure {
             Log.w(TAG, "Photo failed", it)
             stage = Stage.PREVIEW
+            hint.setText(R.string.camera_capture_hint)
         }
     }
 
-    /** On the camera thread: the frame as a JPEG turned upright, at most [LONG_EDGE] px, into the cache. */
+    /**
+     * On the camera thread: the frame turned by the sensor's orientation and encoded once, as a
+     * JPEG into the cache (a decode, a turn and a second encode took about 5 s on the RG).
+     */
     private fun saveFrame(r: ImageReader) {
         val image = r.acquireLatestImage() ?: return
+        val started = android.os.SystemClock.elapsedRealtime()
         val width = image.width
         val height = image.height
         val nv21 = try {
@@ -320,24 +326,21 @@ class CameraCapture(private val activity: Activity, root: FrameLayout, private v
         } finally {
             image.close()
         }
+        val copied = android.os.SystemClock.elapsedRealtime()
         val file = runCatching {
-            val jpeg = java.io.ByteArrayOutputStream().also {
-                android.graphics.YuvImage(nv21, ImageFormat.NV21, width, height, null).compressToJpeg(android.graphics.Rect(0, 0, width, height), 92, it)
-            }.toByteArray()
-            val decoded = BitmapFactory.decodeByteArray(jpeg, 0, jpeg.size) ?: error("not a JPEG")
-            val scale = minOf(1f, LONG_EDGE.toFloat() / maxOf(decoded.width, decoded.height))
-            val matrix = Matrix().apply {
-                postScale(scale, scale)
-                postRotate(ROTATION.toFloat())
-            }
-            val upright = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
-            if (upright !== decoded) decoded.recycle()
+            val turned = rotateNv21(nv21, width, height, sensor)
+            val rotated = android.os.SystemClock.elapsedRealtime()
+            val swap = sensor % 180 != 0
+            val w = if (swap) height else width
+            val h = if (swap) width else height
             val dir = File(activity.cacheDir, "camera").apply { mkdirs() }
             dir.listFiles()?.forEach { if (System.currentTimeMillis() - it.lastModified() > STALE_MS) it.delete() }
             val out = File(dir, "photo-${System.currentTimeMillis()}.jpg")
-            out.outputStream().use { upright.compress(Bitmap.CompressFormat.JPEG, 88, it) }
-            Log.d(TAG, "Photo ${upright.width}x${upright.height}, ${out.length() / 1024} KB")
-            out to upright
+            out.outputStream().use { android.graphics.YuvImage(turned, ImageFormat.NV21, w, h, null).compressToJpeg(android.graphics.Rect(0, 0, w, h), 88, it) }
+            // Shown in the review only: half size is plenty for the square.
+            val shown = BitmapFactory.decodeFile(out.path, BitmapFactory.Options().apply { inSampleSize = 2 }) ?: error("not a JPEG")
+            Log.d(TAG, "Photo ${w}x$h, ${out.length() / 1024} KB in ${android.os.SystemClock.elapsedRealtime() - started} ms (copy ${copied - started}, turn ${rotated - copied})")
+            out to shown
         }.onFailure { Log.w(TAG, "Couldn't keep the photo", it) }.getOrNull()
         main.post {
             if (!shown || stage != Stage.TAKING) {
@@ -346,6 +349,7 @@ class CameraCapture(private val activity: Activity, root: FrameLayout, private v
             }
             if (file == null) {
                 stage = Stage.PREVIEW
+                hint.setText(R.string.camera_capture_hint)
                 return@post
             }
             review(file.first, file.second)
@@ -368,23 +372,19 @@ class CameraCapture(private val activity: Activity, root: FrameLayout, private v
 
     /**
      * The preview's transform: TextureView stretches the camera's frame, already turned by the
-     * sensor's orientation, over the square; this undoes the stretch, turns it the rest of the
-     * way to [ROTATION] and scales it to cover the square (the middle).
+     * sensor's orientation, over the square; this undoes the stretch and scales it to cover the
+     * square (the middle).
      */
     private fun upright(size: Size): Matrix {
         val turned = sensor % 180 != 0
         val w = (if (turned) size.height else size.width).toFloat()
         val h = (if (turned) size.width else size.height).toFloat()
-        val rest = ((ROTATION - sensor) % 360 + 360) % 360
-        val outW = if (rest % 180 != 0) h else w
-        val outH = if (rest % 180 != 0) w else h
         val v = side.toFloat()
-        val cover = maxOf(v / outW, v / outH)
+        val cover = maxOf(v / w, v / h)
         return Matrix().apply {
             setScale(w / v, h / v)
             postTranslate(-w / 2, -h / 2)
             postScale(cover, cover)
-            postRotate(rest.toFloat())
             postTranslate(v / 2, v / 2)
         }
     }
@@ -410,6 +410,17 @@ class CameraCapture(private val activity: Activity, root: FrameLayout, private v
         val v = image.planes[2]
         val uBuffer = u.buffer
         val vBuffer = v.buffer
+        // Most often the V plane already is NV21's VU interleave (pixel stride 2, U one byte
+        // after): one copy, not a read per byte (which took seconds on the RG).
+        val chroma = width * height / 2
+        val interleaved = v.pixelStride == 2 && u.pixelStride == 2 && v.rowStride == width && u.rowStride == width &&
+            vBuffer.remaining() >= chroma - 1 && (0 until 3).all { vBuffer.get(2 * it + 1) == uBuffer.get(2 * it) }
+        if (interleaved) {
+            vBuffer.position(0)
+            vBuffer.get(out, pos, chroma - 1)
+            out[pos + chroma - 1] = uBuffer.get(uBuffer.limit() - 1)
+            return out
+        }
         for (row in 0 until height / 2) {
             for (col in 0 until width / 2) {
                 out[pos++] = vBuffer.get(row * v.rowStride + col * v.pixelStride)
@@ -469,8 +480,6 @@ class CameraCapture(private val activity: Activity, root: FrameLayout, private v
 
     companion object {
         private const val TAG = "BandCamera"
-        /** How the RG glasses' camera module sits: its pictures need this turn (degrees, clockwise). */
-        const val ROTATION = 90
         private const val PREVIEW_WIDTH = 1280
         /** The photo's frame: 1600 x 1200 on the RG. */
         private const val FRAME_WIDTH = 1600
@@ -480,6 +489,36 @@ class CameraCapture(private val activity: Activity, root: FrameLayout, private v
         private const val STALE_MS = 60 * 60 * 1000L
         private const val HINT = 50f
         private const val NONE = -1
+
+        /** An NV21 frame of [width] x [height] turned clockwise by [degrees] (0, 90, 180 or 270). */
+        fun rotateNv21(data: ByteArray, width: Int, height: Int, degrees: Int): ByteArray {
+            val turn = ((degrees % 360) + 360) % 360
+            if (turn == 0) return data
+            val out = ByteArray(data.size)
+            turnPlane(data, 0, out, 0, width, height, turn, 1)
+            turnPlane(data, width * height, out, width * height, width / 2, height / 2, turn, 2)
+            return out
+        }
+
+        /** One plane of [w] x [h] cells of [size] bytes (the luma's 1, the chroma's VU pairs) turned. */
+        private fun turnPlane(src: ByteArray, from: Int, out: ByteArray, to: Int, w: Int, h: Int, turn: Int, size: Int) {
+            val outW = if (turn == 180) w else h
+            for (y in 0 until h) {
+                for (x in 0 until w) {
+                    val nx: Int
+                    val ny: Int
+                    when (turn) {
+                        90 -> { nx = h - 1 - y; ny = x }
+                        180 -> { nx = w - 1 - x; ny = h - 1 - y }
+                        else -> { nx = y; ny = w - 1 - x }
+                    }
+                    val s = from + (y * w + x) * size
+                    val d = to + (ny * outW + nx) * size
+                    out[d] = src[s]
+                    if (size == 2) out[d + 1] = src[s + 1]
+                }
+            }
+        }
 
         /** The largest 4:3 size at most [maxWidth] wide (the sensor's own shape), else the smallest. */
         fun fourByThree(sizes: Array<Size>?, maxWidth: Int): Size? {
