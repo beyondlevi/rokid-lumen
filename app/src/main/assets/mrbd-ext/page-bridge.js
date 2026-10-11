@@ -17,6 +17,7 @@
     if (data.type === 'audio' && window.__lumenAudio) window.__lumenAudio(data.event);
     if (data.type === 'bandNavigation' && window.__lumenBandNavigation) window.__lumenBandNavigation(data.value);
     if (data.type === 'cameraStop' && window.__lumenCameraStop) window.__lumenCameraStop();
+    if (data.type === 'writing' && window.__lumenWriting) window.__lumenWriting(data.event);
   });
   window.MrbdHost = {
     canGoBack: function () { return back; },
@@ -25,6 +26,7 @@
     cancelSpeech: function () { send({ type: 'cancelSpeech' }); },
     backResult: function (handled) { send({ type: 'backResult', handled: !!handled }); },
     getConfig: function (id) { send({ type: 'getConfig', id: id }); },
-    audio: function (json) { send({ type: 'audio', message: JSON.parse(json) }); }
+    audio: function (json) { send({ type: 'audio', message: JSON.parse(json) }); },
+    writing: function (json) { send({ type: 'writing', message: JSON.parse(json) }); }
   };
 })();

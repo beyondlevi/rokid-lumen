@@ -218,4 +218,57 @@ class KeyboardLogicTest {
             assertEquals(command, KeyboardRoute.PASS, KeyboardRoute.of(panelOpen = false, field = true, hintShown = true, ownApp = true, bannerUp = false, command = command))
         }
     }
+
+    @Test
+    fun suggestionsFollowTheField() {
+        // A plain text field: suggest, correct and learn.
+        assertEquals(WritingAssist(suggest = true, autocorrect = true, learn = true), WritingAssist.of(field(web)!!, enabled = true, autocorrect = true))
+        // The companion's switches.
+        assertEquals(WritingAssist.OFF, WritingAssist.of(field(web)!!, enabled = false, autocorrect = true))
+        assertFalse(WritingAssist.of(field(web)!!, enabled = true, autocorrect = false).autocorrect)
+        // Never in a password; suggest only in an address.
+        val password = text or InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD
+        assertEquals(WritingAssist.OFF, WritingAssist.of(field(password)!!, enabled = true, autocorrect = true))
+        val email = text or InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS
+        assertEquals(WritingAssist(suggest = true, autocorrect = false, learn = false), WritingAssist.of(field(email)!!, enabled = true, autocorrect = true))
+        // A field that asks for none, or not to be learned (incognito).
+        assertEquals(WritingAssist.OFF, WritingAssist.of(field(web or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)!!, enabled = true, autocorrect = true))
+        val incognito = field(web, EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING)!!
+        assertEquals(WritingAssist(suggest = true, autocorrect = false, learn = false), WritingAssist.of(incognito, enabled = true, autocorrect = true))
+    }
+
+    @Test
+    fun aSuggestEventReads() {
+        val event = org.json.JSONObject(
+            """{"type":"suggest","rev":4,"kind":"word","word":"vo","items":["você","vocês","voltou"],"selected":1,
+            "ghost":"cês","undo":true,"notice":{"kind":"corrected","from":"nao","to":"não"},"mark":[3,6]}""",
+        )
+        val suggestions = Suggestions.of(event)
+        assertEquals("word", suggestions.kind)
+        assertEquals(listOf("você", "vocês", "voltou"), suggestions.items)
+        assertEquals(1, suggestions.selected)
+        assertEquals("cês", suggestions.ghost)
+        assertTrue(suggestions.undo)
+        assertEquals(Suggestions.Notice("corrected", from = "nao", to = "não"), suggestions.notice)
+        assertEquals(3..5, suggestions.mark)
+        // Nothing to show.
+        val none = Suggestions.of(org.json.JSONObject("""{"type":"suggest","kind":"none","items":[],"mark":null,"notice":null}"""))
+        assertFalse(none.any)
+        assertNull(none.notice)
+        assertNull(none.mark)
+    }
+
+    @Test
+    fun theMarkFollowsTheShownEndOfALongText() {
+        val full = "a".repeat(200) + " não "
+        // The panel shows "…" and the last 160 characters.
+        val shown = "…" + full.takeLast(160)
+        val mark = 201..203
+        val inShown = Suggestions.markIn(full, shown, mark)!!
+        assertEquals("não", shown.substring(inShown.first, inShown.last + 1))
+        // A word already scrolled out isn't marked; a short text keeps the range.
+        assertNull(Suggestions.markIn(full, shown, 0..2))
+        assertEquals(3..5, Suggestions.markIn("eu não ", "eu não ", 3..5))
+        assertNull(Suggestions.markIn("eu ", "eu ", 3..5))
+    }
 }

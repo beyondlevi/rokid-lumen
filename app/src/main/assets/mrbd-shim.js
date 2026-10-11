@@ -70,6 +70,45 @@
     };
   }
 
+  // Rokid Lumen's writing practice, for an app that teaches writing with the band: train({text,
+  // lang}) says what the wearer is about to write in the focused field (the index tap then writes
+  // at once, a small bar under the app replaces the keyboard's panel, suggestions and corrections
+  // are off, and Lumen learns the wearer's letters from it); train(null) ends it. onState(cb)
+  // hears 'off', 'preparing' and 'writing'; stop() ends the band's writing.
+  if (window.lumen && host && host.writing && !window.lumen.writing) {
+    var writingId = 1;
+    var writingPending = {};
+    var writingListeners = [];
+    window.__lumenWriting = function (event) {
+      if (!event) return;
+      if (event.type === 'result') {
+        var resolve = writingPending[event.id];
+        delete writingPending[event.id];
+        if (resolve) resolve(!!event.ok);
+      } else if (event.type === 'state') {
+        writingListeners.slice().forEach(function (cb) {
+          try { cb(String(event.state)); } catch (e) { setTimeout(function () { throw e; }); }
+        });
+      }
+    };
+    window.lumen.writing = {
+      train: function (options) {
+        var text = options && options.text != null ? String(options.text) : null;
+        var lang = options && options.lang ? String(options.lang) : '';
+        return new Promise(function (resolve) {
+          var id = writingId++;
+          writingPending[id] = resolve;
+          host.writing(JSON.stringify({ op: 'train', id: id, text: text, lang: lang }));
+        });
+      },
+      onState: function (cb) {
+        if (typeof cb === 'function') writingListeners.push(cb);
+        return function () { writingListeners = writingListeners.filter(function (x) { return x !== cb; }); };
+      },
+      stop: function () { host.writing(JSON.stringify({ op: 'stop' })); }
+    };
+  }
+
   // Rokid Lumen's audio API: the glasses silence a page's microphone, so the phone records the
   // glasses' mic and hands back an Ogg Opus voice note, and transcribes an audio with the
   // dictation engine chosen in the companion. record(options) resolves to a recording (onLevel,

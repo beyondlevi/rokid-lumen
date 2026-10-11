@@ -163,6 +163,21 @@ object BandRuntime {
         device?.resetHandwritingText(text)
     }
 
+    /** The writing's suggestions on the band link (see [dev.lumen.band.Bridge.setWritingAssist]). */
+    @JvmStatic
+    fun setWritingAssist(enabled: Boolean, lexicon: String, store: String, autocorrect: Boolean, learn: Boolean, today: Int): Boolean =
+        device?.setWritingAssist(enabled, lexicon, store, autocorrect, learn, today) ?: false
+
+    @JvmStatic
+    fun writingCommand(op: String) {
+        device?.writingCommand(op)
+    }
+
+    @JvmStatic
+    fun writingTrain(text: String?) {
+        device?.writingTrain(text)
+    }
+
     /** Debug builds' writing probe on the band link ([WritingProbe]). */
     @JvmStatic
     fun setHandwritingProbe(enabled: Boolean) {

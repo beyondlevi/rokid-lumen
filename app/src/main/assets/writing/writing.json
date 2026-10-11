@@ -1,0 +1,8 @@
+{
+  "format": 1,
+  "sha256": "2f3314dbc48866a3a04e042ff572eaee1073dccb52afe324272c561a79587454",
+  "bytes": 4829047,
+  "stats": {"en_US":{"words":80000,"pairs":119044,"tokens":15408361},"pt_BR":{"words":80000,"pairs":63315,"tokens":3349249}},
+  "sources": {"en_US_wordlist.combined.gz":"0f78dd455b532be169a23f233227b811fabced4b5bd7fc9c40cc05839793bcbd","pt_BR_wordlist.combined.gz":"f9b7c2f610eacebc782c7d24e64d8ad2620b449defbac326507dfb5702c6c48b","eng_sentences.tsv.bz2":"0eabb52f54350bbb39807190920bfddaf9fee2ba50ca75af67e11a22ec475c29","por_sentences.tsv.bz2":"396a9416796b494c889e845075a5e2fa49a34f58831fd6e73d8bf38b7d926845"},
+  "licenses": {"AOSP LatinIME word lists": "Apache-2.0", "Tatoeba sentences": "CC BY 2.0 FR"}
+}

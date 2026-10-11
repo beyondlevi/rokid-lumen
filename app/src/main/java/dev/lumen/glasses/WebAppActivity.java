@@ -301,6 +301,51 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         }
     }
 
+    /**
+     * A `window.lumen.writing` request: a practice for Lumen's keyboard (what the wearer is about
+     * to write in the focused field), or its end. Only the app's own page; its practice's states go
+     * back to that origin while this screen is in front.
+     */
+    @Override
+    public void onWriting(JSONObject message, String pageUrl) {
+        WebApp current = WebAppLibrary.find(this, appId);
+        String origin = current == null ? "" : originOf(current.getUrl());
+        if (current == null || origin.isEmpty() || !origin.equals(originOf(pageUrl))) {
+            Log.w(TAG, "Writing practice refused to " + originOf(pageUrl) + " (the app is " + origin + ")");
+            return;
+        }
+        practiceOrigin = origin;
+        String op = message.optString("op");
+        if ("train".equals(op)) {
+            String text = message.isNull("text") ? null : message.optString("text");
+            boolean ok = LumenKeyboard.train(text);
+            try {
+                writingEvent(new JSONObject().put("type", "result").put("id", message.optInt("id")).put("ok", ok));
+            } catch (org.json.JSONException ignored) {
+                // Only fixed keys.
+            }
+        } else if ("stop".equals(op)) {
+            LumenKeyboard.stopPractice();
+        }
+    }
+
+    /** The origin the last practice came from; its states go there. */
+    private String practiceOrigin = "";
+
+    private void writingEvent(JSONObject event) {
+        if (engine != null && !practiceOrigin.isEmpty()) {
+            engine.writingEvent(event, practiceOrigin);
+        }
+    }
+
+    private void practiceState(String state) {
+        try {
+            writingEvent(new JSONObject().put("type", "state").put("state", state));
+        } catch (org.json.JSONException ignored) {
+            // Only fixed keys.
+        }
+    }
+
     /** The app to open, by id; nothing is added here (see InstallConfirmActivity). */
     private WebApp appFrom(Intent intent) {
         return intent == null ? null : WebAppLibrary.find(this, intent.getStringExtra(EXTRA_APP_ID));
@@ -312,6 +357,11 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         BandAccessibilityService.setInputTarget(this);
         // The phone's keyboard names the field after the app it's in.
         LumenKeyboard.setWebAppName(appName);
+        // A practice's states go to the app in front.
+        LumenKeyboard.setPracticeListener(state -> {
+            practiceState(state);
+            return kotlin.Unit.INSTANCE;
+        });
         KeyboardDefault.apply(this);
         if (PhoneDictation.applies(this)) {
             PhoneDictation.announce();
@@ -361,6 +411,13 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
         }
         GlassesAudio.closeAll(this);
         WebRecognition.closeAll(this);
+        // A practice ends with its screen.
+        if (!practiceOrigin.isEmpty()) {
+            LumenKeyboard.train(null);
+            LumenKeyboard.stopPractice();
+            practiceOrigin = "";
+        }
+        LumenKeyboard.setPracticeListener(null);
         if (engine != null) {
             engine.onHidden();
         }

@@ -52,6 +52,10 @@ data class FocusedField(
     val label: String,
     val packageName: String,
     val key: String,
+    /** The field takes suggestions (no TYPE_TEXT_FLAG_NO_SUGGESTIONS). */
+    val suggestions: Boolean = true,
+    /** What's typed in it may be learned (no IME_FLAG_NO_PERSONALIZED_LEARNING, as in incognito). */
+    val learning: Boolean = true,
 ) {
     /** For the log: the kind of field, never its text or label. */
     fun describe(): String = "${kind.name.lowercase()}${if (multiline) " multiline" else ""} enter=${action.name.lowercase()} pkg=$packageName"
@@ -107,7 +111,12 @@ data class FocusedField(
             val name = (hint?.toString()?.trim().orEmpty()).ifEmpty { label?.toString()?.trim().orEmpty() }
                 .replace(Regex("\\s+"), " ").take(MAX_LABEL)
             val pkg = packageName.orEmpty()
-            return FocusedField(kind, multiline, action, actionCode, custom, name, pkg, "$pkg/$fieldId/$inputType/$imeOptions/$name")
+            val suggestions = inputType and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS == 0
+            val learning = imeOptions and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING == 0
+            return FocusedField(
+                kind, multiline, action, actionCode, custom, name, pkg, "$pkg/$fieldId/$inputType/$imeOptions/$name",
+                suggestions, learning,
+            )
         }
 
         private const val MAX_LABEL = 80
@@ -183,3 +192,85 @@ enum class KeyboardChoice(val label: Int) {
         fun forField(kind: FieldKind): List<KeyboardChoice> = if (kind.secret) listOf(WRITE, PHONE) else entries
     }
 }
+
+/**
+ * Whether the band's writing gets suggestions in a field, and what they may do: never in a
+ * password (they'd show what the mask hides); suggest only in an e-mail or web address, or a
+ * field that asks for none to be learned; correct and learn in any other text. Off without
+ * [enabled] (the companion's switch); [autocorrect] is the companion's other switch.
+ */
+data class WritingAssist(val suggest: Boolean, val autocorrect: Boolean, val learn: Boolean) {
+    companion object {
+        val OFF = WritingAssist(suggest = false, autocorrect = false, learn = false)
+
+        @JvmStatic
+        fun of(field: FocusedField, enabled: Boolean, autocorrect: Boolean): WritingAssist {
+            if (!enabled || !field.suggestions) return OFF
+            return when (field.kind) {
+                FieldKind.TEXT -> WritingAssist(true, autocorrect && field.learning, field.learning)
+                FieldKind.EMAIL, FieldKind.URL -> WritingAssist(suggest = true, autocorrect = false, learn = false)
+                FieldKind.PASSWORD, FieldKind.NUMBER, FieldKind.PHONE -> OFF
+            }
+        }
+    }
+}
+
+/**
+ * The band library's suggestions for the word being written (a `suggest` event): [kind] "word"
+ * (completions and corrections), "next" (the next word) or "none"; [ghost] the gray rest after the
+ * caret; [mark] the UTF-16 range of the word just changed in the field's text; [notice] what
+ * changed ([Notice]).
+ */
+data class Suggestions(
+    val kind: String = "none",
+    val items: List<String> = emptyList(),
+    val selected: Int = 0,
+    val ghost: String = "",
+    val undo: Boolean = false,
+    val notice: Notice? = null,
+    val mark: IntRange? = null,
+) {
+    data class Notice(val kind: String, val from: String = "", val to: String = "", val word: String = "")
+
+    val any: Boolean get() = items.isNotEmpty()
+
+    companion object {
+        val NONE = Suggestions()
+
+        @JvmStatic
+        fun of(event: org.json.JSONObject): Suggestions {
+            val items = event.optJSONArray("items")?.let { array -> List(array.length()) { array.optString(it) } }.orEmpty()
+            val notice = event.optJSONObject("notice")?.let {
+                Notice(it.optString("kind"), it.optString("from"), it.optString("to"), it.optString("word"))
+            }
+            val mark = event.optJSONArray("mark")?.takeIf { it.length() == 2 }?.let { it.optInt(0) until it.optInt(1) }
+            return Suggestions(
+                kind = event.optString("kind", "none"),
+                items = items,
+                selected = event.optInt("selected").coerceIn(0, (items.size - 1).coerceAtLeast(0)),
+                ghost = event.optString("ghost"),
+                undo = event.optBoolean("undo"),
+                notice = notice,
+                mark = mark?.takeIf { !it.isEmpty() },
+            )
+        }
+
+        /**
+         * [mark] in the panel's text when it shows only the end of [full]: [shown] is then one
+         * character ("…") plus the last ones. Null when the word isn't in what shows.
+         */
+        @JvmStatic
+        fun markIn(full: String, shown: String, mark: IntRange?): IntRange? {
+            mark ?: return null
+            if (mark.last >= full.length) return null
+            if (shown == full) return mark
+            // The characters of [full] that the "…" stands for.
+            val dropped = full.length - (shown.length - ELLIPSIS.length)
+            if (mark.first < dropped) return null
+            return (mark.first - dropped + ELLIPSIS.length)..(mark.last - dropped + ELLIPSIS.length)
+        }
+
+        private const val ELLIPSIS = "…"
+    }
+}
+

@@ -9,4 +9,12 @@
     <!-- %1$s: the field ("Search", "a password"); %2$s: the app on the glasses. -->
     <string name="keyboard_notice_text">Type into %1$s · %2$s</string>
     <string name="keyboard_notice_text_field">Type into %1$s</string>
+    <string name="band_setting_writing_suggestions">Suggestions while writing</string>
+    <string name="band_setting_writing_suggestions_hint">Completes the word and predicts the next one while you write with the band. Thumb right accepts.</string>
+    <string name="band_setting_writing_autocorrect">Correct automatically</string>
+    <string name="band_setting_writing_autocorrect_hint">At the space, swaps a word that looks wrong (nao becomes não). Thumb left undoes.</string>
+    <string name="band_action_forget_writing">Forget what writing learned</string>
+    <string name="band_forget_writing_title">Forget what writing learned?</string>
+    <string name="band_forget_writing_text">The words you taught and the fit to your handwriting leave the glasses. The suggestions go back to the dictionary\'s.</string>
+    <string name="band_forget_writing_button">Forget</string>
 </resources>

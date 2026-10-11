@@ -185,6 +185,9 @@ class SystemWebEngine(
     override fun audioEvent(event: JSONObject, origin: String) =
         evaluateOnAppPage("window.__lumenAudio && window.__lumenAudio($event)")
 
+    override fun writingEvent(event: JSONObject, origin: String) =
+        evaluateOnAppPage("window.__lumenWriting && window.__lumenWriting($event)")
+
     /** Whether the page in front is the app's own. Main thread (WebView's rule for [WebView.getUrl]). */
     private fun onAppPage(): Boolean = WebOrigin.matches(web.url, appOrigin)
 
@@ -240,6 +243,12 @@ class SystemWebEngine(
         @JavascriptInterface
         fun audio(message: String?) = fromAppPage("audio") {
             runCatching { JSONObject(message.orEmpty()) }.getOrNull()?.let { host.onAudio(it, web.url) }
+        }
+
+        /** A `window.lumen.writing` request, as JSON. */
+        @JavascriptInterface
+        fun writing(message: String?) = fromAppPage("writing") {
+            runCatching { JSONObject(message.orEmpty()) }.getOrNull()?.let { host.onWriting(it, web.url) }
         }
 
         @JavascriptInterface

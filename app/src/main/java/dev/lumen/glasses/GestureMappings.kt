@@ -336,6 +336,20 @@ object GestureMappings {
     @JvmStatic
     fun setLumenKeyboard(context: Context, on: Boolean) = prefs(context).edit().putBoolean("lumen_keyboard", on).apply()
 
+    /** Suggestions while writing with the band in Lumen's keyboard; on by default. */
+    @JvmStatic
+    fun writingSuggestions(context: Context): Boolean = prefs(context).getBoolean("writing_suggestions", true)
+
+    @JvmStatic
+    fun setWritingSuggestions(context: Context, on: Boolean) = prefs(context).edit().putBoolean("writing_suggestions", on).apply()
+
+    /** With the suggestions on, a word that looks wrong is corrected when it ends; on by default. */
+    @JvmStatic
+    fun writingAutocorrect(context: Context): Boolean = prefs(context).getBoolean("writing_autocorrect", true)
+
+    @JvmStatic
+    fun setWritingAutocorrect(context: Context, on: Boolean) = prefs(context).edit().putBoolean("writing_autocorrect", on).apply()
+
     /** Fast mode: repeated swipes on the launcher move two apps at a time (R08's Fast mode). */
     @JvmStatic
     fun isFastNavigation(context: Context): Boolean = prefs(context).getBoolean("fast_navigation", false)

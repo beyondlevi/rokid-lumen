@@ -19,6 +19,7 @@
     if (data.type === 'audio' && window.__lumenAudio) window.__lumenAudio(data.event);
     if (data.type === 'bandNavigation' && window.__lumenBandNavigation) window.__lumenBandNavigation(data.value);
     if (data.type === 'cameraStop' && window.__lumenCameraStop) window.__lumenCameraStop();
+    if (data.type === 'writing' && window.__lumenWriting) window.__lumenWriting(data.event);
   });
   window.MrbdHost = {
     canGoBack: function () { return back; },
@@ -27,7 +28,8 @@
     cancelSpeech: function () { send({ type: 'cancelSpeech' }); },
     backResult: function (handled) { send({ type: 'backResult', handled: !!handled }); },
     getConfig: function (id) { send({ type: 'getConfig', id: id }); },
-    audio: function (json) { send({ type: 'audio', message: JSON.parse(json) }); }
+    audio: function (json) { send({ type: 'audio', message: JSON.parse(json) }); },
+    writing: function (json) { send({ type: 'writing', message: JSON.parse(json) }); }
   };
 })();
 // Injected by the Rokid host before a Meta Ray-Ban Display web app's own scripts run.
@@ -99,6 +101,45 @@
           return function () { configListeners = configListeners.filter(function (x) { return x !== cb; }); };
         }
       }
+    };
+  }
+
+  // Rokid Lumen's writing practice, for an app that teaches writing with the band: train({text,
+  // lang}) says what the wearer is about to write in the focused field (the index tap then writes
+  // at once, a small bar under the app replaces the keyboard's panel, suggestions and corrections
+  // are off, and Lumen learns the wearer's letters from it); train(null) ends it. onState(cb)
+  // hears 'off', 'preparing' and 'writing'; stop() ends the band's writing.
+  if (window.lumen && host && host.writing && !window.lumen.writing) {
+    var writingId = 1;
+    var writingPending = {};
+    var writingListeners = [];
+    window.__lumenWriting = function (event) {
+      if (!event) return;
+      if (event.type === 'result') {
+        var resolve = writingPending[event.id];
+        delete writingPending[event.id];
+        if (resolve) resolve(!!event.ok);
+      } else if (event.type === 'state') {
+        writingListeners.slice().forEach(function (cb) {
+          try { cb(String(event.state)); } catch (e) { setTimeout(function () { throw e; }); }
+        });
+      }
+    };
+    window.lumen.writing = {
+      train: function (options) {
+        var text = options && options.text != null ? String(options.text) : null;
+        var lang = options && options.lang ? String(options.lang) : '';
+        return new Promise(function (resolve) {
+          var id = writingId++;
+          writingPending[id] = resolve;
+          host.writing(JSON.stringify({ op: 'train', id: id, text: text, lang: lang }));
+        });
+      },
+      onState: function (cb) {
+        if (typeof cb === 'function') writingListeners.push(cb);
+        return function () { writingListeners = writingListeners.filter(function (x) { return x !== cb; }); };
+      },
+      stop: function () { host.writing(JSON.stringify({ op: 'stop' })); }
     };
   }
 

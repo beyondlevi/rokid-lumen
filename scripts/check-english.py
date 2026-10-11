@@ -5,7 +5,8 @@ Code, comments, docs, logs and the default resources are in English (AGENTS.md);
 lives only in values-pt*/ and in language data named for it (`*.pt-BR.*`). A line is flagged when it has a letter only Portuguese uses here
 (ã, õ, ç) or a common Portuguese word. Legitimate exceptions (a firmware label the code must
 match, a test fixture, a language's own name) are listed in scripts/english-allowlist.txt as
-`path<TAB>text`: the line is accepted when it is in that file and contains that text.
+`path<TAB>text`: the line is accepted when it is in that file and contains that text (`*`: any
+line of a file whose language is its subject, such as a test of Portuguese words).
 
 Usage: scripts/check-english.py   (from anywhere in the repository; lists the tracked files)
 """
@@ -21,7 +22,7 @@ PT_DATA = re.compile(r"\.pt-BR\.[^/]+$")
 # This check's own word list.
 SKIP_FILES = {"scripts/check-english.py", "scripts/english-allowlist.txt"}
 SKIP_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".woff2", ".ttf", ".otf", ".jar", ".so",
-                 ".zip", ".apk", ".aab", ".bundle", ".pcm", ".mp3", ".mp4", ".bin"}
+                 ".zip", ".apk", ".aab", ".bundle", ".pcm", ".mp3", ".mp4", ".bin", ".lex"}
 PT_LETTERS = re.compile(r"[ãõçÃÕÇ]")
 PT_WORDS = re.compile(
     r"\b(não|nao|você|vocês|está|estão|então|também|já|até|ação|ações|configuração|aplicativo|celular|"
@@ -58,7 +59,7 @@ def main() -> int:
         for number, line in enumerate(lines, 1):
             if not (PT_LETTERS.search(line) or PT_WORDS.search(line)):
                 continue
-            match = next((i for i, (f, t) in enumerate(allowed) if f == name and t in line), None)
+            match = next((i for i, (f, t) in enumerate(allowed) if f == name and (t == "*" or t in line)), None)
             if match is not None:
                 used.add(match)
                 continue

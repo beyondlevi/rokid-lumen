@@ -55,6 +55,19 @@ object Bridge {
     /** Start the written text over from [text], what the field holds. */
     @JvmStatic external fun resetHandwritingText(handle: Long, text: String)
     /**
+     * The writing's suggestions on or off: the lexicon file at [lexicon] (mapped), the wearer's
+     * store at [store] (what they learned; saved when they go off), [today] in days since 1970.
+     * On, [handwritingEvents] also carries `suggest` events (kind word|next|none, word, items,
+     * selected, ghost, undo, notice, mark) and a word may come back corrected when it ends; the
+     * thumb's swipes work them. False when the lexicon can't open (a library from before: throws
+     * UnsatisfiedLinkError).
+     */
+    @JvmStatic external fun setWritingAssist(handle: Long, enabled: Boolean, lexicon: String, store: String, autocorrect: Boolean, learn: Boolean, today: Int): Boolean
+    /** The touchpad on the suggestions: "accept", "undo", "next", "previous". */
+    @JvmStatic external fun writingCommand(handle: Long, op: String)
+    /** A writing trainer's practice: what the wearer is about to write ([text]; null ends it). */
+    @JvmStatic external fun writingTrain(handle: Long, text: String?)
+    /**
      * Debug builds' writing probe: while the band writes, each sample's likeliest classes
      * (`frame`) and each gesture message (`gesture`) also come with [handwritingEvents], for a
      * test's recording. What someone writes: never log it.

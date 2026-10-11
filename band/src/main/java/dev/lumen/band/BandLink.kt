@@ -237,6 +237,27 @@ class BandLink(
         if (handle != 0L) Bridge.resetHandwritingText(handle, text)
     }
 
+    override fun setWritingAssist(enabled: Boolean, lexicon: String, store: String, autocorrect: Boolean, learn: Boolean, today: Int): Boolean =
+        synchronized(lock) {
+            if (handle == 0L) return false
+            try {
+                Bridge.setWritingAssist(handle, enabled, lexicon, store, autocorrect, learn, today)
+            } catch (_: UnsatisfiedLinkError) {
+                // A band library from before the suggestions.
+                false
+            }
+        }
+
+    override fun writingCommand(op: String) = synchronized(lock) {
+        if (handle != 0L) runCatching { Bridge.writingCommand(handle, op) }
+        Unit
+    }
+
+    override fun writingTrain(text: String?) = synchronized(lock) {
+        if (handle != 0L) runCatching { Bridge.writingTrain(handle, text) }
+        Unit
+    }
+
     override fun setHandwritingProbe(enabled: Boolean) = synchronized(lock) {
         probe = enabled
         if (handle != 0L) applyProbe()

@@ -58,6 +58,15 @@ interface GestureDevice {
     /** Debug builds' writing probe on or off (see [Bridge.setHandwritingProbe]); kept for the next connection. */
     fun setHandwritingProbe(enabled: Boolean) = Unit
 
+    /** The writing's suggestions on or off (see [Bridge.setWritingAssist]); false when they can't run. */
+    fun setWritingAssist(enabled: Boolean, lexicon: String, store: String, autocorrect: Boolean, learn: Boolean, today: Int): Boolean = false
+
+    /** The touchpad on the suggestions (see [Bridge.writingCommand]). */
+    fun writingCommand(op: String) = Unit
+
+    /** A writing trainer's practice (see [Bridge.writingTrain]). */
+    fun writingTrain(text: String?) = Unit
+
     /**
      * The air mouse on or off (see [Bridge.setPointer]); false when it can't run here. Its
      * movement and buttons come to [Listener.onPointer]. It ends with the connection.
