@@ -349,6 +349,17 @@ impl Connection {
         self.controller.set_writing_assist(false);
     }
 
+    /// Practice from a writing trainer (`text`: what the wearer is about to write, `None` to
+    /// end it): no suggestions or corrections, and the expected words teach the letters.
+    pub fn writing_train(&mut self, text: Option<&str>) {
+        let current = self.session.handwriting_text().to_owned();
+        if let Some(assist) = &mut self.assist {
+            assist.set_training(text, &current);
+            self.log.push(format!("writing practice {}", if text.is_some() { "on" } else { "off" }));
+        }
+        self.push_suggest();
+    }
+
     /// The touchpad's arrows on the suggestions: "accept", "undo", "next", "previous".
     pub fn writing_command(&mut self, op: &str) {
         if let Some(op) = Op::from_name(op) {

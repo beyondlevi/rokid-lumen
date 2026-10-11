@@ -35,6 +35,8 @@ const RANK_RATE: f32 = 0.05;
 const BIAS_RATE: f32 = 0.03;
 /// A confirmed word teaches the letters only when it read this well.
 const TEACHING_COST: f32 = 6.0;
+/// A practice word is known: it teaches even when the band read it badly, short of another word.
+const TRAINING_COST: f32 = 14.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Settings {
@@ -135,6 +137,8 @@ struct Pending {
     slots: Vec<Slot>,
     /// It was a correction: kept, it makes the next ones a little bolder.
     corrected: bool,
+    /// Practice: the word the wearer was asked to write here.
+    expected: Option<String>,
 }
 
 pub struct Assistant {
@@ -162,6 +166,9 @@ pub struct Assistant {
     mark: Option<(usize, usize)>,
     rev: u64,
     dirty: bool,
+    /// Practice: the words the wearer is about to write (folded), and how many words the text
+    /// had when they were given. No suggestions, no corrections; each word teaches the letters.
+    training: Option<(Vec<String>, usize)>,
 }
 
 fn split_word(text: &str) -> (&str, &str) {
@@ -216,11 +223,36 @@ impl Assistant {
             mark: None,
             rev: 0,
             dirty: false,
+            training: None,
         }
     }
 
     pub fn set_settings(&mut self, settings: Settings) {
         self.settings = settings;
+    }
+
+    /// Practice (a writing trainer told Lumen the text to come): `expected` is what the wearer
+    /// is about to write after `text`, the decoder's text now; `None` ends it. Meanwhile nothing
+    /// is suggested or corrected, and each word that ends teaches the letters' bias the expected
+    /// word (a known answer, better than a guess), without counting as the wearer's own word.
+    pub fn set_training(&mut self, expected: Option<&str>, text: &str) {
+        self.finish_pending();
+        self.training = expected.map(|expected| {
+            let words = expected.split_whitespace().map(fold::fold).filter(|w| !w.is_empty()).collect();
+            (words, Self::words_in(text))
+        });
+        self.undo = None;
+        let ended = text.is_empty() || text.ends_with(|c: char| !fold::is_word_char(c));
+        self.refresh(text, ended);
+    }
+
+    pub fn training(&self) -> bool {
+        self.training.is_some()
+    }
+
+    /// Words in `text` (runs of word characters).
+    fn words_in(text: &str) -> usize {
+        text.split(|c: char| !fold::is_word_char(c)).filter(|w| !w.is_empty()).count()
     }
 
     /// The text starts over (what the field holds when the writing starts).
@@ -311,11 +343,16 @@ impl Assistant {
                 outcome.text = Some(new_text);
             }
             self.finish_pending();
+            let expected = self.training.as_ref().and_then(|(words, base)| {
+                let index = (Self::words_in(body)).checked_sub(base + 1)?;
+                words.get(index).cloned()
+            });
             self.pending = Some(Pending {
                 word: final_word,
                 previous: previous_word(before),
                 slots: std::mem::take(&mut self.slots),
                 corrected: outcome.text.is_some(),
+                expected,
             });
         }
         self.slots.clear();
@@ -366,7 +403,13 @@ impl Assistant {
             slots: self.slots.clone(),
             letters: self.letters.clone(),
         });
-        self.pending = Some(Pending { word: chosen.surface.clone(), previous, slots: std::mem::take(&mut self.slots), corrected: false });
+        self.pending = Some(Pending {
+            word: chosen.surface.clone(),
+            previous,
+            slots: std::mem::take(&mut self.slots),
+            corrected: false,
+            expected: None,
+        });
         self.letters.clear();
         self.open_class = None;
         self.notice = Some(Notice::Accepted { word: chosen.surface.clone() });
@@ -563,7 +606,12 @@ impl Assistant {
     fn correction(&self, before: &str, written: &str) -> Option<(String, (Features, Features))> {
         // Not a code or a number: a digit is fine (a "l" the band read as "1"), two aren't.
         let digits = written.chars().filter(char::is_ascii_digit).count();
-        if !self.settings.autocorrect || self.letters.len() < 2 || digits >= 2 || digits == written.chars().count() {
+        if !self.settings.autocorrect
+            || self.training.is_some()
+            || self.letters.len() < 2
+            || digits >= 2
+            || digits == written.chars().count()
+        {
             return None;
         }
         let lower = written.to_lowercase();
@@ -612,7 +660,9 @@ impl Assistant {
     fn refresh(&mut self, text: &str, ended: bool) {
         let (before, word) = split_word(text);
         self.word = word.to_owned();
-        let (kind, candidates) = if !word.is_empty() && !self.slots.is_empty() {
+        let (kind, candidates) = if self.training.is_some() {
+            (Kind::None, Vec::new())
+        } else if !word.is_empty() && !self.slots.is_empty() {
             (Kind::Word, self.word_candidates(before, word))
         } else if word.is_empty() && (ended || text.ends_with(' ') || text.is_empty()) {
             (Kind::Next, self.next_candidates(previous_word(before).as_deref()))
@@ -656,6 +706,14 @@ impl Assistant {
         if !self.settings.learn {
             return;
         }
+        // Practice: the expected word teaches the letters; nothing else is learned (the words
+        // were the trainer's, not the wearer's).
+        if self.training.is_some() || pending.expected.is_some() {
+            if let Some(expected) = &pending.expected {
+                self.teach_letters(&pending.slots, expected, TRAINING_COST);
+            }
+            return;
+        }
         let lower = pending.word.to_lowercase();
         self.personal.use_word(&lower, 1.0, self.today);
         self.personal.use_pair(pending.previous.as_deref().unwrap_or(""), &lower, 1.0, self.today);
@@ -672,13 +730,22 @@ impl Assistant {
             self.personal.margin = (self.personal.margin - 0.05).max(MARGIN_RANGE.0);
         }
         // The band's letters, read as this word: their bias moves toward it.
-        if !pending.slots.is_empty() && pending.slots.iter().any(Slot::measured) {
-            let (cost, left) = search::align(&pending.slots, &key);
-            if left == 0 && cost <= TEACHING_COST {
-                for (slot, symbol) in search::pairs(&pending.slots, &key) {
-                    channel::learn(&mut self.personal.bias, &pending.slots[slot], symbol, BIAS_RATE);
-                }
-            }
+        self.teach_letters(&pending.slots, &key, TEACHING_COST);
+        self.dirty = true;
+    }
+
+    /// The bias of the letters the band read (`slots`) moves toward the folded `word`, when they
+    /// read as it for at most `limit`.
+    fn teach_letters(&mut self, slots: &[Slot], word: &str, limit: f32) {
+        if slots.is_empty() || !slots.iter().any(Slot::measured) {
+            return;
+        }
+        let (cost, left) = search::align(slots, word);
+        if left != 0 || cost > limit {
+            return;
+        }
+        for (slot, symbol) in search::pairs(slots, word) {
+            channel::learn(&mut self.personal.bias, &slots[slot], symbol, BIAS_RATE);
         }
         self.dirty = true;
     }

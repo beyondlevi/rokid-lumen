@@ -374,3 +374,19 @@ fn what_the_suggestions_learned_is_saved_when_they_go_off() {
     swipe(&mut connection, &mut band, RIGHT, 4.0);
     assert!(connection.take_actions().is_empty());
 }
+
+#[test]
+fn practice_turns_suggestions_and_corrections_off() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut connection, mut band, _) = with_suggestions(dir.path());
+    connection.writing_train(Some("nao casa"));
+    events(&mut connection);
+    // n, a, o, space: "nao" stays as written, nothing is suggested.
+    write(&mut connection, &mut band, &[13, 99, 0, 99, 14, 99, 88], 3.0);
+    let written = events(&mut connection);
+    assert_eq!(last(&written, "text").unwrap()["text"], "nao ");
+    assert!(written.iter().filter(|e| e["type"] == "suggest").all(|e| e["kind"] == "none"));
+    connection.writing_train(None);
+    write(&mut connection, &mut band, &[13, 99, 0, 99, 14, 99, 88], 3.4);
+    assert_eq!(last(&events(&mut connection), "text").unwrap()["text"], "nao não ");
+}

@@ -222,3 +222,45 @@ fn a_correction_goes_first_only_when_clearly_better() {
     assert_eq!(a.items().first(), Some(&"lume"), "{:?}", a.items());
     assert!(a.items().contains(&"um"));
 }
+
+#[test]
+fn practice_suggests_nothing_corrects_nothing_and_teaches_the_expected_letters() {
+    let mut a = assistant();
+    a.reset("");
+    a.set_training(Some("lumen casa"), "");
+    assert!(a.training());
+    // "l" written five times as a "1" with "l" second, the trainer expecting "lumen".
+    a.frame(0, &values(&[(53, 0.6), (11, 0.35)]));
+    a.written("1", 53);
+    let (text, outcome) = write(&mut a, "1", "umen ");
+    // Nothing changes the text and nothing is suggested.
+    assert_eq!(outcome.text, None);
+    assert_eq!(text, "1umen ");
+    assert_eq!(a.kind(), Kind::None);
+    assert!(a.items().is_empty());
+    write(&mut a, &text, "cas");
+    assert!(a.items().is_empty());
+    let bytes = a.finish().expect("it learned");
+    let personal = Personal::from_bytes(&bytes);
+    assert!(personal.bias[11] > 0.0, "l: {}", personal.bias[11]);
+    // The trainer's words aren't the wearer's own.
+    assert_eq!(personal.word_count("lumen"), 0.0);
+    assert_eq!(personal.word_count("1umen"), 0.0);
+    // Practice over: suggestions again.
+    a.set_training(None, "1umen cas");
+    write(&mut a, "1umen cas", "");
+    a.reset("1umen ca");
+    assert!(!a.training());
+}
+
+#[test]
+fn practice_counts_words_from_where_it_started() {
+    let mut a = assistant();
+    a.reset("oi ");
+    a.set_training(Some("lumen"), "oi ");
+    a.frame(0, &values(&[(53, 0.6), (11, 0.35)]));
+    a.written("oi 1", 53);
+    write(&mut a, "oi 1", "umen ");
+    let personal = Personal::from_bytes(&a.finish().unwrap());
+    assert!(personal.bias[11] > 0.0);
+}

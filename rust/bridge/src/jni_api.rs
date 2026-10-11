@@ -391,6 +391,23 @@ pub extern "system" fn Java_dev_lumen_band_Bridge_setWritingAssist<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_writingTrain<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    text: JString<'local>,
+) {
+    if text.is_null() {
+        unsafe { connection(handle) }.writing_train(None);
+        return;
+    }
+    match env.get_string(&text) {
+        Ok(text) => unsafe { connection(handle) }.writing_train(Some(&String::from(text))),
+        Err(error) => throw(&mut env, &error.to_string()),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_lumen_band_Bridge_writingCommand<'local>(
     mut env: JNIEnv<'local>,
     _class: JClass<'local>,
