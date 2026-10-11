@@ -129,8 +129,6 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
         val same = next != null && next.key == field?.key
         if (!same) closeNow()
         field = next
-        // A practice asked for before its field was focused belongs to the next one of Lumen's.
-        if (practice != null && practiceField == null && next != null && next.packageName == packageName) practiceField = next.key
         if (next == null) {
             if (!same) Log.d(TAG, "no text field (pkg=${attribute.packageName})")
             PhoneKeyboard.detach(this)
@@ -273,7 +271,9 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
     private fun openPanel() {
         val field = field ?: return
         readField()
-        // A practice writes at once, in the bar under the app.
+        // A practice writes at once, in the bar under the app: the first of Lumen's fields opened
+        // after it was asked for is its field (a page may focus a new one right after asking).
+        if (practice != null && practiceField == null && field.packageName == packageName) practiceField = field.key
         if (practice != null && practiceField == field.key && !field.kind.secret) {
             if (!shown) requestShowSelf(0)
             return write()
@@ -493,10 +493,9 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
 
     /** A web app's practice (see the companion's [train]); null ends it. */
     private fun setPractice(text: String?) {
-        val was = practice
         practice = text?.takeIf { it.isNotBlank() }
-        if (practice == null) practiceField = null
-        else if (was == null) practiceField = field?.takeIf { it.packageName == packageName }?.key
+        // Bound to a field when one is opened (see openPanel); a new practice starts unbound.
+        practiceField = null
         // A round that changes while the band writes: the band library hears it at once.
         if (mode == Mode.WRITING && practicing && assistOn) BandRuntime.writingTrain(practice)
         if (practice == null && practicing && mode == Mode.WRITING) {
