@@ -434,6 +434,11 @@ public final class WebAppActivity extends Activity implements BandAccessibilityS
     /** The band, while this app is in front; volume and mapped actions run as anywhere. */
     @Override
     public boolean onBandCommand(String command) {
+        // The camera's ask and capture screen take the band first, as they take the touchpad.
+        if (camera != null && camera.onBandCommand(command)) {
+            Log.d(TAG, "Band " + command + " to the camera");
+            return true;
+        }
         // The gesture card is read first: whatever gesture comes next only closes it.
         if (guide != null && guide.onBandCommand()) {
             Log.d(TAG, "Band " + command + " closed the gesture card");

@@ -3,6 +3,13 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.23]
+
+### Web apps
+
+- The band drives the camera's ask and capture screen (take the photo, Use photo or Take
+  another, cancel): only the glasses' touchpad did.
+
 ## [0.2.0-beta.22]
 
 ### Web apps
