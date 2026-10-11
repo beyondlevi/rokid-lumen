@@ -8,6 +8,8 @@ use band_core::events::{Event, GestureMessage, Hand};
 use band_core::gestures::{ActionGate, DialRouter, GestureRouter, Recognized, Swipe, Tap};
 use band_core::pointer::{AirPointer, Approach, ArrivalDelay, ForearmAim, PointerReach, acceleration};
 
+use writing::assistant::Op;
+
 use crate::config::{Config, DialTarget, HandSetting, PAUSE_TOGGLE, POINTER_TOGGLE, ToggleGesture};
 use crate::status::Status;
 
@@ -17,6 +19,8 @@ pub enum Command {
     Run(String),
     /// Ask the band to switch hands.
     SetHand(Hand),
+    /// A thumb swipe on the writing's suggestions, at this band time (µs).
+    Write(Op, u64),
 }
 
 fn label(gesture: Recognized) -> &'static str {
@@ -254,6 +258,8 @@ pub struct Controller {
     toggled_at: f64,
     /// The band's handwriting runs: only the middle tap counts (see [Controller::set_writing]).
     writing: bool,
+    /// The writing has suggestions: the thumb's swipes work them (see [Controller::set_writing_assist]).
+    writing_assist: bool,
     /// The air mouse (see [Controller::set_pointer]).
     pointer: Option<PointerMode>,
     /// Index and middle held now, whatever the mode.
@@ -309,6 +315,7 @@ impl Controller {
             toggle_taps: Vec::new(),
             toggled_at: f64::NEG_INFINITY,
             writing: false,
+            writing_assist: false,
             pointer: None,
             pinched: [false; 2],
             arrival: ArrivalDelay::default(),
@@ -348,6 +355,13 @@ impl Controller {
         if writing {
             self.end_pointer(f64::NEG_INFINITY);
         }
+    }
+
+    /// While the band writes with suggestions, the thumb's swipes are theirs: right accepts,
+    /// left undoes, up and down move between them ([Command::Write]). Measured on the band
+    /// (2026-10-11): the swipes arrive while the model writes, and write nothing themselves.
+    pub fn set_writing_assist(&mut self, on: bool) {
+        self.writing_assist = on;
     }
 
     pub fn pointer_on(&self) -> bool {
@@ -868,6 +882,22 @@ impl Controller {
             }
         }
         if self.writing {
+            if self.writing_assist
+                && let Recognized::Swipe(direction) = gesture
+            {
+                if !self.writing_gate.allows(message.received_at, now, self.live, true) {
+                    return Vec::new();
+                }
+                self.status.gestures += 1;
+                self.status.last_gesture = Some(label(gesture).into());
+                let op = match direction {
+                    Swipe::Right => Op::Accept,
+                    Swipe::Left => Op::Undo,
+                    Swipe::Up => Op::Previous,
+                    Swipe::Down => Op::Next,
+                };
+                return vec![Command::Write(op, message.timestamp_us)];
+            }
             if gesture != Recognized::Tap(Tap::MiddleTap) {
                 return Vec::new();
             }

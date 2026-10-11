@@ -353,6 +353,57 @@ pub extern "system" fn Java_dev_lumen_band_Bridge_resetHandwritingText<'local>(
 }
 
 #[unsafe(no_mangle)]
+#[allow(clippy::too_many_arguments)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_setWritingAssist<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    enabled: jboolean,
+    lexicon: JString<'local>,
+    store: JString<'local>,
+    autocorrect: jboolean,
+    learn: jboolean,
+    today: jint,
+) -> jboolean {
+    let lexicon: String = match env.get_string(&lexicon) {
+        Ok(value) => value.into(),
+        Err(error) => {
+            throw(&mut env, &error.to_string());
+            return 0;
+        }
+    };
+    let store: String = match env.get_string(&store) {
+        Ok(value) => value.into(),
+        Err(error) => {
+            throw(&mut env, &error.to_string());
+            return 0;
+        }
+    };
+    let settings = writing::assistant::Settings { autocorrect: autocorrect != 0, learn: learn != 0 };
+    let connection = unsafe { connection(handle) };
+    match connection.set_writing_assist(enabled != 0, &lexicon, &store, settings, today.max(0) as u32) {
+        Ok(()) => 1,
+        Err(error) => {
+            connection.note(&format!("writing suggestions: {error}"));
+            0
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_writingCommand<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    op: JString<'local>,
+) {
+    match env.get_string(&op) {
+        Ok(op) => unsafe { connection(handle) }.writing_command(&String::from(op)),
+        Err(error) => throw(&mut env, &error.to_string()),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_lumen_band_Bridge_setHandwritingProbe<'local>(
     _env: JNIEnv<'local>,
     _class: JClass<'local>,
