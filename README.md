@@ -88,6 +88,8 @@ demo mode and simulated notifications.
   password gets writing and the phone, masked. The phone transcribes the glasses' microphone
   with the engine you choose: the Android recognizer, OpenAI, ElevenLabs, Azure, or Vosk offline
   in English or Portuguese.
+  Writing gets suggestions as you go (thumb right accepts) and fixes misread letters and
+  missing accents, learning your handwriting on the glasses.
 - **Internet through the phone.** When no saved Wi-Fi is in range, the companion opens a
   local-only hotspot and a proxy, and the glasses join it on their own.
 - **The band on the phone.** The companion can take the band over and control the phone

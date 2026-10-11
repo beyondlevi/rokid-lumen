@@ -3,6 +3,27 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.23]
+
+### Glasses
+
+- **Suggestions while writing with the band**, in Lumen's keyboard: the rest of the word in gray
+  after the caret, up to three suggestions (completions, a misread letter corrected from the
+  band's second guess, the next word after a space), English and Portuguese together, accents
+  found from words written without them. The thumb works them while the band writes: right
+  accepts, up and down move, left undoes. **Correct automatically** replaces a clearly wrong word
+  when it ends ("Corrected: nao → não"). What you write teaches them, on the glasses: your words,
+  how the band reads your letters, which suggestions you take. Settings in the companion's Band
+  tab (Glasses): Suggestions while writing, Correct automatically, Forget what writing learned.
+- The middle tap ends the band's writing even while the band's controls are paused.
+
+### Web apps
+
+- **`window.lumen.writing`**, for apps that teach writing with the band: `train({text, lang})`
+  makes the index tap write at once, with a small bar under the app instead of the keyboard's
+  panel and no suggestions, and teaches Lumen the wearer's letters from the expected text;
+  `onState(cb)` and `stop()`. Extension 1.18.
+
 ## [0.2.0-beta.22]
 
 ### Web apps

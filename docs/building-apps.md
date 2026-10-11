@@ -109,6 +109,7 @@ added only when the page doesn't have it already, and only where the host bridge
 | `SpeechRecognition`, `webkitSpeechRecognition` | The Web Speech API's recognition, on the glasses' dictation (see [Audio](#audio)). |
 | `window.lumen.audio.record(options)` | Records the glasses' microphone (see [Audio](#audio)). |
 | `window.lumen.audio.transcribe(blob, options)` | Transcribes an audio with the dictation engine chosen in the companion (see [Audio](#audio)). |
+| `window.lumen.writing.train({text, lang})` | For an app that teaches writing with the band: what the wearer is about to write in the focused field (see [Writing practice](#writing-practice)). |
 | `navigator.install(url, {name})` | Asks the glasses to add the online app at `url` (default: the current page). The wearer confirms on the glasses. |
 | `navigation.canGoBack` | Whether there is history behind the page. Added only when the engine has no Navigation API: an `EventTarget` with no current entry, so React DOM 19 uses its History API path. |
 | `speechSynthesis`, `SpeechSynthesisUtterance` | Added when the engine has none (the system WebView): speaks through Android's TextToSpeech. One voice (`Android TTS`), `speak()` queues, `cancel()` stops, and `start`, `end` and `error` events fire; `pause()` and `resume()` do nothing. |
@@ -121,6 +122,28 @@ const settings = window.lumen ? await window.lumen.config.get() : {};
 const server = settings['server.url'] || 'https://example.com';
 window.lumen?.config.onChange((values) => reconnect(values['server.url']));
 ```
+
+### Writing practice
+
+For an app that teaches writing with the band (and measures it), `window.lumen.writing`:
+
+- **`train({text, lang})`**, before the wearer writes: `text` is what they are about to write in
+  the field they focus next, after what it holds (a round's words separated by spaces, or a
+  phrase); `lang` is `'pt'` or `'en'`. Resolves to `true` when Lumen's keyboard took it. Until
+  `train(null)` or that field loses the focus:
+  - the index tap on the field writes with the band at once (no Dictate, Write or Phone choice);
+  - a small bar in the strip under the app ("Writing · Push: next · Middle: stop") replaces the
+    keyboard's panel, so the app shows what's written its own way;
+  - the suggestions and corrections are off: the field gets what the band reads;
+  - Lumen compares what the band reads with `text` to learn the wearer's letters, on the glasses.
+- **`onState(cb)`**: `'preparing'` (the band switches into its writing, 1 to 2 s), `'writing'`
+  and `'off'` (the middle tap, a long pause or `stop()` ended it). Returns a function that removes
+  `cb`. Start a clock on the first letter, not on `'writing'`.
+- **`stop()`** ends the band's writing (the round is over).
+
+The text arrives as typing does (`input` events, a letter at a time). Don't set the field's
+value while the band writes into it; read it. The band has no accented letters: compare without
+accents and case.
 
 ### Audio
 

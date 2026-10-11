@@ -445,10 +445,10 @@ it, after what the field already held. A push forward types a space, a sweep bac
 last character, an up arrow capitalizes the next letter. The middle tap finishes; so does a
 pause (30 s before the first letter, 15 s after one).
 
-While it writes, the band reads every stroke as writing, so only its middle tap gets through:
-the swipes, the other taps, the pause (holding the middle finger) and pinch and turn are off.
-The band doesn't vibrate in this mode; the panel shows each letter instead (as dots in a
-password).
+While it writes, the band reads every stroke as writing, so only its middle tap and the thumb's
+swipes get through: the swipes work the suggestions (below), and the other taps, the pause
+(holding the middle finger) and pinch and turn are off. The band doesn't vibrate in this mode;
+the panel shows each letter instead (as dots in a password).
 
 How: the model runs while two of the band's settings are changed (`data-collection` on,
 `data-collection-model` 5), found by name (28 and 29 on current firmware). Lumen reads each
@@ -458,6 +458,41 @@ connection puts the band back first. Handing the band to the phone restores it b
 go. The decoder is kinesis' experimental one: it reads the model's output greedily (the most
 likely character of each sample, without repeats), so similar shapes get mixed up (l and 1,
 o and 0 or 6).
+
+### Suggestions while writing
+
+The band's model gives, for every sample of a letter, how likely each of its 100 characters is;
+reading only the likeliest one mixes up similar shapes and can't write accents. **Suggestions
+while writing** (on by default, companion: Band → Glasses) read the rest too:
+
+- **The rest of the word in gray after the caret**, and up to three suggestions under the text:
+  completions of the word being written, corrections of a letter the band misread (its second
+  guess counts: a "1" read with "l" close behind finds "lumen"), and after a space the likely
+  next word. Words come without accents and still find them ("nao" finds "não").
+- **The thumb works them while the band writes**: right accepts the focused suggestion (the
+  word and a space; then the next word is offered, and right again takes it too), up and down
+  move between them, left undoes the last change. A swipe within 0.3 s of a stroke counts as
+  part of the writing. The touchpad's arrows do the same.
+- **Correct automatically** (on by default, shown with the suggestions on): when a word ends (a
+  space, punctuation, a new line) and another is clearly likelier, it is replaced, and the panel
+  says so ("Corrected: nao → não"); left undoes it. A word the dictionary also has needs a much
+  clearer reason (esta / está), a word put back with its accents much less.
+- **It learns, on the glasses only**: the words you write and which follow which (fading when
+  unused, as Android's keyboard does), how your letters are read (each confirmed word moves the
+  model's per-character bias toward what you meant), how the suggestions are weighed (accepted
+  versus passed over), which language you write, and how sure a correction must be (each undo
+  makes them more careful). An undone correction becomes one of your words. **Forget what writing
+  learned** (Band → Glasses) wipes it.
+- Never in a password; in an e-mail or web address, or a field that asks not to learn, they
+  suggest without correcting or learning.
+
+How: the `writing` crate (rust/writing), in the band library, follows the decoder's text. The
+lexicon, 80,000 words each of English and Brazilian Portuguese with the likeliest next words,
+is built by rust/writing-data from AOSP LatinIME's word lists (Apache 2.0; Portuguese moved to
+the 2009 spelling) and Tatoeba's sentences (CC BY 2.0 FR); it ships in the app (2.3 MB) and is
+mapped from a copy in the app's files, only while writing. A word is matched against the
+lexicon as a weighted edit distance over the band's per-letter probabilities, completions where
+the letters run out, then ranked with the word pairs and what you taught.
 
 ### Dictation
 

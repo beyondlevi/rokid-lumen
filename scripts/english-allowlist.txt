@@ -23,3 +23,14 @@ rust/writing/src/assistant.rs	(nao -> não)
 rust/writing/src/format.rs	"esta", "está"
 rust/writing/examples/inspect.rs	nao voce eu
 phone/src/main/res/values/strings_keyboard.xml	(nao becomes não)
+CHANGELOG.md	("Corrected: nao → não")
+docs/features.md	("nao" finds "não")
+docs/features.md	("Corrected: nao → não")
+docs/features.md	(esta / está)
+app/src/test/java/dev/lumen/glasses/KeyboardLogicTest.kt	"items":["você","vocês","voltou"]
+app/src/test/java/dev/lumen/glasses/KeyboardLogicTest.kt	"to":"não"
+app/src/test/java/dev/lumen/glasses/KeyboardLogicTest.kt	listOf("você", "vocês", "voltou")
+app/src/test/java/dev/lumen/glasses/KeyboardLogicTest.kt	to = "não"
+app/src/test/java/dev/lumen/glasses/KeyboardLogicTest.kt	+ " não "
+app/src/test/java/dev/lumen/glasses/KeyboardLogicTest.kt	assertEquals("não", shown
+app/src/test/java/dev/lumen/glasses/KeyboardLogicTest.kt	"eu não "

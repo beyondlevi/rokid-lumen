@@ -63,6 +63,11 @@ read and write a setting) and three stream fields (4, 22, 23 on 0x8005); its out
 inference samples (kind 0x0200020c, pipeline 3: 100 log-probabilities per sample). Tested on a
 current band (2026-10-05): the settings sit at 28 and 29, the characters follow the research set
 kinesis assumes, the middle tap still arrives, and nothing vibrates while the model runs.
+Measured with the writing probe (2026-10-11, debug builds' `SIMULATE --es writing_probe on`):
+a sample every 156.25 ms (6.4 per second), none lost, about 83 ms of model latency; the thumb's
+swipes arrive while the model runs (raw `left`/`right`/`up`/`down` with their derived
+`buttonLeft`… duplicates), on the same clock as the samples, and write nothing (only class 87);
+no swipe came while writing.
 
 ## Needs checking with the hardware
 
