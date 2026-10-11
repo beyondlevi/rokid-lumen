@@ -114,6 +114,52 @@ class GeckoWebEngine(
                 return null
             }
         }
+        // The glasses' camera, asked through the host, which asks the wearer: getUserMedia's video
+        // (the shim asks Gecko for video only, the microphone being the host's) and HTML photo fields.
+        session.permissionDelegate = object : GeckoSession.PermissionDelegate {
+            // Gecko checks Android's permissions before opening a source; the host got CAMERA when
+            // the wearer allowed the app ([WebEngine.Host.onCameraRequest]).
+            override fun onAndroidPermissionsRequest(s: GeckoSession, permissions: Array<out String>?, callback: GeckoSession.PermissionDelegate.Callback) {
+                val ctx = geckoView.context
+                if (permissions.orEmpty().all { ctx.checkSelfPermission(it) == android.content.pm.PackageManager.PERMISSION_GRANTED }) callback.grant()
+                else callback.reject()
+            }
+
+            override fun onMediaPermissionRequest(
+                s: GeckoSession,
+                uri: String,
+                video: Array<out GeckoSession.PermissionDelegate.MediaSource>?,
+                audio: Array<out GeckoSession.PermissionDelegate.MediaSource>?,
+                callback: GeckoSession.PermissionDelegate.MediaCallback,
+            ) {
+                val camera = video?.firstOrNull { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_CAMERA }
+                // The camera only, and only for the app's own pages (not another site's, a sign-in).
+                if (camera == null || !audio.isNullOrEmpty() || !WebOrigin.matches(uri, WebOrigin.ofApp(app))) {
+                    Log.w(TAG, "Media request of ${WebOrigin.of(uri)} refused (camera=${camera != null}, audio=${audio?.size ?: 0})")
+                    callback.reject()
+                    return
+                }
+                host.onCameraRequest { allowed -> if (allowed && !destroyed) callback.grant(camera, null) else callback.reject() }
+            }
+        }
+        session.promptDelegate = object : GeckoSession.PromptDelegate {
+            // A photo field gets the capture screen; a field for other files gets nothing (no files
+            // to pick on the glasses), as a cancelled choice.
+            override fun onFilePrompt(s: GeckoSession, prompt: GeckoSession.PromptDelegate.FilePrompt): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                // No `accept` takes any file, so a photo too.
+                val types = prompt.mimeTypes.orEmpty().filter { it.isNotBlank() }
+                val images = types.isEmpty() || types.any { it.startsWith("image/") || it in PHOTO_TYPES }
+                if (!images || prompt.type == GeckoSession.PromptDelegate.FilePrompt.Type.FOLDER) {
+                    Log.d(TAG, "File field (${prompt.mimeTypes?.joinToString()}) dismissed: no photo")
+                    return GeckoResult.fromValue(prompt.dismiss())
+                }
+                val result = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+                host.onPhotoRequest { uri ->
+                    result.complete(if (uri != null && !destroyed) prompt.confirm(geckoView.context, uri) else prompt.dismiss())
+                }
+                return result
+            }
+        }
         session.progressDelegate = object : GeckoSession.ProgressDelegate {
             override fun onPageStop(s: GeckoSession, success: Boolean) {
                 Log.d(TAG, "Page stop success=$success after ${SystemClock.elapsedRealtime() - startedAt} ms")
@@ -293,6 +339,8 @@ class GeckoWebEngine(
     // Gecko's vsync (~6% of a core, ~12% with a CSS animation) and, for an animated page, the GPU
     // process at ~23%, all with the display off. onResume makes it active again.
     override fun onHidden() {
+        // Nobody sees the app: it lets the camera go (the page hears its track end).
+        post(JSONObject().put("type", "cameraStop"))
         visible = false
         session.setActive(false)
     }
@@ -522,6 +570,8 @@ class GeckoWebEngine(
 
     companion object {
         private const val TAG = "BandGecko"
+        /** An `accept` that takes photos without saying `image/`. */
+        private val PHOTO_TYPES = setOf(".jpg", ".jpeg", ".png", ".webp", ".heic")
         /** The longest a page load waits for its app's site scripts to be in place. */
         private const val SCRIPTS_WAIT_MS = 3_000L
         private const val EXTENSION_URI = "resource://android/assets/mrbd-ext/"

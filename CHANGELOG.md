@@ -3,6 +3,24 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.22]
+
+### Web apps
+
+- **The glasses' camera**, through the standard APIs (GeckoView): `getUserMedia` with video
+  asks the wearer once per app (Allow or Not now) and gives the app Gecko's live camera, the
+  microphone too when asked; a photo field (`<input type="file" accept="image/*">`) opens a
+  capture screen on the glasses (the index tap takes the photo, then Use photo or Take
+  another) and gives the page the JPEG. A hidden app lets the camera go.
+
+### Glasses
+
+- The status bar shows a white **Camera** pill while any app has the camera.
+
+### Companion
+
+- **Camera switch** in an app's details on the Apps tab, for the apps that asked for the camera.
+
 ## [0.2.0-beta.21]
 
 ### Glasses

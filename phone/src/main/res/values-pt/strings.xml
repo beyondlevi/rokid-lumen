@@ -250,6 +250,9 @@
     <string name="apps_config_save">Salvar</string>
     <string name="apps_config_clear">Apagar</string>
     <string name="apps_config_secret_hint">Fica guardado só nos óculos: não dá para ler de volta aqui.</string>
+    <string name="apps_camera">Câmera</string>
+    <string name="apps_camera_allowed">Permitida: o app pode usar a câmera dos óculos</string>
+    <string name="apps_camera_blocked">Bloqueada: o app não usa a câmera</string>
     <string name="tab_apps">Apps</string>
     <string name="apps_waiting_hint">A grade vem dos óculos: abra os óculos e mantenha este celular conectado.</string>
     <string name="apps_engine">Motor</string>

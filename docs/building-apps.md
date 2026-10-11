@@ -103,7 +103,9 @@ added only when the page doesn't have it already, and only where the host bridge
 | --- | --- |
 | `window.lumen.config.get()` | Resolves to `{key: value}`: the app's settings, set from the phone. A key that isn't set is missing. |
 | `window.lumen.config.onChange(cb)` | Calls `cb(values)` whenever the phone changes a setting while the app is open. Returns a function that removes `cb`. |
-| `navigator.mediaDevices.getUserMedia({audio: true})` | A `MediaStream` from the glasses' microphone, live; `MediaRecorder` and Web Audio work on it as in any browser (see [Audio](#audio)). A video request fails with `NotFoundError`. |
+| `navigator.mediaDevices.getUserMedia({audio: true})` | A `MediaStream` from the glasses' microphone, live; `MediaRecorder` and Web Audio work on it as in any browser (see [Audio](#audio)). |
+| `navigator.mediaDevices.getUserMedia({video: true})` | The glasses' camera, live, once the wearer allows the app (GeckoView; see [Camera](#camera)). With `audio` too, one stream with both. |
+| `<input type="file" accept="image/*">` | A photo taken on the glasses' capture screen (see [Camera](#camera)). |
 | `SpeechRecognition`, `webkitSpeechRecognition` | The Web Speech API's recognition, on the glasses' dictation (see [Audio](#audio)). |
 | `window.lumen.audio.record(options)` | Records the glasses' microphone (see [Audio](#audio)). |
 | `window.lumen.audio.transcribe(blob, options)` | Transcribes an audio with the dictation engine chosen in the companion (see [Audio](#audio)). |
@@ -172,6 +174,27 @@ Failures are `Error`s with a `code`: `busy` (another recording, transcription or
 `cancelled` and `timeout`; `code` is always set. A recording's `onEnd('error')` gets
 `unavailable` (the phone lost the microphone or couldn't encode) or `timeout` (the glasses
 stopped hearing from the phone).
+
+### Camera
+
+The glasses' camera (GeckoView apps), through the standard APIs:
+
+- **`getUserMedia({video: …})`** asks the wearer the first time: "*App* wants to use the camera",
+  Allow or Not now. The answer is kept for the app and changed from the companion's Apps tab
+  (the app's Camera switch). Allowed, the stream is Gecko's own camera, constraints included
+  (640 x 480 at 30 fps is a good size for the HUD); `{audio: true}` with it adds the glasses'
+  microphone ([Audio](#audio)) to the same stream. Refused, blocked or with the camera taken
+  (Rokid's own photo), it rejects with `NotAllowedError` and the glasses say why. When the
+  app is hidden (another screen, the display off) Lumen stops the camera: the video track ends
+  and fires `ended`, so open it again when the page is shown (`visibilitychange`).
+- **A photo field**, `<input type="file" accept="image/*">` (`capture` or not, and one with no
+  `accept`), opens Lumen's capture screen: what the camera sees, the index tap takes the photo,
+  then Use photo or Take another; the middle tap cancels (the input fires `cancel`). The page
+  gets a JPEG of 1200 x 1600, upright. It's the wearer's own act, so it doesn't ask. A field for
+  other files gets nothing (there are no files to pick on the glasses).
+
+While any app has the camera, the status bar shows a white **Camera** pill. The camera answers
+the app's own origin only, like the host bridge.
 
 **The host bridge answers the app's own origin only.** An offline app's origin is its loopback
 server (`http://127.0.0.1:<port>`), an online app's is the origin of its URL. A page on any

@@ -263,6 +263,8 @@ interface CompanionActions {
     fun setGridEngine(id: String, engine: String)
     /** One of a web app's configuration values; empty clears it. */
     fun setGridConfig(id: String, key: String, value: String)
+    /** Whether a web app that asked may use the glasses' camera. */
+    fun setGridCamera(id: String, allowed: Boolean)
     fun deleteWebApp(id: String)
 
     /** Hides the "the glasses didn't confirm" notice. */
@@ -704,12 +706,19 @@ internal fun ListRow(
 }
 
 @Composable
-internal fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit, busy: Boolean = false) {
+internal fun SwitchRow(
+    title: String,
+    subtitle: String?,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+    busy: Boolean = false,
+    background: Color = Lumen.surface,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
-            .background(Lumen.surface)
+            .background(background)
             .clickable(role = Role.Switch, enabled = !busy) { onChange(!checked) }
             .padding(horizontal = Lumen.spacingMedium, vertical = Lumen.spacingSmMed),
         verticalAlignment = Alignment.CenterVertically,

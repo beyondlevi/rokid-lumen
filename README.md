@@ -60,6 +60,8 @@ demo mode and simulated notifications.
   turn changes the volume (or navigates). Every gesture, the index and middle holds included,
   can be mapped to an action or an app.
 - **Status bar.** The time and the glasses' battery above any app, outside the page.
+- **The camera in web apps.** `getUserMedia` and photo fields work with the glasses' camera:
+  the wearer allows each app once, and a photo field opens a capture screen on the glasses.
 - **Home with three tabs.** Notifications (the phone's notification inbox), Apps (the web
   apps and any native apps you add, three across in rows that scroll, the glasses' settings
   last, the focused app's icon bigger; you arrange them from the phone) and Controls (the

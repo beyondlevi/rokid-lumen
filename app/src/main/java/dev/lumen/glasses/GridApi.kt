@@ -114,6 +114,10 @@ object GridApi {
                 Log.d(TAG, "copy of $id: ${copy?.id ?: "failed"}")
                 changed(ctx, request, copy?.let { GridItem.WEB_PREFIX + it.id } ?: id, if (copy == null) "couldn't copy $id" else null)
             }
+            GridOps.CAMERA -> {
+                val id = request.optString("id")
+                changed(ctx, request, id, GridStore.setCamera(ctx, id, request.optString("value")))
+            }
             GridOps.ADD_PACKAGE -> installPackage(ctx, request)
             GridOps.INSTALL_FILE -> installFile(ctx, request)
             GridOps.ICONS -> {

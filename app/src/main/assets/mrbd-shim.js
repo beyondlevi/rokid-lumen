@@ -283,13 +283,56 @@
       mediaDevices = navigator.mediaDevices;
     }
     if (mediaDevices) {
+      // The glasses' camera, once the host let the app have it (it asks the wearer): Gecko's own
+      // getUserMedia for the video, and the host's microphone for the audio, in one stream when
+      // both are asked. The host stops the camera when the app is hidden (the page hears 'ended').
+      var nativeGetUserMedia = mediaDevices.getUserMedia ? mediaDevices.getUserMedia.bind(mediaDevices) : null;
+      var nativeEnumerate = mediaDevices.enumerateDevices ? mediaDevices.enumerateDevices.bind(mediaDevices) : null;
+      var cameraTracks = [];
+      var keepCamera = function (stream) {
+        stream.getVideoTracks().forEach(function (track) {
+          var stopTrack = track.stop.bind(track);
+          var forget = function () {
+            var i = cameraTracks.indexOf(track);
+            if (i < 0) return false;
+            cameraTracks.splice(i, 1);
+            return true;
+          };
+          track.stop = function () { forget(); stopTrack(); };
+          track.__lumenEnd = function () {
+            if (!forget()) return;
+            stopTrack();
+            track.dispatchEvent(new Event('ended'));
+          };
+          track.addEventListener('ended', forget);
+          cameraTracks.push(track);
+        });
+        return stream;
+      };
+      window.__lumenCameraStop = function () {
+        cameraTracks.slice().forEach(function (track) { track.__lumenEnd(); });
+      };
       mediaDevices.getUserMedia = function (constraints) {
         if (!constraints || (!constraints.audio && !constraints.video)) return Promise.reject(new TypeError('audio or video required'));
-        if (constraints.video) return Promise.reject(domError('NotFoundError', 'the glasses have no camera for web apps'));
-        return liveStream();
+        if (!constraints.video) return liveStream();
+        if (!nativeGetUserMedia) return Promise.reject(domError('NotFoundError', 'the glasses have no camera for web apps'));
+        return nativeGetUserMedia({ video: constraints.video, audio: false }).then(function (camera) {
+          var video = keepCamera(camera);
+          if (!constraints.audio) return video;
+          return liveStream().then(function (audio) {
+            return new MediaStream(video.getVideoTracks().concat(audio.getAudioTracks()));
+          }, function (e) {
+            video.getTracks().forEach(function (t) { t.stop(); });
+            throw e;
+          });
+        });
       };
       mediaDevices.enumerateDevices = function () {
-        return Promise.resolve([{ kind: 'audioinput', deviceId: 'glasses', groupId: 'glasses', label: 'Glasses microphone', toJSON: function () { return this; } }]);
+        var mic = { kind: 'audioinput', deviceId: 'glasses', groupId: 'glasses', label: 'Glasses microphone', toJSON: function () { return this; } };
+        if (!nativeEnumerate) return Promise.resolve([mic]);
+        return nativeEnumerate().then(function (list) {
+          return [mic].concat(Array.prototype.filter.call(list, function (d) { return d.kind === 'videoinput'; }));
+        }, function () { return [mic]; });
       };
     }
 

@@ -586,7 +586,7 @@ private fun DetailSheet(onDismiss: () -> Unit, content: @Composable () -> Unit) 
     }
 }
 
-/** Everything about one app: what it still needs, its settings, its engine, taking it off. */
+/** Everything about one app: what it still needs, its settings, its camera, its engine, taking it off. */
 @Composable
 private fun AppDetail(
     item: GridItem,
@@ -670,6 +670,21 @@ private fun AppDetail(
                         Icon(LumenIcons.chevron, contentDescription = null, modifier = Modifier.size(18.dp), tint = Lumen.textPlaceholder)
                     }
                 }
+            }
+        }
+    }
+    // Only an app that asked on the glasses has an answer to change here.
+    if (item.camera.isNotEmpty()) {
+        val allowed = item.camera == GridItem.CAMERA_ALLOWED
+        DetailSection(stringResource(R.string.apps_camera), null) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Lumen.radiusRow))) {
+                SwitchRow(
+                    stringResource(R.string.apps_camera),
+                    stringResource(if (allowed) R.string.apps_camera_allowed else R.string.apps_camera_blocked),
+                    allowed,
+                    { actions.setGridCamera(item.id, it) },
+                    background = Lumen.elevation1,
+                )
             }
         }
     }

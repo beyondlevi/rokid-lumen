@@ -37,6 +37,24 @@ interface WebEngine {
          * loaded again or held, so what else holds memory can let go first.
          */
         fun onPageLost()
+
+        /**
+         * The page asks for the glasses' camera (getUserMedia): [answer] true lets the engine
+         * open it. The host asks the wearer the first time ([CameraAccess]) and refuses, with a
+         * notice, an app that was blocked or a camera someone else has.
+         */
+        fun onCameraRequest(answer: Answer<Boolean>)
+
+        /**
+         * An HTML photo field (a file input that takes images, `capture` or not): [answer]
+         * gets the photo taken on the glasses' capture screen ([CameraCapture]), null when cancelled.
+         */
+        fun onPhotoRequest(answer: Answer<android.net.Uri?>)
+    }
+
+    /** A host's answer to an engine's request, once. */
+    fun interface Answer<T> {
+        fun done(value: T)
     }
 
     /** The view to place in the HUD's square (the engine sizes itself inside it). */

@@ -37,6 +37,7 @@ import dev.lumen.companion.speech.SpeechProvider
 import dev.lumen.companion.speech.SpeechSecrets
 import dev.lumen.companion.speech.SpeechSettings
 import dev.lumen.companion.ui.LumenTheme
+import dev.lumen.protocol.GridItem
 import dev.lumen.protocol.GridOps
 import dev.lumen.protocol.SettingsOps
 import org.json.JSONObject
@@ -727,6 +728,10 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
 
     override fun setGridConfig(id: String, key: String, value: String) {
         CompanionService.requestGrid(GridOps.config(id, key, value))
+    }
+
+    override fun setGridCamera(id: String, allowed: Boolean) {
+        CompanionService.requestGrid(GridOps.camera(id, if (allowed) GridItem.CAMERA_ALLOWED else GridItem.CAMERA_DENIED))
     }
 
     override fun setSpeechEngine(engine: SpeechEngine) {
