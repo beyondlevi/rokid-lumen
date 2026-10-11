@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["band-core", "bridge"]
+members = ["band-core", "bridge", "writing", "writing-data"]
 
 [workspace.package]
 edition = "2024"

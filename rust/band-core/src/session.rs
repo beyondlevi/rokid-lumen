@@ -942,6 +942,21 @@ impl BandSession {
         self.handwriting.reset(text);
     }
 
+    /// Replace the written text (a word completed or corrected); the writing carries on after it.
+    pub fn replace_handwriting_text(&mut self, text: &str) {
+        self.handwriting.set_text(text);
+    }
+
+    /// The written text so far, with the edits applied.
+    pub fn handwriting_text(&self) -> &str {
+        self.handwriting.text()
+    }
+
+    /// The next written letter will be a capital.
+    pub fn handwriting_shifted(&self) -> bool {
+        self.handwriting.shifted()
+    }
+
     /// The capture's next request, if one is due, and its status changes. Call it often while
     /// [BandSession::handwriting_active] (every tick).
     pub fn flush_handwriting(&mut self, time: f64) -> Result<(Vec<u8>, Vec<Event>)> {
