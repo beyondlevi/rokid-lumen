@@ -159,11 +159,7 @@ class CompanionService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_RECONNECT) {
-            link?.disconnect()
-            link = null
-            connect()
-        }
+        if (intent?.action == ACTION_RECONNECT) reconnect("asked")
         // Debug builds: `adb shell run-as dev.lumen.companion am startservice -a <action> …`
         // exercises the glasses' internet without the glasses asking.
         if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) when (intent?.action) {
@@ -719,7 +715,32 @@ class CompanionService : Service() {
     private fun report(next: LinkState, detail: String = "") {
         Log.d(TAG, "link $next $detail")
         state = next
-        main.post { listeners.forEach { it(next) } }
+        main.post {
+            listeners.forEach { it(next) }
+            recover(next)
+        }
+    }
+
+    /** The home screen's Reconnect, and [recovery]'s. */
+    private fun reconnect(why: String) {
+        Log.d(TAG, "reconnecting ($why)")
+        link?.disconnect()
+        link = null
+        connect()
+    }
+
+    private val recovery = LinkRecovery()
+
+    /** A stuck link reconnects by itself after a wait ([LinkRecovery]). Main thread. */
+    private fun recover(next: LinkState) {
+        val wait = recovery.delayFor(next)
+        main.removeCallbacks(recoverNow)
+        if (wait != null) main.postDelayed(recoverNow, wait)
+    }
+
+    private val recoverNow = Runnable {
+        val stuck = state
+        if (recovery.shouldReconnect(stuck)) reconnect("$stuck, attempt ${recovery.attempts}")
     }
 
     /**
