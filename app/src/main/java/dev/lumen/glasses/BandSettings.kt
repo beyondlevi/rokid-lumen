@@ -94,7 +94,13 @@ object BandSettings {
                 // The phone took the band back when the glasses didn't answer in time: too late now.
                 val late = SettingsOps.isLate(request)
                 if (late) Log.d(TAG, "$name came too late: the phone kept the band")
-                val error = if (late) "too late" else action(ctx, name)
+                val error = when {
+                    late -> "too late"
+                    // The code chosen on the phone travels with the request.
+                    name == SettingsOps.ACTION_ADB_PAIR -> AdbPairing.start(ctx, request.optString("code"))
+                    name == SettingsOps.ACTION_ADB_PAIR_STOP -> AdbPairing.stop(ctx).let { null }
+                    else -> action(ctx, name)
+                }
                 PhoneLink.send(Link.SETTINGS_EVENT, SettingsEvent.Result(error == null, name, error.orEmpty()).toJson(request))
             }
         }
@@ -244,6 +250,10 @@ object BandSettings {
             }
             key == SettingsOps.KEY_WIRELESS_DEBUG -> {
                 WirelessDebug.setEnabled(context, value == "true")
+                return null
+            }
+            key == SettingsOps.KEY_DEBUG_VIA_PHONE -> {
+                WirelessDebug.setViaPhone(context, value == "true")
                 return null
             }
             key == KEY_PAUSED -> {

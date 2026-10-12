@@ -52,6 +52,29 @@ object SettingsOps {
     /** Keeps the glasses reachable over Wi-Fi for `adb connect` ([DebugStatus]). */
     const val KEY_WIRELESS_DEBUG = "wireless_debug"
 
+    /**
+     * "true" while the phone forwards adb over Tailscale: the glasses then hold a network the
+     * phone can reach even away from a saved Wi-Fi (the phone's hotspot, as for its internet).
+     */
+    const val KEY_DEBUG_VIA_PHONE = "debug_via_phone"
+
+    /**
+     * Opens Android's pairing for a new adb client ([adbPair]): the glasses can't show the
+     * "allow debugging" prompt, so a client is trusted by pairing with the [code] the phone chose.
+     * The window's port comes back in [DebugStatus.pairingPort] and closes after
+     * [ADB_PAIRING_WINDOW_MS], after one pairing, or on [ACTION_ADB_PAIR_STOP].
+     */
+    const val ACTION_ADB_PAIR = "adb_pair"
+    const val ACTION_ADB_PAIR_STOP = "adb_pair_stop"
+    const val ADB_PAIRING_WINDOW_MS = 120_000L
+
+    /** Six digits, what Android's pairing takes. */
+    @JvmStatic
+    fun isPairingCode(code: String): Boolean = code.length == 6 && code.all { it in '0'..'9' }
+
+    @JvmStatic
+    fun adbPair(code: String): JSONObject = action(ACTION_ADB_PAIR).put("code", code)
+
     @JvmStatic
     fun describe(): JSONObject = Link.request().put("op", DESCRIBE)
 
@@ -193,7 +216,8 @@ data class BandStatus(
  * Wireless debugging on the glasses: while [enabled] they keep their Wi-Fi on and awake and
  * report where adb finds them. [address] is their Wi-Fi IPv4 ("" without one), [listening] whether
  * adb answers on [port] there, [onPhoneHotspot] whether that Wi-Fi is the phone's hotspot (which a
- * computer can't reach).
+ * computer can't reach). [pairingPort] is an open pairing window's port on [address] (0: none,
+ * [SettingsOps.ACTION_ADB_PAIR]) and [pairingError] why the last one couldn't open.
  */
 data class DebugStatus(
     val enabled: Boolean = false,
@@ -203,17 +227,28 @@ data class DebugStatus(
     val port: Int = DEFAULT_PORT,
     val listening: Boolean = false,
     val onPhoneHotspot: Boolean = false,
+    val pairingPort: Int = 0,
+    val pairingError: String = "",
 ) {
     /** Reachable from a computer on the same network. */
     val ready: Boolean get() = enabled && address.isNotEmpty() && listening && !onPhoneHotspot
+
+    /** Reachable from this phone, the hotspot included: what the phone forwards over Tailscale. */
+    val reachableFromPhone: Boolean get() = enabled && address.isNotEmpty() && listening
 
     val command: String get() = "adb connect $address:$port"
 
     fun toJson(): JSONObject = JSONObject().put("enabled", enabled).put("wifi_on", wifiOn).put("ssid", ssid)
         .put("address", address).put("port", port).put("listening", listening).put("on_phone_hotspot", onPhoneHotspot)
+        .put("pairing_port", pairingPort).put("pairing_error", pairingError)
 
     companion object {
         const val DEFAULT_PORT = 5555
+
+        /** Why a pairing window couldn't open: no Wi-Fi network to trust, the self-arm not done, or Android didn't open it. */
+        const val PAIRING_NO_WIFI = "no_wifi"
+        const val PAIRING_NOT_ARMED = "not_armed"
+        const val PAIRING_FAILED = "failed"
 
         fun from(json: JSONObject?) = if (json == null) DebugStatus() else DebugStatus(
             json.optBoolean("enabled"),
@@ -223,6 +258,8 @@ data class DebugStatus(
             json.optInt("port", DEFAULT_PORT),
             json.optBoolean("listening"),
             json.optBoolean("on_phone_hotspot"),
+            json.optInt("pairing_port"),
+            json.optString("pairing_error"),
         )
     }
 }
