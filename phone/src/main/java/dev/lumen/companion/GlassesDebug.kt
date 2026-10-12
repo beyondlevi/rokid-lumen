@@ -9,6 +9,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import android.widget.Toast
 import dev.lumen.protocol.DebugStatus
 import dev.lumen.protocol.SettingsOps
@@ -61,6 +62,65 @@ object GlassesDebug {
         }, this, android.os.SystemClock.uptimeMillis() + RETRY_MS)
     }
 
+    // ---- Through Tailscale, pairing, switching off by itself ----
+
+    private const val PREFS = "glasses_debug"
+    private const val KEY_VIA_TAILSCALE = "via_tailscale"
+    private const val KEY_AUTO_OFF = "auto_off_hours"
+    private const val KEY_ON_SINCE = "on_since"
+
+    private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    /** "Also through Tailscale" ([TailnetRelay]). */
+    @JvmStatic
+    fun viaTailscale(context: Context): Boolean = prefs(context).getBoolean(KEY_VIA_TAILSCALE, false)
+
+    @JvmStatic
+    fun setViaTailscale(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean(KEY_VIA_TAILSCALE, on).apply()
+        // The glasses hold a network this phone reaches meanwhile (its hotspot away from home).
+        CompanionService.requestSettings(SettingsOps.set(SettingsOps.KEY_DEBUG_VIA_PHONE, on.toString()))
+        relay(context)
+    }
+
+    /** Hours before wireless debugging switches itself off; [AutoOff.NEVER] for never. */
+    @JvmStatic
+    fun autoOffHours(context: Context): Int = prefs(context).getInt(KEY_AUTO_OFF, AutoOff.DEFAULT_HOURS)
+
+    @JvmStatic
+    fun setAutoOffHours(context: Context, hours: Int) {
+        prefs(context).edit().putInt(KEY_AUTO_OFF, hours).apply()
+    }
+
+    /** From the service's minute tick: switches it off once on for longer than the limit. */
+    @JvmStatic
+    fun checkAutoOff(context: Context, now: Long = System.currentTimeMillis()) {
+        if (!AutoOff.due(prefs(context).getLong(KEY_ON_SINCE, 0), autoOffHours(context), now)) return
+        Log.d(TAG, "wireless debugging on for ${autoOffHours(context)} h: switching it off")
+        prefs(context).edit().putLong(KEY_ON_SINCE, 0).apply()
+        request(false)
+    }
+
+    /** Asks the glasses for a pairing window for [code]; false without a link. */
+    @JvmStatic
+    fun pair(code: String): Boolean = CompanionService.requestSettings(SettingsOps.adbPair(code))
+
+    @JvmStatic
+    fun stopPairing(): Boolean = CompanionService.requestSettings(SettingsOps.action(SettingsOps.ACTION_ADB_PAIR_STOP))
+
+    /** The forwards for the switch and the glasses' last state. */
+    @JvmStatic
+    fun relay(context: Context) {
+        val via = viaTailscale(context)
+        val debug = BandStore.debug
+        Thread({
+            TailnetRelay.update(via, debug)
+            main.post { BandStore.listeners.toList().forEach { it() } }
+        }, "nb-relay-update").start()
+    }
+
+    private const val TAG = "NbGlassesDebug"
+
     /** A new state from the glasses. Main thread. */
     @JvmStatic
     fun onStatus(context: Context, status: DebugStatus) {
@@ -69,6 +129,15 @@ object GlassesDebug {
             // The screen redrew on this event before the switch knew it was confirmed.
             BandStore.listeners.toList().forEach { it() }
         }
+        val since = prefs(context).getLong(KEY_ON_SINCE, 0)
+        if (status.enabled && since == 0L) {
+            prefs(context).edit().putLong(KEY_ON_SINCE, System.currentTimeMillis()).apply()
+            // Glasses switched on (again): they learn whether the phone forwards for them.
+            if (viaTailscale(context)) CompanionService.requestSettings(SettingsOps.set(SettingsOps.KEY_DEBUG_VIA_PHONE, "true"))
+        } else if (!status.enabled && since != 0L) {
+            prefs(context).edit().putLong(KEY_ON_SINCE, 0).apply()
+        }
+        relay(context)
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
         if (!status.ready) {
             if (!status.enabled) {
@@ -136,4 +205,24 @@ object GlassesDebug {
             copy(context, intent.getStringExtra(EXTRA_COMMAND) ?: return)
         }
     }
+}
+
+/** When wireless debugging switches itself off ("Turn off by itself"). */
+object AutoOff {
+    const val NEVER = 0
+    const val DEFAULT_HOURS = 4
+    /** The choices offered, in hours. */
+    val CHOICES = listOf(1, 4, NEVER)
+
+    /** On since [since] (0: off) for longer than [hours] at [now]. */
+    @JvmStatic
+    fun due(since: Long, hours: Int, now: Long): Boolean = since > 0 && hours != NEVER && now - since >= hours * 3_600_000L
+}
+
+/** Six random digits, what Android's pairing takes. */
+object PairingCode {
+    private val random = java.security.SecureRandom()
+
+    @JvmStatic
+    fun next(): String = (random.nextInt(1_000_000)).toString().padStart(6, '0')
 }

@@ -183,6 +183,9 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
             glassesDebug = BandStore.debug,
             glassesDebugPending = GlassesDebug.pending,
             glassesDebugSameNetwork = GlassesDebug.phoneOnSameNetwork(BandStore.debug.address),
+            debugViaTailscale = GlassesDebug.viaTailscale(this),
+            tailnet = TailnetRelay.state,
+            debugAutoOffHours = GlassesDebug.autoOffHours(this),
             dictation = DictationUiState(
                 engine = SpeechSettings.engine(this),
                 language = SpeechSettings.language(this),
@@ -517,8 +520,41 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
 
     override fun copyAdbCommand() = GlassesDebug.copy(this, BandStore.debug.command)
 
-    override fun shareAdbCommand() {
-        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, BandStore.debug.command), null))
+    override fun shareAdbCommand() = shareText(BandStore.debug.command)
+
+    override fun setDebugViaTailscale(on: Boolean) {
+        GlassesDebug.setViaTailscale(this, on)
+        refresh()
+    }
+
+    override fun setDebugAutoOff(hours: Int) {
+        GlassesDebug.setAutoOffHours(this, hours)
+        refresh()
+    }
+
+    override fun startAdbPairing(): String? {
+        val code = PairingCode.next()
+        if (!GlassesDebug.pair(code)) {
+            say(getString(R.string.band_waiting))
+            return null
+        }
+        return code
+    }
+
+    override fun stopAdbPairing() {
+        GlassesDebug.stopPairing()
+    }
+
+    override fun copyText(text: String) = GlassesDebug.copy(this, text)
+
+    override fun shareText(text: String) {
+        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), null))
+    }
+
+    override fun openTailscale() {
+        val launch = packageManager.getLaunchIntentForPackage(TAILSCALE_PACKAGE)
+            ?: Intent(Intent.ACTION_VIEW, android.net.Uri.parse("market://details?id=$TAILSCALE_PACKAGE"))
+        runCatching { startActivity(launch) }
     }
 
     override fun setPhoneSetting(key: String, value: String) {
@@ -799,6 +835,7 @@ class CompanionActivity : ComponentActivity(), CompanionActions {
     }
 
     companion object {
+        private const val TAILSCALE_PACKAGE = "com.tailscale.ipn"
         /** Opens a page over the tabs ([dev.lumen.companion.ui.PAGE_UPDATES]): the update notification. */
         const val EXTRA_PAGE = "page"
         const val PAGE_UPDATES = dev.lumen.companion.ui.PAGE_UPDATES

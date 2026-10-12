@@ -28,6 +28,15 @@
 
 ### Companion
 
+- **ADB through the phone**: with the glasses' wireless debugging on, **Also through Tailscale**
+  forwards their adb from the phone's Tailscale address (port 5556), so every device on the
+  wearer's tailnet has full adb to the glasses from anywhere, no computer next to them. Away
+  from a saved Wi-Fi the glasses hold the phone's hotspot meanwhile.
+- **Authorize a computer**: the glasses never show the "allow debugging" prompt, so the phone
+  shows a pairing code and the `adb pair` command (same network or Tailscale), valid 2 minutes.
+- **Turn off by itself**: wireless debugging switches off after 1 hour, 4 hours (default) or never.
+- **Glasses screen**: the glasses' display live on the phone (Light or Smooth, Pause, Save
+  image, As on the glasses in green, a Wake button when their screen is off).
 - **The link comes back by itself** when Hi Rokid leaves the glasses app's session
   unavailable ("Glasses app unavailable" on the home screen, which only Reconnect cleared):
   after 10 s the companion does what Reconnect does, then waits longer before each new try

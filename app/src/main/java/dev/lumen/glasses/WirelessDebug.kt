@@ -30,6 +30,7 @@ object WirelessDebug {
     private const val TAG = "BandWirelessDebug"
     private const val PREFS = "lumen_wireless_debug"
     private const val KEY_ENABLED = "enabled"
+    private const val KEY_VIA_PHONE = "via_phone"
     /** Looked at again this often while on, for what no callback reports (the port, say). */
     private const val CHECK_MS = 60_000L
     /** A network callback burst (lost, available, link change) settles first. */
@@ -40,6 +41,7 @@ object WirelessDebug {
     private var context: Context? = null
     private var lock: WifiManager.WifiLock? = null
     private var callback: ConnectivityManager.NetworkCallback? = null
+    private var holdingNetwork = false
 
     @Volatile
     var current = DebugStatus()
@@ -48,6 +50,21 @@ object WirelessDebug {
     @JvmStatic
     fun isEnabled(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ENABLED, false)
+
+    /** The phone forwards adb over Tailscale ([SettingsOps.KEY_DEBUG_VIA_PHONE]). */
+    @JvmStatic
+    fun isViaPhone(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_VIA_PHONE, false)
+
+    /** From the phone ([BandSettings]). */
+    @JvmStatic
+    fun setViaPhone(context: Context, on: Boolean) {
+        val ctx = context.applicationContext
+        this.context = ctx
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_VIA_PHONE, on).apply()
+        Log.d(TAG, "through the phone ${if (on) "on" else "off"}")
+        apply(ctx)
+    }
 
     /** Once per process, from [PhoneLink]: resumes what the phone switched on before. */
     @JvmStatic
@@ -66,6 +83,7 @@ object WirelessDebug {
         // The schema the phone gets back right away says so; the rest follows from check().
         current = if (on) current.copy(enabled = true) else DebugStatus()
         Log.d(TAG, "wireless debugging ${if (on) "on" else "off"}")
+        if (!on) AdbPairing.stop(ctx)
         apply(ctx)
     }
 
@@ -83,7 +101,26 @@ object WirelessDebug {
             callback?.let { runCatching { ctx.getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(it) } }
             callback = null
         }
+        holdNetwork(ctx, on && isViaPhone(ctx))
         check()
+    }
+
+    /**
+     * While the phone forwards adb, a network it can reach is held as a web app holds its
+     * internet ([PhoneInternet]): a saved Wi-Fi when one is in range, else the phone's hotspot.
+     * Away from home that keeps the glasses reachable through the phone.
+     */
+    private fun holdNetwork(ctx: Context, hold: Boolean) {
+        if (hold == holdingNetwork) return
+        holdingNetwork = hold
+        if (hold) PhoneInternet.acquire(ctx, networkHolder) else PhoneInternet.release(networkHolder)
+        Log.d(TAG, "network for the phone ${if (hold) "held" else "released"}")
+    }
+
+    private val networkHolder = object : PhoneInternet.Listener {
+        override fun onStatus(text: String) = Unit
+        override fun onReady(proxy: String?) = check()
+        override fun onFailed(text: String) = check()
     }
 
     private val periodic: Runnable = Runnable {
@@ -120,6 +157,8 @@ object WirelessDebug {
             ssid = ssid,
             address = address,
             listening = address.isNotEmpty() && listens(address, DebugStatus.DEFAULT_PORT),
+            pairingPort = if (address.isEmpty()) 0 else AdbPairing.port,
+            pairingError = AdbPairing.error,
             // The network it is on now: the platform can leave the hotspot (no internet) for a saved
             // network before PhoneInternet notices.
             onPhoneHotspot = hotspot != null && (ssid.isEmpty() || ssid == hotspot),

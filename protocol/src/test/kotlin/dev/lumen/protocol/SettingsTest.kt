@@ -120,6 +120,26 @@ class SettingsTest {
     }
 
     @Test
+    fun `a pairing window travels with the debug state, and the phone asks for one with a six-digit code`() {
+        val open = DebugStatus(enabled = true, address = "192.168.43.12", listening = true, onPhoneHotspot = true, pairingPort = 37115)
+        assertEquals(open, DebugStatus.from(open.toJson()))
+        // On the phone's hotspot a computer can't reach them, the phone can.
+        assertFalse(open.ready)
+        assertTrue(open.reachableFromPhone)
+        val failed = DebugStatus(enabled = true, pairingError = DebugStatus.PAIRING_NO_WIFI)
+        assertEquals(failed, DebugStatus.from(failed.toJson()))
+        // Glasses older than pairing send neither: no window.
+        assertEquals(0, DebugStatus.from(org.json.JSONObject().put("enabled", true)).pairingPort)
+        val request = SettingsOps.adbPair("048213")
+        assertEquals(SettingsOps.ACTION_ADB_PAIR, request.getString("name"))
+        assertEquals("048213", request.getString("code"))
+        assertTrue(SettingsOps.isPairingCode("048213"))
+        assertFalse(SettingsOps.isPairingCode("48213"))
+        assertFalse(SettingsOps.isPairingCode("04821a"))
+        assertFalse(SettingsOps.isPairingCode("0482131"))
+    }
+
+    @Test
     fun `the self-arm's progress round-trips, and the band key goes to the glasses`() {
         val event = SettingsEvent.SelfArm("usb_debugging_off", "Turn on USB debugging in Hi Rokid", false)
         assertEquals(event, SettingsEvent.from(event.toJson()))

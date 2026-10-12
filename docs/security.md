@@ -68,6 +68,21 @@ phone's hotspot (`cmd wifi connect-network`) and forgetting it afterwards.
 The self-arm refuses to run where Rokid Nexus is installed or configured, since Nexus manages
 ADB on those glasses. How to undo it: [getting-started.md](getting-started.md#undo-the-self-arm).
 
+## ADB through the phone
+
+Off unless the wearer turns on wireless debugging and then **Also through Tailscale**:
+
+- The forward listens on the phone's Tailscale address only, so only devices on the wearer's
+  tailnet (and whatever its access controls allow) reach it. Between the phone and the glasses
+  the connection is plain adb over the local Wi-Fi or the phone's hotspot, as `adb connect` on
+  the same network always was; over Tailscale it travels inside WireGuard.
+- Reaching the port isn't enough: adbd still wants a trusted key. A new key is trusted only by
+  pairing with the six-digit code the phone shows, within its 2-minute window. The code is never
+  logged. Each paired key stays trusted (the self-arm sets `adb_allowed_connection_time` to 0).
+- Wireless debugging turns itself off after 4 hours by default, which closes the forward.
+- The companion's own adb key (for the glasses' screen) is in its private storage, like the
+  glasses app's.
+
 ## The glasses app
 
 - **Accessibility service.** It retrieves the content of interactive windows, to navigate apps
