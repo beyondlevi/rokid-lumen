@@ -461,6 +461,72 @@ viewport units. If your app must run there, build for it (Vite `build.target: 'c
 avoid those features. Keep an app that signs in to something on GeckoView: the WebView shares
 its cookies between apps.
 
+## Fast navigation: lists and Back
+
+On the glasses' CPU every element a page mounts costs time. A UI Toolkit `ListItem` lays out its slots,
+draws its surface on a `<canvas>` in a layout effect and decodes its picture: about 30 ms per row on
+Rokid RG glasses. WhatsApp for Lumen used to unmount its chat list when a chat opened and mount every
+row again on Back, so the screen stood still for about 1.5 s after the middle tap, with the page's
+process at 74-138 % CPU. Follow these rules in every app:
+
+1. **A list page is never unmounted and rebuilt on Back.** Keep it mounted while its detail pages
+   (and their own pages, a search, a notification's page) are open, and only move it out of the way:
+   - render it next to the page transition (after `ReactRouterPageTransition`, inside `<App>`), as a
+     layer with `position: absolute; inset: 0; contain: strict` and the window background; the `/`
+     route keeps only the loading, error and empty screens;
+   - shown, the layer is on top of the routes (`z-index: 1`); hidden, it goes under them
+     (`z-index: -1`) and the transition's viewport gets the window background, so it covers the list
+     even while pages fade. Hidden, it is also `inert` and `aria-hidden="true"`: no focus, no D-pad
+     keys, no pointer, no screen reader. It keeps its rows, scroll and drawing, so showing it again
+     only brings it back on top. (`visibility: hidden` or toggling `inert` at once makes the browser
+     restyle every element of the list in the frame that shows it: about 25 ms more with the CPU
+     throttled 6x, and more the more rows are rendered.)
+   - hidden, it does no work: no renders (keep the element it last showed and rebuild it only while
+     shown; the list view gets everything through props, with no router or app state context inside
+     it), no picture requests, no timers;
+   - Back only brings it back on top, with no transition. One frame later lift `inert` and focus the
+     row the wearer came from, by its id (not its position);
+   - with the toolkit's transition, pass `preservePageState={pathname !== '/'}`: the focus and scroll
+     snapshot of the page leaving for the list reads the computed style of every focusable element
+     before anything can be drawn. The leaving page fades out under the list. Give each opening of a
+     detail page its own transition key (`getTransitionKey`: the path plus an opening count, bumped
+     where the list opens it), so a reopened page doesn't get an old snapshot (from when it last opened
+     a page of its own) while Back from its own pages still restores it;
+   - an app opened directly on a detail page (from a notification) mounts the hidden list in idle
+     time (`requestIdleCallback`), so Back from there is just as quick.
+2. **The page that leaves is not drawn again.** A page rendered by `<Routes location={location}>`
+   gets a new location object on every navigation, even on its way out. Give the page's body
+   primitive props (pathname, location key, a flag from `location.state`, `navigate`) and `memo` it.
+3. **Long lists render in windows.** At first, the rows that fit the 600 x 600 page plus a margin
+   (16 rows); then more as the focus gets near the last one rendered (8 at a time, in idle time;
+   at once only when the focus is on the last row). A conversation renders its newest messages (12)
+   and older ones as the focus goes up. Never every item at once. Keep the focus order, the initial
+   focus and rows above the first item (a search row) working, and keep a detail page's window when
+   it opens a page of its own, so Back restores the same focus.
+4. **Nothing per row on every navigation or refresh.** A row renders again only when what it shows
+   changes: reuse its element while its data and position are the same, with stable callbacks.
+   Per-row work (picture requests, effects) runs for the rendered rows only, while the list is shown.
+5. **Measure navigation with the CPU throttled before delivering.** Chromium, CPU throttled 6x
+   (`Emulation.setCPUThrottlingRate` over CDP; at 6x a list row cost about what it costs on the
+   glasses), a 600 x 600 viewport, and data with 150 items or more. Time from the key's
+   `event.timeStamp` to the first frame with the target screen fully drawn on top:
+   - read `performance.now()` inside `requestAnimationFrame` (the frame's own timestamp lags behind
+     long tasks);
+   - take the time once that frame is rendered: post a `MessageChannel` message from the animation
+     frame and read the clock in its handler;
+   - count a screen as drawn only when it is on top (compare z-index and document order where the
+     two screens' ancestors part; `elementFromPoint` skips inert pages);
+   - add up the main thread's long tasks after the key (`PerformanceObserver`, `longtask`).
+
+   Back to a list should be drawn within 100 ms, and opening a page or the app should not get
+   slower than the previous version. WhatsApp and Telegram for Lumen keep such a benchmark in
+   `tests/perf/navigation.mjs` (`npm run perf`).
+
+Measured with that benchmark on WhatsApp for Lumen (160 chats, CPU 6x, medians of 5): Back from a chat
+to the list went from 5037 ms to 76 ms, opening a chat from 3114 ms to 1310 ms, and the launch until the
+list is drawn from 4913 ms to 1468 ms. Telegram for Lumen: 4000 ms to 74 ms, 3224 ms to 1170 ms, and
+4798 ms to 1867 ms.
+
 ## A complete example: WhatsApp for Lumen
 
 *WhatsApp for Lumen* is an offline package that reads and answers WhatsApp chats through an
