@@ -3,6 +3,17 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.24]
+
+### Web apps
+
+- **Online apps find the internet again** when the glasses' network changed while wireless
+  debugging was on. Since beta.23, "Also through Tailscale" keeps the glasses' network held, and
+  Lumen kept calling a Wi-Fi they had left (or switched off) ready: an app such as YouTube
+  failed at once, without turning the Wi-Fi on or asking the phone. Lumen now checks that a
+  direct network is still there when an app opens, and every 15 seconds while it's held, and
+  starts over (a saved Wi-Fi, then the phone's) when it's gone.
+
 ## [0.2.0-beta.23]
 
 ### Glasses

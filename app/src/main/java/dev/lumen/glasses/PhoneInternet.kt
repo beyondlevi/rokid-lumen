@@ -95,7 +95,15 @@ object PhoneInternet {
         listeners += listener
         main.removeCallbacks(teardown)
         when (state) {
-            State.READY -> listener.onReady(proxy)
+            // A direct network held since (wireless debugging holds one for as long as it's on) may
+            // be gone now: the app would load into nothing (measured in beta.23: YouTube failed at
+            // once, the Wi-Fi off, with no try at all). Start over then.
+            State.READY -> if (proxy == null && !hasDirectInternet(context)) {
+                Log.w(TAG, "the direct network is gone; starting over")
+                start(viaPhone = viaPhone)
+            } else {
+                listener.onReady(proxy)
+            }
             State.IDLE, State.FAILED -> start(viaPhone = viaPhone)
             // A new app joining a wait already under way gets the full wait, not what is left of
             // it (measured: an open late in the wait failed 2 s later), and the phone is asked again.
@@ -298,9 +306,7 @@ object PhoneInternet {
         }
         waitFor(JOIN_WAIT_MS, { reachable(address, port) }, State.JOINING, onDone = {
             main.removeCallbacks(renew)
-            main.removeCallbacks(health)
             main.postDelayed(renew, RENEW_MS)
-            main.postDelayed(health, HEALTH_MS)
             ready("$address:$port")
         }, onTimeout = { fail(text(R.string.net_not_answering)) }, current = current)
     }
@@ -313,27 +319,34 @@ object PhoneInternet {
     }
 
     /**
-     * While on the phone's hotspot: is the proxy still there? If not (Wi-Fi switched off from Hi
-     * Rokid, the hotspot gone), start over while apps still hold the internet.
+     * While ready: is the network still there? On the phone's hotspot, the proxy (Wi-Fi switched
+     * off from Hi Rokid, the hotspot gone); on a direct network, its validated internet, missed
+     * twice in a row (Android re-validates now and then). If not, start over while apps still
+     * hold the internet.
      */
     private val health: Runnable = Runnable {
         val current = proxy
-        if (state != State.READY || current == null) return@Runnable
+        val ctx = context
+        if (state != State.READY || ctx == null) return@Runnable
         io.execute {
-            val ok = reachable(current.substringBefore(':'), current.substringAfter(':').toIntOrNull() ?: 0)
+            val ok = if (current == null) hasDirectInternet(ctx)
+            else reachable(current.substringBefore(':'), current.substringAfter(':').toIntOrNull() ?: 0)
             main.post {
                 if (state != State.READY || proxy != current) return@post
-                if (ok) {
+                directMisses = if (ok || current != null) 0 else directMisses + 1
+                if (ok || (current == null && directMisses < 2)) {
                     main.postDelayed(health, HEALTH_MS)
                     return@post
                 }
-                Log.w(TAG, "lost the phone's network; reconnecting")
+                Log.w(TAG, "lost the ${if (current == null) "direct" else "phone's"} network; reconnecting")
                 main.removeCallbacks(renew)
                 proxy = null
                 if (holders > 0) start(fresh = false) else state = State.IDLE
             }
         }
     }
+
+    private var directMisses = 0
 
     private val teardown = Runnable {
         if (holders > 0) return@Runnable
@@ -390,6 +403,9 @@ object PhoneInternet {
     private fun ready(proxy: String?) {
         state = State.READY
         this.proxy = proxy
+        directMisses = 0
+        main.removeCallbacks(health)
+        main.postDelayed(health, HEALTH_MS)
         Log.d(TAG, "ready ${proxy ?: "direct"}")
         listeners.toList().forEach { it.onReady(proxy) }
     }
