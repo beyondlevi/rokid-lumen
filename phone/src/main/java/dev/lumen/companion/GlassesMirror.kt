@@ -50,9 +50,15 @@ class GlassesMirror(private val context: Context, private val onState: (State) -
 
     fun stop() {
         running = false
-        closeStream()
-        runCatching { control?.close() }
+        val last = control
         control = null
+        val open = stream
+        stream = null
+        runCatching { open?.close() }
+        background {
+            if (open != null) last?.shell("pkill -x screenrecord")
+            last?.close()
+        }
         worker?.interrupt()
         watcher?.interrupt()
     }
@@ -173,6 +179,10 @@ class GlassesMirror(private val context: Context, private val onState: (State) -
             if (running && !paused && quality == current) throw e
         } finally {
             closeStream()
+            // Closing adb's stream doesn't stop screenrecord on the glasses until it next writes,
+            // which a still screen never does (it stayed up to its 3 minutes, holding the
+            // encoder). Stopped here, on this thread, before the next recording starts.
+            runCatching { control?.shell("pkill -x screenrecord") }
         }
     }
 
