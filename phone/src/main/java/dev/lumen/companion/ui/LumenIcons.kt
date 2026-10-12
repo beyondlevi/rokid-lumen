@@ -64,6 +64,19 @@ object LumenIcons {
     val write = icon("write", "M3 17c3-6 5-6 6-3s3 3 5-2 4-5 7 0", "M3 21h18")
     val slides = icon("slides", "M4.5 4h15A1.5 1.5 0 0 1 21 5.5V16H3V5.5A1.5 1.5 0 0 1 4.5 4z", "M12 16v4", "M8 20h8")
 
+    val copy = icon("copy", "M10 9h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1z", "M5 15V5a1 1 0 0 1 1-1h9")
+    val share = icon("share", "M12 3v12", "M7 8l5-5 5 5", "M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5")
+    val key = icon("key", "M12 15a4 4 0 1 1-8 0a4 4 0 1 1 8 0", "M11 12l9-9", "M16 7l3 3")
+    val timer = icon("timer", "M20 13a8 8 0 1 1-16 0a8 8 0 1 1 16 0", "M12 9v4l2 2", "M9 2h6")
+    val pause = icon("pause", "M9 5v14", "M15 5v14", width = 2.6f)
+    val play = icon("play", "M8 5l11 7-11 7z")
+    val sun = icon(
+        "sun",
+        "M16 12a4 4 0 1 1-8 0a4 4 0 1 1 8 0",
+        "M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4",
+    )
+    val wifiOff = icon("wifi_off", "M2 9a15 15 0 0 1 20 0", "M5.5 12.5a10 10 0 0 1 13 0", "M9 16a5 5 0 0 1 6 0", "M3 3l18 18")
+
     private fun icon(name: String, vararg paths: String, width: Float = 1.8f): ImageVector {
         val builder = ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
         paths.forEach { d ->

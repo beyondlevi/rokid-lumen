@@ -526,6 +526,30 @@ tabs:
   key (also what web apps' transcriptions use), the offline voice model, **wireless debugging**
   on the glasses (keeps their Wi-Fi on and awake, shows the `adb connect` command with Copy and
   Share, and notifies when they come back at a new address), the version and **Updates**.
+  See [ADB and the glasses' screen through the phone](#adb-and-the-glasses-screen-through-the-phone).
+
+### ADB and the glasses' screen through the phone
+
+Settings > Developer, under **Wireless debugging on the glasses**:
+
+- **Also through Tailscale**: the phone listens on its Tailscale address only (never on Wi-Fi
+  or mobile data) and forwards port 5556 to the glasses' adb, so any of the wearer's devices on
+  the tailnet runs `adb connect <phone's Tailscale address>:5556` from anywhere, with full adb
+  (shell, install, push and pull, logcat, port forwards). Meanwhile the glasses hold a network
+  the phone reaches: a saved Wi-Fi in range, else the phone's hotspot, as for its internet.
+  With Tailscale off on the phone, the section says so and opens the Tailscale app.
+- **Authorize a computer**: the glasses never show Android's "allow debugging" prompt (adbd
+  asks for it, no screen appears), so a new computer is trusted by pairing. The phone picks a
+  six-digit code, the glasses open a pairing window for it (2 minutes, closed once used), and
+  the sheet shows `adb pair` for the same network or through Tailscale (port 5557). A paired
+  computer is also accepted on the fixed port afterwards.
+- **Turn off by itself**: after 1 hour, 4 hours (the default) or never.
+- **Glasses screen**: the glasses' display live on the phone, over adb (their own
+  `screenrecord`, H.264, decoded by the phone; no consent prompt, it runs as the shell user).
+  The phone pairs its own key with the glasses the first time. Pause, Save image (a PNG in
+  Pictures/Lumen), Light (low bitrate, at most 5 frames a second drawn) or Smooth, and As on the
+  glasses (in green). When the glasses' screen goes off the picture waits, with a button to
+  wake it.
 
 ### Sharing logs
 

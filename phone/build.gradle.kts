@@ -110,6 +110,10 @@ dependencies {
     implementation("com.alphacephei:vosk-android:0.3.75")
     // The cloud dictation engines: REST and WebSocket (as Rokid Nexus).
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // An adb client to the glasses (their screen on this phone), paired like a computer: the
+    // same library the glasses' self-arm uses.
+    implementation("com.flyfishxu:kadb:2.1.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     testImplementation("junit:junit:4.13.2")
     // The real org.json (android.jar's is a stub here): the release list is parsed in tests.
     testImplementation("org.json:json:20260814")

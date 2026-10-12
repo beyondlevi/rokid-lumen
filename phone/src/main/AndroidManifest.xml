@@ -33,6 +33,8 @@
         </intent>
         <package android:name="com.rokid.sprite.aiapp" />
         <package android:name="com.rokid.sprite.global.aiapp" />
+        <!-- "Open Tailscale" from Settings › Developer. -->
+        <package android:name="com.tailscale.ipn" />
         <!-- The apps a band gesture can open on the phone. -->
         <intent>
             <action android:name="android.intent.action.MAIN" />

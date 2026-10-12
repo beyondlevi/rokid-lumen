@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The glasses' adb through this phone (Settings › Developer) and the glasses' screen on it. -->
+<resources>
+    <string name="debug_where_glasses">On %1$s · glasses at %2$s</string>
+    <string name="debug_where_glasses_unnamed">On Wi-Fi · glasses at %1$s</string>
+    <string name="debug_same_network">On the same network</string>
+    <string name="debug_on_phone_hotspot">Glasses on this phone\'s hotspot · no saved network nearby</string>
+    <string name="debug_on_phone_hotspot_hint">Away from a network shared with the computer, use the Tailscale address.</string>
+    <string name="debug_tailscale">Also through Tailscale</string>
+    <string name="debug_tailscale_hint">Your devices on Tailscale reach the glasses\' adb through this phone, from anywhere</string>
+    <string name="debug_tailscale_only">This phone forwards only over Tailscale, never over Wi-Fi.</string>
+    <string name="debug_tailscale_off">Tailscale is off on this phone. Turn it on to reach the glasses away from this network.</string>
+    <string name="debug_open_tailscale">Open Tailscale</string>
+    <string name="debug_relay_failed">This phone couldn\'t open its ports on Tailscale.</string>
+    <string name="debug_waiting_network">Waiting for the glasses to join a network this phone reaches.</string>
+    <string name="debug_authorize">Authorize a computer</string>
+    <string name="debug_authorize_hint">Once per computer: the glasses don\'t show the permission prompt</string>
+    <string name="debug_auto_off">Turn off by itself</string>
+    <string name="debug_auto_off_title">Turn wireless debugging off by itself</string>
+    <string name="debug_auto_off_1">After 1 hour</string>
+    <string name="debug_auto_off_4">After 4 hours</string>
+    <string name="debug_auto_off_never">Never</string>
+    <string name="debug_screen">Glasses screen</string>
+    <string name="debug_screen_hint">See on this phone what the glasses show</string>
+    <string name="debug_screen_off_hint">Turn on wireless debugging to see it</string>
+
+    <string name="pair_text">The glasses don\'t show adb\'s permission prompt. Run this on the computer to authorize it:</string>
+    <string name="pair_via_tailscale">Through Tailscale</string>
+    <string name="pair_code">Pairing code</string>
+    <string name="pair_valid">Valid for 2 minutes: ends in %1$s</string>
+    <string name="pair_after">After that, adb connect always works on that computer.</string>
+    <string name="pair_opening">Opening pairing on the glasses…</string>
+    <string name="pair_closed">Pairing closed. If adb pair said \"Successfully paired\", the computer is authorized.</string>
+    <string name="pair_error_no_wifi">The glasses aren\'t on a Wi-Fi network to pair on.</string>
+    <string name="pair_error_not_armed">The glasses need their setup first: Settings, Glasses setup.</string>
+    <string name="pair_error_failed">The glasses couldn\'t open pairing. Try again.</string>
+
+    <string name="screen_live">Live</string>
+    <string name="screen_connecting">Connecting</string>
+    <string name="screen_paused">Paused</string>
+    <string name="screen_no_picture">No picture</string>
+    <string name="screen_starting">Starting the glasses\' picture</string>
+    <string name="screen_pause">Pause</string>
+    <string name="screen_resume">Resume</string>
+    <string name="screen_save">Save image</string>
+    <string name="screen_saved">Saved in Pictures/Lumen</string>
+    <string name="screen_save_failed">Couldn\'t save the image</string>
+    <string name="screen_light">Light</string>
+    <string name="screen_smooth">Smooth</string>
+    <string name="screen_quality_hint">Light: few images a second, barely any battery. Smooth: follows animations.</string>
+    <string name="screen_green">As on the glasses</string>
+    <string name="screen_green_hint">Shows it in green, as the lens does</string>
+    <string name="screen_asleep">The glasses\' screen went off</string>
+    <string name="screen_wake">Wake the screen</string>
+    <string name="screen_asleep_hint">The picture stops while the glasses\' screen is off, and comes back by itself when it turns on.</string>
+    <string name="screen_error_wifi">The glasses aren\'t on Wi-Fi</string>
+    <string name="screen_error_wifi_hint">The picture goes over Wi-Fi. Turn on the glasses\' wireless debugging in Settings, Developer.</string>
+    <string name="screen_error_reach">This phone can\'t reach the glasses</string>
+    <string name="screen_error_reach_hint">The phone and the glasses need the same Wi-Fi network, or the glasses on this phone\'s hotspot (Also through Tailscale).</string>
+    <string name="screen_error_pair">The glasses didn\'t let this phone in</string>
+    <string name="screen_error_pair_hint">Pairing with the glasses failed. Try again.</string>
+    <string name="screen_retry">Try again</string>
+</resources>

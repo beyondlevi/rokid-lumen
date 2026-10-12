@@ -148,6 +148,19 @@ class CompanionService : Service() {
         PhoneBand.listeners += devicesNow
         ComputerLink.listeners += devicesNow
         main.postDelayed(updateTick, 60_000)
+        main.postDelayed(debugTick, DEBUG_TICK_MS)
+    }
+
+    /**
+     * Wireless debugging: switching itself off after its limit, and the Tailscale forward
+     * following this phone's address (Tailscale turned on or off, a new address).
+     */
+    private val debugTick = object : Runnable {
+        override fun run() {
+            GlassesDebug.checkAutoOff(this@CompanionService)
+            if (GlassesDebug.viaTailscale(this@CompanionService) || TailnetRelay.state.adb) GlassesDebug.relay(this@CompanionService)
+            main.postDelayed(this, DEBUG_TICK_MS)
+        }
     }
 
     /** The automatic update check, hourly; [dev.lumen.companion.update.UpdateManager] keeps it to every four hours. */
@@ -190,6 +203,7 @@ class CompanionService : Service() {
         ComputerLink.stop()
         cancelListening("service stopped")
         network.down()
+        Thread({ TailnetRelay.stop() }, "nb-relay-stop").start()
         link?.disconnect()
         link = null
         report(LinkState.STOPPED, "service destroyed")
@@ -741,6 +755,7 @@ class CompanionService : Service() {
         /** The battery's resend to the glasses, link drops aside. */
         private const val BATTERY_RESEND_MS = 5 * 60_000L
         private const val DEVICES_CHECK_MS = 3_000L
+        private const val DEBUG_TICK_MS = 30_000L
         private const val TAG = "NbCompanion"
         private const val CHANNEL = "link"
         const val ACTION_RECONNECT = "dev.lumen.companion.RECONNECT"

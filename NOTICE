@@ -76,7 +76,8 @@ https://hg.mozilla.org/releases/mozilla-release (the GeckoView version is in
 app/build.gradle.kts).
 
 Apache License, Version 2.0 (LICENSES/Apache-2.0.txt):
-- kadb (com.flyfishxu:kadb), the glasses' ADB client for the self-arm
+- kadb (com.flyfishxu:kadb), the glasses' ADB client for the self-arm, and the companion's
+  for the glasses' screen and pairing
 - Vosk (com.alphacephei:vosk-android), the companion's offline dictation; its models are
   downloaded on first use from https://alphacephei.com/vosk/models
 - OkHttp (com.squareup.okhttp3), Kotlin coroutines (org.jetbrains.kotlinx), AndroidX and

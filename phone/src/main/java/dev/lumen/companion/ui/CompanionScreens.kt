@@ -116,6 +116,10 @@ data class CompanionUiState(
     val glassesDebugPending: Boolean? = null,
     /** Whether this phone's Wi-Fi is on the glasses' network; null when unknown. */
     val glassesDebugSameNetwork: Boolean? = null,
+    /** "Also through Tailscale" and this phone's forward ([dev.lumen.companion.TailnetRelay]). */
+    val debugViaTailscale: Boolean = false,
+    val tailnet: dev.lumen.companion.TailnetRelay.State = dev.lumen.companion.TailnetRelay.State(),
+    val debugAutoOffHours: Int = dev.lumen.companion.AutoOff.DEFAULT_HOURS,
     val dictation: DictationUiState = DictationUiState(),
     /** Updates from GitHub's releases, for this companion and the glasses app. */
     val update: dev.lumen.companion.update.UpdateManager.State = dev.lumen.companion.update.UpdateManager.State(),
@@ -217,6 +221,14 @@ interface CompanionActions {
     fun setWirelessDebug(on: Boolean)
     fun copyAdbCommand()
     fun shareAdbCommand()
+    fun setDebugViaTailscale(on: Boolean)
+    fun setDebugAutoOff(hours: Int)
+    /** Asks the glasses for a pairing window; the code to show, or null without a link. */
+    fun startAdbPairing(): String?
+    fun stopAdbPairing()
+    fun copyText(text: String)
+    fun shareText(text: String)
+    fun openTailscale()
     fun useBandOnPhone()
     fun useBandOnGlasses()
     /** The band for a computer: the phone becomes its Bluetooth keyboard and mouse. */
@@ -303,6 +315,8 @@ const val PAGE_BAND_KEY = "band_key"
 /** `profile:<id>`: a phone gesture profile's page. */
 const val PAGE_PROFILE = "profile"
 const val PAGE_COMPUTERS = "computers"
+/** Settings › Developer › the glasses' screen on this phone. */
+const val PAGE_GLASSES_SCREEN = "glasses_screen"
 const val PAGE_COMPUTER_PROFILE = "computer_profile"
 
 /** Set while a list row is dragged: the page doesn't scroll under the finger meanwhile. */
@@ -364,6 +378,7 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: 
             val current = page
             when {
                 current == PAGE_SETUP -> SetupPage(state, actions, onBack = { page = null })
+                current == PAGE_GLASSES_SCREEN -> GlassesScreenPage(onBack = { page = null })
                 current == PAGE_BAND_KEY -> BandKeyPage(state, actions, onBack = { page = null })
                 current != null && current.startsWith("$PAGE_PROFILE:") ->
                     ProfilePage(state, actions, current.removePrefix("$PAGE_PROFILE:"), onBack = { page = null })
@@ -391,7 +406,7 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: 
                     onComputerProfile = { page = "$PAGE_COMPUTER_PROFILE:$it" },
                 )
                 Tab.NOTIFICATIONS -> NotificationsScreen(state, actions)
-                Tab.SETTINGS -> SettingsScreen(state, actions, onSetup = { page = PAGE_SETUP }) { page = PAGE_UPDATES }
+                Tab.SETTINGS -> SettingsScreen(state, actions, onSetup = { page = PAGE_SETUP }, onScreen = { page = PAGE_GLASSES_SCREEN }) { page = PAGE_UPDATES }
                 }
             }
             }
@@ -521,7 +536,7 @@ private fun NotificationsScreen(state: CompanionUiState, actions: CompanionActio
 }
 
 @Composable
-private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions, onSetup: () -> Unit, onUpdates: () -> Unit) {
+private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions, onSetup: () -> Unit, onScreen: () -> Unit, onUpdates: () -> Unit) {
     Header(stringResource(R.string.settings_title), null)
     SectionTitle(stringResource(R.string.settings_link))
     Group {
@@ -545,7 +560,7 @@ private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions, o
         )
     }
     DictationSection(state, actions)
-    WirelessDebugSection(state, actions)
+    WirelessDebugSection(state, actions, onScreen)
     SectionTitle(stringResource(R.string.settings_about))
     Group {
         ListRow(title = stringResource(R.string.app_name), subtitle = stringResource(R.string.settings_version, state.version))
@@ -576,60 +591,6 @@ private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions, o
             },
             onClick = actions::shareLogs,
         )
-    }
-}
-
-/** The glasses' wireless debugging: the switch, then where adb finds them (or why it can't). */
-@Composable
-private fun WirelessDebugSection(state: CompanionUiState, actions: CompanionActions) {
-    val debug = state.glassesDebug
-    val pending = state.glassesDebugPending
-    SectionTitle(stringResource(R.string.debug_section))
-    Group {
-        SwitchRow(
-            stringResource(R.string.debug_switch),
-            stringResource(R.string.debug_switch_hint),
-            checked = pending ?: debug.enabled,
-            busy = pending != null,
-            onChange = actions::setWirelessDebug,
-        )
-        if (debug.enabled && pending == null) {
-            val problem = when {
-                !debug.wifiOn -> stringResource(R.string.debug_wifi_off)
-                debug.address.isEmpty() -> stringResource(R.string.debug_no_network)
-                debug.onPhoneHotspot -> stringResource(R.string.debug_on_hotspot)
-                !debug.listening -> stringResource(R.string.debug_port_closed, debug.port)
-                else -> null
-            }
-            Column(
-                Modifier.fillMaxWidth().background(Lumen.surface).padding(horizontal = Lumen.spacingMedium, vertical = Lumen.spacingSmMed),
-                verticalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed),
-            ) {
-                if (debug.address.isNotEmpty()) {
-                    Text(
-                        if (debug.ssid.isNotEmpty()) stringResource(R.string.debug_where, debug.ssid) else stringResource(R.string.debug_where_unnamed),
-                        style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary,
-                    )
-                    Text(
-                        debug.command,
-                        style = MaterialTheme.typography.titleMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Lumen.elevation1).padding(Lumen.spacingSmMed),
-                    )
-                }
-                if (problem != null) {
-                    Text(problem, style = MaterialTheme.typography.bodySmall, color = Lumen.warning)
-                } else if (state.glassesDebugSameNetwork == false) {
-                    Text(stringResource(R.string.debug_other_network), style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
-                }
-                if (debug.address.isNotEmpty()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmall)) {
-                        PillButton(stringResource(R.string.debug_copy), primary = true, modifier = Modifier.weight(1f), onClick = actions::copyAdbCommand)
-                        PillButton(stringResource(R.string.debug_share), primary = false, modifier = Modifier.weight(1f), onClick = actions::shareAdbCommand)
-                    }
-                }
-                Text(stringResource(R.string.debug_notification_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textPlaceholder)
-            }
-        }
     }
 }
 

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- O adb dos óculos por este celular (Ajustes › Desenvolvedor) e a tela dos óculos nele. -->
+<resources>
+    <string name="debug_where_glasses">Na rede %1$s · óculos em %2$s</string>
+    <string name="debug_where_glasses_unnamed">No Wi-Fi · óculos em %1$s</string>
+    <string name="debug_same_network">Na mesma rede</string>
+    <string name="debug_on_phone_hotspot">Óculos no hotspot deste celular · sem uma rede salva por perto</string>
+    <string name="debug_on_phone_hotspot_hint">Fora de uma rede em comum com o computador, use o endereço do Tailscale.</string>
+    <string name="debug_tailscale">Também pelo Tailscale</string>
+    <string name="debug_tailscale_hint">Seus aparelhos no Tailscale alcançam o adb dos óculos por este celular, de qualquer lugar</string>
+    <string name="debug_tailscale_only">Este celular encaminha só pelo Tailscale, nunca pela rede Wi-Fi.</string>
+    <string name="debug_tailscale_off">O Tailscale deste celular está desligado. Ligue-o para alcançar os óculos fora desta rede.</string>
+    <string name="debug_open_tailscale">Abrir o Tailscale</string>
+    <string name="debug_relay_failed">Este celular não conseguiu abrir as portas dele no Tailscale.</string>
+    <string name="debug_waiting_network">Esperando os óculos entrarem numa rede que este celular alcança.</string>
+    <string name="debug_authorize">Autorizar um computador</string>
+    <string name="debug_authorize_hint">Uma vez por computador: os óculos não mostram o pedido de permissão</string>
+    <string name="debug_auto_off">Desligar sozinho</string>
+    <string name="debug_auto_off_title">Desligar a depuração sem fio sozinha</string>
+    <string name="debug_auto_off_1">Depois de 1 hora</string>
+    <string name="debug_auto_off_4">Depois de 4 horas</string>
+    <string name="debug_auto_off_never">Nunca</string>
+    <string name="debug_screen">Tela dos óculos</string>
+    <string name="debug_screen_hint">Ver neste celular o que os óculos mostram</string>
+    <string name="debug_screen_off_hint">Ligue a depuração sem fio para ver</string>
+
+    <string name="pair_text">Os óculos não mostram o pedido de permissão do adb. Rode isto no computador para ele ficar autorizado:</string>
+    <string name="pair_via_tailscale">Pelo Tailscale</string>
+    <string name="pair_code">Código de pareamento</string>
+    <string name="pair_valid">Vale por 2 minutos: termina em %1$s</string>
+    <string name="pair_after">Depois disso, o adb connect funciona sempre nesse computador.</string>
+    <string name="pair_opening">Abrindo o pareamento nos óculos…</string>
+    <string name="pair_closed">O pareamento fechou. Se o adb pair disse \"Successfully paired\", o computador está autorizado.</string>
+    <string name="pair_error_no_wifi">Os óculos não estão numa rede Wi-Fi para parear.</string>
+    <string name="pair_error_not_armed">Os óculos precisam ser configurados antes: Ajustes, Configurar os óculos.</string>
+    <string name="pair_error_failed">Os óculos não conseguiram abrir o pareamento. Tente de novo.</string>
+
+    <string name="screen_live">Ao vivo</string>
+    <string name="screen_connecting">Conectando</string>
+    <string name="screen_paused">Pausada</string>
+    <string name="screen_no_picture">Sem imagem</string>
+    <string name="screen_starting">Ligando a imagem dos óculos</string>
+    <string name="screen_pause">Pausar</string>
+    <string name="screen_resume">Continuar</string>
+    <string name="screen_save">Salvar imagem</string>
+    <string name="screen_saved">Salva em Imagens/Lumen</string>
+    <string name="screen_save_failed">Não deu para salvar a imagem</string>
+    <string name="screen_light">Leve</string>
+    <string name="screen_smooth">Fluida</string>
+    <string name="screen_quality_hint">Leve: poucas imagens por segundo, quase nada de bateria. Fluida: acompanha animações.</string>
+    <string name="screen_green">Como nos óculos</string>
+    <string name="screen_green_hint">Mostra em verde, como a lente mostra</string>
+    <string name="screen_asleep">A tela dos óculos apagou</string>
+    <string name="screen_wake">Acordar a tela</string>
+    <string name="screen_asleep_hint">A imagem para enquanto a tela dos óculos fica apagada, e volta sozinha quando ela acende.</string>
+    <string name="screen_error_wifi">Os óculos não estão no Wi-Fi</string>
+    <string name="screen_error_wifi_hint">A imagem passa pelo Wi-Fi. Ligue a depuração sem fio dos óculos em Ajustes, Desenvolvedor.</string>
+    <string name="screen_error_reach">Este celular não alcança os óculos</string>
+    <string name="screen_error_reach_hint">O celular e os óculos precisam estar na mesma rede Wi-Fi, ou os óculos no hotspot deste celular (Também pelo Tailscale).</string>
+    <string name="screen_error_pair">Os óculos não deixaram este celular entrar</string>
+    <string name="screen_error_pair_hint">O pareamento com os óculos falhou. Tente de novo.</string>
+    <string name="screen_retry">Tentar de novo</string>
+</resources>
