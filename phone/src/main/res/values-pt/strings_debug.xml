@@ -29,6 +29,7 @@
     <string name="pair_code">Código de pareamento</string>
     <string name="pair_valid">Vale por 2 minutos: termina em %1$s</string>
     <string name="pair_after">Depois disso, o adb connect funciona sempre nesse computador.</string>
+    <string name="pair_close">Fechar</string>
     <string name="pair_opening">Abrindo o pareamento nos óculos…</string>
     <string name="pair_closed">O pareamento fechou. Se o adb pair disse \"Successfully paired\", o computador está autorizado.</string>
     <string name="pair_error_no_wifi">Os óculos não estão numa rede Wi-Fi para parear.</string>

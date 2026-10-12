@@ -78,7 +78,7 @@ class GlassesMirror(private val context: Context, private val onState: (State) -
     /** Saves a still of the glasses' screen in Pictures/Lumen; [done] with whether it worked. */
     fun saveImage(done: (Boolean) -> Unit) = background {
         val ok = runCatching {
-            val png = control?.execCmd("screencap", "-p")?.use { it.source.readByteArray() } ?: return@runCatching false
+            val png = control?.open("exec:screencap -p")?.use { it.source.readByteArray() } ?: return@runCatching false
             if (png.size < 8) return@runCatching false
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "Lumen glasses ${System.currentTimeMillis()}.png")
@@ -137,7 +137,8 @@ class GlassesMirror(private val context: Context, private val onState: (State) -
     /** One screenrecord run (up to its 3 minutes), decoded as it arrives. */
     private fun record(adb: Kadb, decoder: MediaCodec) {
         val current = quality
-        val recording = adb.execCmd("screenrecord", "--output-format=h264", "--bit-rate", current.bitRate.toString(), "--time-limit", "180", "-")
+        // exec: runs the binary itself (Kadb's execCmd goes through `cmd`, Android's service shell).
+        val recording = adb.open("exec:screenrecord --output-format=h264 --bit-rate ${current.bitRate} --time-limit 180 -")
         stream = recording
         val splitter = AnnexB()
         val buffer = ByteArray(64 * 1024)
@@ -182,7 +183,8 @@ class GlassesMirror(private val context: Context, private val onState: (State) -
             val sleeping = "Asleep" in out || "Dozing" in out
             if (sleeping != asleep) {
                 asleep = sleeping
-                if (!paused) report(State(if (sleeping) Phase.ASLEEP else Phase.LIVE))
+                // Awake again: live once a frame is drawn (the decoder reports it).
+                if (!paused) report(State(if (sleeping) Phase.ASLEEP else Phase.CONNECTING))
             }
             try {
                 Thread.sleep(WATCH_MS)

@@ -301,7 +301,10 @@ private fun PairingSheet(
                     Text(stringResource(R.string.pair_after), style = MaterialTheme.typography.bodySmall, color = Lumen.textPlaceholder)
                 }
             }
-            if (!open) PillButton(stringResource(R.string.action_cancel), primary = false, modifier = Modifier.fillMaxWidth(), onClick = onDismiss)
+            if (!open) {
+                val over = opened || error != null
+                PillButton(stringResource(if (over) R.string.pair_close else R.string.action_cancel), primary = false, modifier = Modifier.fillMaxWidth(), onClick = onDismiss)
+            }
         }
     }
 }

@@ -29,6 +29,7 @@
     <string name="pair_code">Pairing code</string>
     <string name="pair_valid">Valid for 2 minutes: ends in %1$s</string>
     <string name="pair_after">After that, adb connect always works on that computer.</string>
+    <string name="pair_close">Close</string>
     <string name="pair_opening">Opening pairing on the glasses…</string>
     <string name="pair_closed">Pairing closed. If adb pair said \"Successfully paired\", the computer is authorized.</string>
     <string name="pair_error_no_wifi">The glasses aren\'t on a Wi-Fi network to pair on.</string>

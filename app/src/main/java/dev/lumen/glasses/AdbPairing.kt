@@ -26,6 +26,7 @@ object AdbPairing {
     private const val WIRELESS_PORT = 10
     private const val PAIR_WITH_CODE = 9
     private const val STOP_PAIRING = 11
+    private const val PAIRED_DEVICES = 6
     private const val OPEN_WAIT_MS = 6_000L
     private const val POLL_MS = 300L
     private const val WATCH_MS = 2_000L
@@ -44,6 +45,8 @@ object AdbPairing {
         private set
 
     @Volatile private var wifiAdbWasOff = false
+    /** Paired keys when the window opened: one more means it was used (Android keeps the port open). */
+    @Volatile private var pairedBefore = -1
     @Volatile private var generation = 0
 
     /** Opens a window for [code] (six digits); the outcome comes back in the debug state. */
@@ -93,6 +96,7 @@ object AdbPairing {
         wifiAdbWasOff = shell(ctx, "settings get global adb_wifi_enabled").trim() != "1"
         shell(ctx, "service call adb $TRUST_AND_ENABLE i32 1 s16 $bssid")
         val wireless = waitFor { AdbShellParsing.parcelInt(shell(ctx, "service call adb $WIRELESS_PORT"))?.takeIf { it > 0 } }
+        pairedBefore = AdbShellParsing.parcelInt(shell(ctx, "service call adb $PAIRED_DEVICES")) ?: -1
         val before = AdbShellParsing.listeningPorts(shell(ctx, "netstat -ltn"))
         val name = "lumen-" + java.security.SecureRandom().nextInt().toUInt().toString(16).padStart(8, '0')
         shell(ctx, "service call adb $PAIR_WITH_CODE s16 $name s16 $code")
@@ -100,13 +104,18 @@ object AdbPairing {
         return waitFor { AdbShellParsing.newPort(before, AdbShellParsing.listeningPorts(shell(ctx, "netstat -ltn")), skip) }
     }
 
-    /** A window that stopped listening was used (or refused a wrong code): close it now. */
+    /**
+     * A window that paired a key (Android's paired list grew) or stopped listening is done:
+     * close it now rather than at the end of its 2 minutes.
+     */
     private fun watch(ctx: Context, mine: Int) {
         if (generation != mine || port == 0) return
         io.execute {
             if (generation != mine || port == 0) return@execute
+            val paired = runCatching { AdbShellParsing.parcelInt(shell(ctx, "service call adb $PAIRED_DEVICES")) }.getOrNull()
+            val used = pairedBefore >= 0 && paired != null && paired > pairedBefore
             val open = runCatching { port in AdbShellParsing.listeningPorts(shell(ctx, "netstat -ltn")) }.getOrDefault(true)
-            if (open) main.postDelayed({ watch(ctx, mine) }, WATCH_MS) else close(ctx, "used")
+            if (open && !used) main.postDelayed({ watch(ctx, mine) }, WATCH_MS) else close(ctx, if (used) "used" else "gone")
         }
     }
 
@@ -141,10 +150,14 @@ object AdbShellParsing {
         Regex("BSSID[:=]\\s*([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})").find(status)?.groupValues?.get(1)
             ?.takeIf { it != "00:00:00:00:00:00" && it.lowercase() != "02:00:00:00:00:00" }
 
-    /** The int a `service call` returned ("Result: Parcel(00000000 00009b21   '....!...')" is 39713), or null. */
+    /**
+     * The int a `service call` returned ("Result: Parcel(00000000 00009b21   '....!...')" is 39713;
+     * a longer reply comes on several lines, "Parcel(\n  0x00000000: 00000000 0000000a ..." is 10,
+     * the size of a returned map), or null.
+     */
     @JvmStatic
     fun parcelInt(output: String): Int? {
-        val words = Regex("Parcel\\(([0-9a-fA-F]{8})\\s+([0-9a-fA-F]{8})").find(output)?.groupValues ?: return null
+        val words = Regex("Parcel\\(\\s*(?:0x[0-9a-fA-F]+:\\s*)?([0-9a-fA-F]{8})\\s+([0-9a-fA-F]{8})").find(output)?.groupValues ?: return null
         if (words[1] != "00000000") return null
         return words[2].toLong(16).toInt()
     }

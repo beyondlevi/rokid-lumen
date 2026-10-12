@@ -13,6 +13,14 @@ class AdbShellParsingTest {
         // An exception in the reply (a non-zero first word) or no reply at all: nothing.
         assertNull(AdbShellParsing.parcelInt("Result: Parcel(ffffffb5 00000000 '........')"))
         assertNull(AdbShellParsing.parcelInt("service: Service adb does not exist"))
+        // A map comes back over several lines: its size first (10 paired keys, seen on the glasses).
+        assertEquals(
+            10,
+            AdbShellParsing.parcelInt(
+                "Result: Parcel(\n  0x00000000: 00000000 0000000a 00000000 000002cf '................'\n" +
+                    "  0x00000010: 00410051 00410041 00410041 0057006d 'Q.A.A.A.A.A.m.W.'",
+            ),
+        )
     }
 
     @Test
