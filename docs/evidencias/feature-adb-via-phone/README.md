@@ -6,15 +6,15 @@ feature. Levi's Mac was not in the path.
 
 | Image | What it shows |
 |---|---|
-| `ajustes-depuracao-na-mesma-rede.png` | Settings › Developer with wireless debugging on: where the glasses are and `adb connect` on the same network; Tailscale off. |
-| `ajustes-tambem-pelo-tailscale.png` | Also through Tailscale on: `adb connect <phone's Tailscale address>:5556`, forwarding over Tailscale only. |
-| `autorizar-computador-codigo.png` | Authorize a computer: the glasses' pairing window is open; code and command blurred. |
-| `autorizar-computador-pareamento-fechou.png` | The same sheet after the window closed. |
-| `desligar-sozinho.png` | Turn off by itself: 1 hour, 4 hours (default), Never. |
-| `tela-dos-oculos-apagada.png` | Glasses screen with the glasses' display off: the Wake button. |
-| `tela-dos-oculos-ao-vivo.png` | Glasses screen live (Lumen's grid on the glasses). |
-| `tela-dos-oculos-como-nos-oculos.png` | As on the glasses: the picture in green. |
-| `tela-dos-oculos-fluida.png` | Smooth quality, live. |
+| `settings-same-network.png` | Settings › Developer with wireless debugging on: where the glasses are and `adb connect` on the same network; Tailscale off. |
+| `settings-also-through-tailscale.png` | Also through Tailscale on: `adb connect <phone's Tailscale address>:5556`, forwarding over Tailscale only. |
+| `authorize-computer-code.png` | Authorize a computer: the glasses' pairing window is open; code and command blurred. |
+| `authorize-computer-pairing-closed.png` | The same sheet after the window closed. |
+| `turn-off-by-itself.png` | Turn off by itself: 1 hour, 4 hours (default), Never. |
+| `glasses-screen-asleep.png` | Glasses screen with the glasses' display off: the Wake button. |
+| `glasses-screen-live.png` | Glasses screen live (Lumen's grid on the glasses). |
+| `glasses-screen-as-on-the-glasses.png` | As on the glasses: the picture in green. |
+| `glasses-screen-smooth.png` | Smooth quality, live. |
 
 Checked on the devices:
 
