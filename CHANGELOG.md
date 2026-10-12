@@ -3,6 +3,15 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.23]
+
+### Companion
+
+- **The link comes back by itself** when Hi Rokid leaves the glasses app's session
+  unavailable ("Glasses app unavailable" on the home screen, which only Reconnect cleared):
+  after 10 s the companion does what Reconnect does, then waits longer before each new try
+  (up to every 5 minutes) until the session works again. Glasses out of range don't count.
+
 ## [0.2.0-beta.22]
 
 ### Web apps
