@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=600, initial-scale=1">
+<title>Writing probe</title>
+<style>
+  html, body { margin: 0; background: #000; color: #fff; font: 22px/1.3 sans-serif; }
+  main { width: 600px; height: 600px; box-sizing: border-box; padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+  #top { display: flex; justify-content: space-between; color: #cfd3d9; font-size: 20px; }
+  #target { font-size: 38px; line-height: 1.2; font-weight: 600; min-height: 140px; }
+  #how { font-size: 19px; color: #cfd3d9; flex: 1; }
+  input { height: 64px; border-radius: 32px; border: 2px solid rgba(255,255,255,.45); background: #000; color: #fff; font: inherit; padding: 0 24px; outline: none; }
+  input:focus { border: 3px solid rgba(255,255,255,.9); background: #111113; }
+  #keys { font-size: 18px; color: #9aa0a6; text-align: center; }
+  #state { font-size: 16px; color: #6b6f76; text-align: center; min-height: 20px; }
+</style>
+<script src="data.en.js"></script>
+<script src="data.pt-BR.js"></script>
+</head>
+<body>
+<main>
+  <div id="top"><span id="section"></span><span id="count"></span></div>
+  <div id="target"></div>
+  <div id="how"></div>
+  <div id="slot"></div>
+  <div id="keys"></div>
+  <div id="state" aria-live="polite"></div>
+</main>
+<script>
+  // The writing probe: each step shows a phrase (or a gesture task) and a fresh text field that
+  // starts with the step's id, so a debug build's WritingProbe recording says which step it was.
+  const $ = id => document.getElementById(id);
+  const portuguese = (navigator.language || '').toLowerCase().startsWith('pt');
+  const ui = portuguese ? window.PROBE_UI_PT : {
+    title: 'Writing probe', pt: 'Portuguese', en: 'English', gestures: 'Gestures',
+    write: 'Index tap on the field, choose Write and write the phrase in lower case, without accents and without fixing mistakes. A push forward is the space. Middle tap when done.',
+    g1: 'Index tap on the field, choose Write and, WITHOUT writing anything, swipe your thumb slowly: right, left, up and down. Then middle tap.',
+    g2: 'Index tap on the field, choose Write. Write "oi", swipe your thumb right, write "lumen", swipe right again. Middle tap.',
+    g1Target: 'right, left, up, down', g2Target: 'oi → right → lumen → right',
+    keys: 'Down: next · Up: previous', done: 'Done, thank you! You can close the app.',
+  };
+  const steps = [
+    { id: 'g1', section: ui.gestures, target: ui.g1Target, how: ui.g1 },
+    { id: 'g2', section: ui.gestures, target: ui.g2Target, how: ui.g2 },
+    ...window.PROBE_PT.map((text, i) => ({ id: 'pt-' + String(i + 1).padStart(2, '0'), section: ui.pt, target: text, how: ui.write })),
+    ...window.PROBE_EN.map((text, i) => ({ id: 'en-' + String(i + 1).padStart(2, '0'), section: ui.en, target: text, how: ui.write })),
+    { id: 'g3', section: ui.gestures, target: ui.g2Target, how: ui.g2 },
+  ];
+  let at = Math.min(Number(localStorage.getItem('probe-step') || 0), steps.length);
+  // Lumen's writing practice (when the glasses have it): each phrase is what the wearer is about
+  // to write, so the band writes at the index tap with no suggestions or corrections (the
+  // recording stays the band's raw reading), and Lumen learns the wearer's letters from it.
+  const writing = window.lumen && window.lumen.writing;
+  if (writing) writing.onState((state) => { $('state').textContent = state; console.info('[writing-probe] state ' + state); });
+  function show() {
+    localStorage.setItem('probe-step', String(at));
+    $('keys').textContent = ui.keys;
+    $('slot').textContent = '';
+    if (at >= steps.length) {
+      $('section').textContent = ui.title; $('count').textContent = '';
+      $('target').textContent = ui.done; $('how').textContent = '';
+      return;
+    }
+    const step = steps[at];
+    $('section').textContent = step.section;
+    $('count').textContent = (at + 1) + ' / ' + steps.length;
+    $('target').textContent = step.target;
+    $('how').textContent = step.how;
+    // A new field each step: the keyboard reads the label when a field gets the focus.
+    const field = document.createElement('input');
+    field.type = 'text';
+    field.autocomplete = 'off';
+    field.placeholder = step.id;
+    field.setAttribute('aria-label', step.id);
+    // Gecko doesn't hand the placeholder to the keyboard: the step's id starts the field's text
+    // instead, and the band writes after it, so each recording's text says which step it was.
+    field.value = step.id + ' ';
+    $('slot').appendChild(field);
+    if (writing) {
+      const practice = step.id.startsWith('g') ? null : { text: step.target, lang: step.id.startsWith('pt') ? 'pt' : 'en' };
+      writing.train(practice).then((ok) => console.info('[writing-probe] practice ' + (practice ? 'on' : 'off') + ' ' + ok));
+    }
+    field.focus();
+    console.info('[writing-probe] step ' + step.id);
+  }
+  document.addEventListener('keydown', e => {
+    const move = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key];
+    if (!move) return;
+    e.preventDefault();
+    at = Math.max(0, Math.min(steps.length, at + move));
+    show();
+  }, true);
+  show();
+</script>
+</body>
+</html>

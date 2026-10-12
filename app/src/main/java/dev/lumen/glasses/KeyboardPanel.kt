@@ -29,13 +29,19 @@ import android.widget.TextView
  * mouse) on a choice goes to [onTap] with its index (the choices, then the action button).
  */
 class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Unit) {
-    enum class Icon { MIC, PEN, PHONE, SEARCH, LOCK, ENTER }
+    enum class Icon { MIC, PEN, PHONE, SEARCH, LOCK, ENTER, CHECK, UNDO }
 
-    /** What the window shows. [panel] false: only [hint] (the pill), when it isn't empty. */
+    /**
+     * What the window shows. [panel] false: only [hint] (the pill), when it isn't empty, after
+     * [hintLead] in white (a writing trainer's bar: "Writing · …"). Writing with suggestions:
+     * [ghost] in gray after the caret, [suggestions] in a row ([suggestionSelected] the one the
+     * thumb accepts), [mark] the word just changed in [text], underlined.
+     */
     data class State(
         val panel: Boolean,
         val hint: String = "",
         val hintIcon: Icon? = null,
+        val hintLead: String = "",
         val status: String = "",
         val statusIcon: Icon? = null,
         val fieldIcon: Icon? = null,
@@ -49,6 +55,10 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
         /** The focused one: an index of [choices], or `choices.size` for the action button; -1 for none. */
         val selected: Int = -1,
         val panelHint: String = "",
+        val ghost: String = "",
+        val suggestions: List<String> = emptyList(),
+        val suggestionSelected: Int = -1,
+        val mark: IntRange? = null,
     )
 
     private val scale = minOf(context.resources.displayMetrics.widthPixels, context.resources.displayMetrics.heightPixels) / CANVAS_SIDE
@@ -67,6 +77,8 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
     private val fieldLabel = text(15f, MetaStyle.TEXT_PLACEHOLDER, MetaStyle.REGULAR)
     private val fieldAction = text(15f, MetaStyle.TEXT_PLACEHOLDER, MetaStyle.REGULAR)
     private val textBox = CaretText(context)
+    private val suggestionRow = LinearLayout(context)
+    private val suggestionViews = List(SUGGESTIONS) { text(18f, MetaStyle.TEXT_SECONDARY, MetaStyle.MEDIUM) }
     private val choiceRow = LinearLayout(context)
     private val actionButton = LinearLayout(context)
     private val actionIcon = Glyph(context)
@@ -128,6 +140,14 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
             setStroke(px(2f), LINE)
         }
 
+        // A fixed row, its cells restyled: rebuilding views on every letter would churn.
+        suggestionRow.orientation = LinearLayout.HORIZONTAL
+        suggestionViews.forEachIndexed { index, cell ->
+            cell.gravity = Gravity.CENTER
+            cell.setPadding(px(8f), 0, px(8f), 0)
+            suggestionRow.addView(cell, LinearLayout.LayoutParams(0, px(46f), 1f).apply { if (index > 0) marginStart = px(8f) })
+        }
+
         choiceRow.orientation = LinearLayout.HORIZONTAL
 
         actionButton.orientation = LinearLayout.HORIZONTAL
@@ -143,6 +163,7 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
         panel.addView(statusRow, rowParams(0))
         panel.addView(fieldRow, rowParams(gap))
         panel.addView(textBox, rowParams(gap))
+        panel.addView(suggestionRow, rowParams(gap))
         panel.addView(choiceRow, rowParams(gap))
         panel.addView(actionButton, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, px(56f)).apply { topMargin = gap })
         panel.addView(hint, rowParams(gap))
@@ -156,7 +177,12 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
         dim.visibility = if (state.panel) View.VISIBLE else View.GONE
         pill.visibility = if (!state.panel && state.hint.isNotEmpty()) View.VISIBLE else View.GONE
         panel.visibility = if (state.panel) View.VISIBLE else View.GONE
-        pillText.text = state.hint
+        pillText.text = if (state.hintLead.isEmpty()) state.hint else SpannableStringBuilder().apply {
+            append(state.hintLead)
+            setSpan(ForegroundColorSpan(MetaStyle.TEXT), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            append(" · ")
+            append(state.hint)
+        }
         pillIcon.show(state.hintIcon, MetaStyle.TEXT_SECONDARY, 2f)
         if (!state.panel) return
 
@@ -173,7 +199,30 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
             shown.append(state.partial)
             shown.setSpan(ForegroundColorSpan(MetaStyle.TEXT_PLACEHOLDER), start, shown.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
+        // The caret after the text; the suggestion's gray rest after it.
+        textBox.caretAt = shown.length
+        textBox.mark = state.mark
+        if (state.ghost.isNotEmpty()) {
+            val start = shown.length
+            shown.append(state.ghost)
+            shown.setSpan(ForegroundColorSpan(MetaStyle.TEXT_PLACEHOLDER), start, shown.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
         textBox.text = shown
+
+        suggestionRow.visibility = if (state.suggestions.isEmpty()) View.GONE else View.VISIBLE
+        suggestionViews.forEachIndexed { index, cell ->
+            val word = state.suggestions.getOrNull(index)
+            cell.visibility = if (word == null) View.INVISIBLE else View.VISIBLE
+            cell.text = word.orEmpty()
+            val focused = index == state.suggestionSelected
+            cell.setTextColor(if (focused) MetaStyle.TEXT else MetaStyle.TEXT_SECONDARY)
+            cell.typeface = if (focused) MetaStyle.BOLD else MetaStyle.MEDIUM
+            cell.background = GradientDrawable().apply {
+                setColor(if (focused) FILL else Color.BLACK)
+                cornerRadius = px(23f).toFloat()
+                setStroke(px(if (focused) 3f else 2f), if (focused) FOCUS else LINE)
+            }
+        }
 
         if (state.choices != shownChoices) {
             shownChoices = state.choices
@@ -262,19 +311,34 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
         }
     }
 
-    /** The field's text with the canvas' caret after it: a 2 px white bar, 22 px high. */
+    /**
+     * The field's text with the canvas' caret at [caretAt] (a 2 px white bar, 22 px high; a
+     * suggestion's gray rest may follow it), and [mark] underlined (2 px, the pill's grey).
+     */
     private inner class CaretText(context: Context) : TextView(context) {
         private val caret = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+        private val underline = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = PILL }
+        var caretAt = 0
+        var mark: IntRange? = null
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             val layout = layout ?: return
-            val end = text.length
+            val end = caretAt.coerceIn(0, text.length)
             val line = layout.getLineForOffset(end)
             val x = compoundPaddingLeft + layout.getPrimaryHorizontal(end) + if (end > 0) px(2f) else 0
             val middle = extendedPaddingTop + (layout.getLineTop(line) + layout.getLineBottom(line)) / 2f
             val half = px(22f) / 2f
             canvas.drawRect(x, middle - half, x + px(2f), middle + half, caret)
+            val marked = mark?.takeIf { it.last < text.length } ?: return
+            val first = layout.getLineForOffset(marked.first)
+            val last = layout.getLineForOffset(marked.last + 1)
+            for (row in first..last) {
+                val from = if (row == first) layout.getPrimaryHorizontal(marked.first) else layout.getLineLeft(row)
+                val to = if (row == last) layout.getPrimaryHorizontal(marked.last + 1) else layout.getLineRight(row)
+                val y = extendedPaddingTop + layout.getLineBaseline(row) + px(3f).toFloat()
+                canvas.drawRect(compoundPaddingLeft + from, y, compoundPaddingLeft + to, y + px(2f), underline)
+            }
         }
     }
 
@@ -349,6 +413,20 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
                     path.arcTo(RectF(8f, 4f, 16f, 12f), 180f, 180f)
                     path.lineTo(16f, 11f)
                 }
+                Icon.CHECK -> {
+                    path.moveTo(5f, 12.5f)
+                    path.lineTo(9.2f, 16.7f)
+                    path.lineTo(19f, 7f)
+                }
+                Icon.UNDO -> {
+                    path.moveTo(9f, 7f)
+                    path.lineTo(4.5f, 11.5f)
+                    path.lineTo(9f, 16f)
+                    path.moveTo(5f, 11.5f)
+                    path.lineTo(14.5f, 11.5f)
+                    path.arcTo(RectF(9.5f, 11.5f, 19.5f, 21.5f), -90f, 180f)
+                    path.lineTo(12f, 21.5f)
+                }
                 Icon.ENTER -> {
                     path.moveTo(5f, 12f)
                     path.lineTo(19f, 12f)
@@ -366,6 +444,8 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
         /** The pill's distance from the bottom: it sits in the strip under the web app's square. */
         private const val PILL_BOTTOM = 22f
         private const val GAP = 12f
+        /** Suggestions shown at once (the band library's). */
+        private const val SUGGESTIONS = 3
         private val PILL = Color.argb(110, 255, 255, 255)
         private val LINE = Color.argb(69, 255, 255, 255)
         private val FOCUS = Color.argb(219, 255, 255, 255)

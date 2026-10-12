@@ -194,6 +194,12 @@ public final class BandAccessibilityService extends AccessibilityService {
                         + BandRuntime.simulateWriting(handwritingText)));
                 return;
             }
+            String probe = intent.getStringExtra("writing_probe");
+            if (probe != null) {
+                // Debug builds: record what the band sends while it writes (WritingProbe).
+                mainHandler.post(() -> WritingProbe.set(context, "on".equals(probe)));
+                return;
+            }
             String handwriting = intent.getStringExtra("handwriting");
             if (handwriting != null) {
                 // Debug builds: the band's handwriting model on ("start") or off ("stop").

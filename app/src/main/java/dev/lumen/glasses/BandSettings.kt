@@ -44,6 +44,9 @@ object BandSettings {
     const val KEY_SCREEN_TIMEOUT = "screen_timeout"
     const val KEY_LUMEN_KEYBOARD = "lumen_keyboard"
     const val KEY_STATUS_BAR = "status_bar"
+    const val KEY_WRITING_SUGGESTIONS = "writing_suggestions"
+    const val KEY_WRITING_AUTOCORRECT = "writing_autocorrect"
+    const val ACTION_FORGET_WRITING = "forget_writing"
     private const val SCREEN_TIMEOUT_PREFIX = "screen_off."
     const val ACTION_RECONNECT = "reconnect"
     const val ACTION_FORGET = "forget"
@@ -169,9 +172,19 @@ object BandSettings {
             KEY_STATUS_BAR, Setting.Kind.TOGGLE, "Status bar",
             GestureMappings.showsStatusBar(context).toString(), section = SECTION_GLASSES,
         )
+        settings += Setting(
+            KEY_WRITING_SUGGESTIONS, Setting.Kind.TOGGLE, "Suggestions while writing",
+            GestureMappings.writingSuggestions(context).toString(), section = SECTION_GLASSES,
+        )
+        settings += Setting(
+            KEY_WRITING_AUTOCORRECT, Setting.Kind.TOGGLE, "Correct automatically",
+            GestureMappings.writingAutocorrect(context).toString(), section = SECTION_GLASSES,
+            visibleWhen = KEY_WRITING_SUGGESTIONS to "true",
+        )
         val actions = listOf(
             SettingsAction(ACTION_RESET_GESTURES, "Restore the default gestures"),
             SettingsAction(ACTION_RECONNECT, "Reconnect"),
+            SettingsAction(ACTION_FORGET_WRITING, "Forget what writing learned", destructive = true),
             SettingsAction(ACTION_FORGET, "Forget the band", destructive = true),
         )
         val version = runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
@@ -231,6 +244,14 @@ object BandSettings {
                 ScreenTimeout.apply(context)
                 return null
             }
+            key == KEY_WRITING_SUGGESTIONS -> {
+                GestureMappings.setWritingSuggestions(context, value == "true")
+                return null
+            }
+            key == KEY_WRITING_AUTOCORRECT -> {
+                GestureMappings.setWritingAutocorrect(context, value == "true")
+                return null
+            }
             key == KEY_STATUS_BAR -> {
                 GestureMappings.setShowsStatusBar(context, value == "true")
                 StatusBar.changed()
@@ -283,6 +304,10 @@ object BandSettings {
 
     @JvmStatic
     fun action(context: Context, name: String): String? = when (name) {
+        ACTION_FORGET_WRITING -> {
+            LumenKeyboard.forgetWriting(context)
+            null
+        }
         ACTION_RESET_GESTURES -> {
             GestureMappings.resetGestures(context)
             BandRuntime.applyMapping(context)

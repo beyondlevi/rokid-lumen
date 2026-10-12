@@ -200,6 +200,8 @@ pub struct BandSession {
     motion_messages: usize,
     /// The motion samples themselves go out as events (the air mouse needs them).
     motion_samples: bool,
+    /// The handwriting samples themselves go out as events too.
+    handwriting_frames: bool,
     /// Invalid orientation samples in a row (see [BAD_ORIENTATION_LIMIT]).
     bad_orientation: u32,
     streams_enabled: bool,
@@ -279,6 +281,7 @@ impl BandSession {
             authenticated_packets: 0,
             motion_messages: 0,
             motion_samples: false,
+            handwriting_frames: false,
             bad_orientation: 0,
             streams_enabled: false,
             motion: true,
@@ -846,6 +849,12 @@ impl BandSession {
         self.motion_samples = on;
     }
 
+    /// Whether each handwriting sample also goes out as an event ([Event::HandwritingFrame]),
+    /// before the text it adds. Off by default.
+    pub fn set_handwriting_frames(&mut self, on: bool) {
+        self.handwriting_frames = on;
+    }
+
     pub fn set_motion_enabled(&mut self, enabled: bool) -> Result<Vec<u8>> {
         self.set_streams(true, enabled)
     }
@@ -933,6 +942,21 @@ impl BandSession {
         self.handwriting.reset(text);
     }
 
+    /// Replace the written text (a word completed or corrected); the writing carries on after it.
+    pub fn replace_handwriting_text(&mut self, text: &str) {
+        self.handwriting.set_text(text);
+    }
+
+    /// The written text so far, with the edits applied.
+    pub fn handwriting_text(&self) -> &str {
+        self.handwriting.text()
+    }
+
+    /// The next written letter will be a capital.
+    pub fn handwriting_shifted(&self) -> bool {
+        self.handwriting.shifted()
+    }
+
     /// The capture's next request, if one is due, and its status changes. Call it often while
     /// [BandSession::handwriting_active] (every tick).
     pub fn flush_handwriting(&mut self, time: f64) -> Result<(Vec<u8>, Vec<Event>)> {
@@ -1003,14 +1027,22 @@ impl BandSession {
         }
         match InferenceSample::parse(payload) {
             Ok(sample) => {
-                if self.model.sample(&sample, time)
-                    && let Some(class) = self.handwriting.consume(&sample)
-                {
-                    events.push(Event::HandwritingText {
-                        text: self.handwriting.text().to_owned(),
-                        raw: self.handwriting.raw().to_owned(),
-                        class,
-                    });
+                if self.model.sample(&sample, time) {
+                    if self.handwriting_frames {
+                        events.push(Event::HandwritingFrame {
+                            sequence: sample.sequence,
+                            timestamp_us: sample.timestamp_us,
+                            latency_us: sample.latency_us,
+                            values: sample.values.clone(),
+                        });
+                    }
+                    if let Some(class) = self.handwriting.consume(&sample) {
+                        events.push(Event::HandwritingText {
+                            text: self.handwriting.text().to_owned(),
+                            raw: self.handwriting.raw().to_owned(),
+                            class,
+                        });
+                    }
                 }
             }
             Err(error) => self

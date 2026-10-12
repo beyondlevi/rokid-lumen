@@ -23,7 +23,7 @@ const EDITS: [&str; 5] = ["⌫", "⏎", " ", "⇧", "🤏"];
 
 /// What a class does to the text, where it isn't a character to type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Edit {
+pub enum Edit {
     /// Seen after letters and edits on the band; no known meaning, adds nothing.
     Boundary,
     Space,
@@ -35,7 +35,7 @@ enum Edit {
 
 /// Class meanings seen on the band (kinesis' wearer tests): 88's forward push is a space, 94's
 /// backward sweep deletes, an up arrow (97) shifts; 87 and 98 carry no text.
-fn edit(class: usize) -> Option<Edit> {
+pub fn edit(class: usize) -> Option<Edit> {
     match class {
         87 | 98 => Some(Edit::Boundary),
         88 | 96 => Some(Edit::Space),
@@ -164,6 +164,17 @@ impl HandwritingDecoder {
         self.shifted = false;
     }
 
+    /// Replace the text (a word completed or corrected) and carry on writing after it: the raw
+    /// trail, a pending capital and the collapse state stay.
+    pub fn set_text(&mut self, text: &str) {
+        self.text = text.to_owned();
+    }
+
+    /// The next letter will be a capital (an up arrow was written).
+    pub fn shifted(&self) -> bool {
+        self.shifted
+    }
+
     /// Reads one sample; returns the class it emitted, if any.
     pub fn consume(&mut self, sample: &InferenceSample) -> Option<usize> {
         if !sample.is_text_distribution() {
@@ -273,6 +284,18 @@ mod tests {
         assert_eq!(decoder.raw(), "⇧hi_x⌫⏎");
         // Boundaries add nothing.
         assert_eq!(run(&[0, 87, 1, 98]).text(), "ab");
+    }
+
+    #[test]
+    fn set_text_keeps_writing_after_the_new_text() {
+        // shift, then the text changes (a word completed): the capital still applies.
+        let mut decoder = run(&[0, BLANK, 97]);
+        decoder.set_text("ab ");
+        assert!(decoder.shifted());
+        decoder.consume(&sample(4, BLANK));
+        decoder.consume(&sample(5, 2));
+        assert_eq!(decoder.text(), "ab C");
+        assert!(!decoder.shifted());
     }
 
     #[test]

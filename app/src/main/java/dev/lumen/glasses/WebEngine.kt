@@ -29,6 +29,9 @@ interface WebEngine {
         /** A `window.lumen.audio` request from the page at [pageUrl] ([GlassesAudio]). */
         fun onAudio(message: org.json.JSONObject, pageUrl: String?)
 
+        /** A `window.lumen.writing` request from the page at [pageUrl] (a practice, [LumenKeyboard.train]). */
+        fun onWriting(message: org.json.JSONObject, pageUrl: String?)
+
         /** The page's process died again soon after a reload: it waits for [retry] ([held]). */
         fun onPageHeld()
 
@@ -81,6 +84,9 @@ interface WebEngine {
 
     /** A `window.lumen.audio` event to the app's page at [origin]. */
     fun audioEvent(event: org.json.JSONObject, origin: String)
+
+    /** A `window.lumen.writing` event (a result, a practice's state) to the app's page at [origin]. */
+    fun writingEvent(event: org.json.JSONObject, origin: String)
 
     fun onResume()
     fun onPause()

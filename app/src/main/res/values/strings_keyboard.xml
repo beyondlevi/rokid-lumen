@@ -34,4 +34,12 @@
     <string name="keyboard_field_url">Address</string>
     <string name="keyboard_field_number">Number</string>
     <string name="keyboard_field_phone">Phone number</string>
+    <string name="keyboard_write_hint_suggest">Thumb → accept · ↑↓ switch · Middle: done</string>
+    <string name="keyboard_write_hint_undo">Thumb → accept · ← undo · Middle: done</string>
+    <string name="keyboard_write_corrected">Corrected: %1$s → %2$s</string>
+    <string name="keyboard_write_undone">Undone: %1$s stays as you wrote it</string>
+    <string name="keyboard_write_learned_hint">From now on, %1$s is one of your words · Middle: done</string>
+    <string name="keyboard_practice_writing">Writing</string>
+    <string name="keyboard_practice_preparing">Getting the band ready…</string>
+    <string name="keyboard_practice_hint">Push: next · Middle: stop</string>
 </resources>

@@ -51,4 +51,20 @@ class WebCameraTest {
         assertEquals(listOf<Byte>(3, 7, 2, 6, 1, 5, 0, 4, 20, 21, 10, 11), CameraCapture.rotateNv21(frame, 4, 2, 270).toList())
         assertEquals(frame.toList(), CameraCapture.rotateNv21(frame, 4, 2, 0).toList())
     }
+
+    @Test
+    fun theBandDrivesTheCameraScreensAsTheTouchpadDoes() {
+        // The index tap takes the photo and chooses; Back cancels; the swipes move the choice.
+        assertEquals(android.view.KeyEvent.KEYCODE_DPAD_CENTER, WebCamera.keyFor(BandCommand.ACTIVATE))
+        assertEquals(android.view.KeyEvent.KEYCODE_BACK, WebCamera.keyFor(BandCommand.BACK))
+        assertEquals(android.view.KeyEvent.KEYCODE_DPAD_LEFT, WebCamera.keyFor(BandCommand.LEFT))
+        assertEquals(android.view.KeyEvent.KEYCODE_DPAD_RIGHT, WebCamera.keyFor(BandCommand.RIGHT))
+        assertEquals(android.view.KeyEvent.KEYCODE_DPAD_LEFT, WebCamera.keyFor(BandCommand.BACKWARD))
+        assertEquals(android.view.KeyEvent.KEYCODE_DPAD_RIGHT, WebCamera.keyFor(BandCommand.FORWARD))
+        assertEquals(android.view.KeyEvent.KEYCODE_DPAD_UP, WebCamera.keyFor(BandCommand.UP))
+        assertEquals(android.view.KeyEvent.KEYCODE_DPAD_DOWN, WebCamera.keyFor(BandCommand.DOWN))
+        // The volume isn't theirs.
+        assertEquals(null, WebCamera.keyFor(BandCommand.VOLUME_UP))
+    }
 }
+

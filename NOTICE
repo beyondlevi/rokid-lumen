@@ -59,6 +59,15 @@ License (LICENSE-rokid-r08-wake): the loopback self-arm technique that R08 Acces
 accessibility watchdog recovery, and so Lumen's, is built on. A short part of SelfArmController
 follows its SelfArm code.
 
+The writing suggestions' lexicon (app/src/main/assets/writing/writing.lex, built by
+rust/writing-data; its sources and their hashes in writing.json):
+- the Android Open Source Project's LatinIME word lists (en_US, pt_BR), Copyright The Android
+  Open Source Project, Apache License, Version 2.0 (LICENSES/Apache-2.0.txt); modified: pruned,
+  Portuguese moved to the 2009 spelling, frequencies mixed with the counts below;
+- word and word-pair counts from Tatoeba's sentences (https://tatoeba.org), Creative Commons
+  Attribution 2.0 France (https://creativecommons.org/licenses/by/2.0/fr/); counted, no sentence
+  is included.
+
 Noto Sans (app/src/main/assets/fonts/ and phone/src/main/res/font/), Copyright 2022 The Noto
 Project Authors, SIL Open Font License, Version 1.1 (app/src/main/assets/fonts/OFL.txt).
 
@@ -88,6 +97,9 @@ Apache License, Version 2.0 (LICENSES/Apache-2.0.txt):
   (app/src/main/res/drawable/ic_bell.xml, ic_apps.xml, ic_controls.xml, ic_ctl_*.xml)
 - JNA (net.java.dev.jna), used by Vosk, dual-licensed under the LGPL 2.1 and the Apache
   License 2.0; used here under the Apache License 2.0
+
+The band library's Rust crates (rust/Cargo.lock), each under the MIT License or the Apache
+License 2.0 (fst also under the Unlicense): among them RustCrypto's, jni, serde, fst and memmap2.
 
 Rokid's CXR SDKs (com.rokid.cxr:client-l, com.rokid.cxr:cxr-service-bridge) belong to Rokid
 and are used as published on https://maven.rokid.com.

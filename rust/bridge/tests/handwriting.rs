@@ -190,3 +190,203 @@ fn a_silent_model_ends_the_capture_and_restores() {
     assert!(finished["problem"].as_str().unwrap().contains("stopped sending"));
     assert_eq!(band.setting("data-collection-model"), 2);
 }
+
+#[test]
+fn the_writing_probe_records_samples_and_gestures_only_when_on() {
+    let (mut connection, mut band) = connected("middle_tap=nav.back;swipe_right=nav.right");
+    start(&mut connection, &mut band, None);
+    write(&mut connection, &mut band, &[7, 99], 3.0);
+    let off = events(&mut connection);
+    assert!(off.iter().all(|e| e["type"] != "frame" && e["type"] != "gesture"));
+
+    connection.set_handwriting_probe(true);
+    write(&mut connection, &mut band, &[8, 99], 3.1);
+    let swipe = band.gesture(9, 1, 0).unwrap();
+    let reply = connection.feed(&swipe, 3.2).unwrap();
+    pump(&mut connection, &mut band, reply, 3.2);
+    let on = events(&mut connection);
+    let frames: Vec<&Value> = on.iter().filter(|e| e["type"] == "frame").collect();
+    assert_eq!(frames.len(), 2);
+    // The likeliest class first, eight of them, log-probabilities rounded.
+    let top = frames[0]["top"].as_array().unwrap();
+    assert_eq!(top.len(), 8);
+    assert_eq!(top[0][0], 8);
+    assert!(top[0][1].as_f64().unwrap() > -0.2);
+    assert_eq!(frames[1]["top"][0][0], 99);
+    assert!(frames[0]["ts"].as_u64().unwrap() < frames[1]["ts"].as_u64().unwrap());
+    // The text still comes, after its sample.
+    let text_at = on.iter().position(|e| e["type"] == "text").unwrap();
+    assert!(on.iter().position(|e| e["type"] == "frame").unwrap() < text_at);
+    let gesture = on.iter().find(|e| e["type"] == "gesture").unwrap();
+    assert_eq!(gesture["finger"], "thumb");
+    assert_eq!(gesture["at"], 3.2);
+    // The swipe itself still does nothing while writing.
+    assert!(connection.take_actions().is_empty());
+    // Nothing of it reaches the log.
+    assert!(connection.take_log().iter().all(|line| !line.contains("frame") && !line.contains("\"top\"")));
+
+    connection.set_handwriting_probe(false);
+    write(&mut connection, &mut band, &[9, 99], 3.4);
+    assert!(events(&mut connection).iter().all(|e| e["type"] != "frame"));
+}
+
+#[test]
+fn the_middle_tap_ends_the_writing_even_while_the_controls_are_paused() {
+    let (mut connection, mut band) = connected("middle_tap=nav.back;middle_hold=band.pause");
+    connection.set_paused(true, 1.5);
+    assert!(connection.status_json().contains(r#""paused":true"#));
+    let started = start(&mut connection, &mut band, None);
+    assert_eq!(phases(&started), vec!["preparing", "ready"]);
+    let tap = band.gesture(3, MIDDLE, 0).unwrap();
+    let reply = connection.feed(&tap, 3.0).unwrap();
+    pump(&mut connection, &mut band, reply, 3.0);
+    assert_eq!(connection.take_actions(), vec!["nav.back".to_owned()]);
+    // A second tap right after (the band's report repeated) is one action, not two.
+    let again = band.gesture(3, MIDDLE, 0).unwrap();
+    let reply = connection.feed(&again, 3.1).unwrap();
+    pump(&mut connection, &mut band, reply, 3.1);
+    assert!(connection.take_actions().is_empty());
+    // The controls stay paused for everything else.
+    assert!(connection.status_json().contains(r#""paused":true"#));
+}
+
+const THUMB: u64 = 1;
+const RIGHT: u64 = 9;
+const LEFT: u64 = 8;
+const DOWN: u64 = 7;
+
+/// A small lexicon file and where the wearer's store goes.
+fn suggestion_files(dir: &std::path::Path) -> (String, String) {
+    use writing::lexicon::Lang;
+    let mut builder = writing::build::LexiconBuilder::default();
+    for (word, cost) in [("você", 4.5), ("vocês", 7.0), ("vou", 6.0), ("não", 4.0), ("está", 5.1), ("estou", 6.0), ("com", 4.5)] {
+        builder.word(word, Lang::Pt, cost, false);
+    }
+    builder.pair(Lang::Pt, "você", "está", 2.5);
+    builder.backoff(Lang::Pt, "você", 2.0);
+    let lexicon = dir.join("writing.lex");
+    std::fs::write(&lexicon, builder.finish()).unwrap();
+    (lexicon.to_string_lossy().into_owned(), dir.join("writing.store").to_string_lossy().into_owned())
+}
+
+fn with_suggestions(dir: &std::path::Path) -> (Connection, Responder, String) {
+    let (lexicon, store) = suggestion_files(dir);
+    let (mut connection, mut band) = connected("middle_tap=nav.back;swipe_right=nav.right;swipe_left=nav.left;swipe_down=nav.down");
+    start(&mut connection, &mut band, None);
+    let settings = writing::assistant::Settings { autocorrect: true, learn: true };
+    connection.set_writing_assist(true, &lexicon, &store, settings, 20_000).unwrap();
+    events(&mut connection);
+    (connection, band, store)
+}
+
+fn swipe(connection: &mut Connection, band: &mut Responder, action: u64, now: f64) {
+    let bytes = band.gesture(action, THUMB, 0).unwrap();
+    let reply = connection.feed(&bytes, now).unwrap();
+    pump(connection, band, reply, now);
+}
+
+fn last<'a>(events: &'a [Value], kind: &str) -> Option<&'a Value> {
+    events.iter().rev().find(|e| e["type"] == kind)
+}
+
+#[test]
+fn the_thumb_accepts_moves_between_and_undoes_the_suggestions() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut connection, mut band, _) = with_suggestions(dir.path());
+    // v, o
+    write(&mut connection, &mut band, &[21, 99, 14, 99], 3.0);
+    let written = events(&mut connection);
+    let suggest = last(&written, "suggest").unwrap();
+    assert_eq!(suggest["kind"], "word");
+    assert_eq!(suggest["items"][0], "você");
+    assert_eq!(suggest["ghost"], "cê");
+    // A moment without strokes, then the thumb: down moves, right accepts the one chosen.
+    write(&mut connection, &mut band, &[99; 24], 3.2);
+    swipe(&mut connection, &mut band, DOWN, 3.8);
+    let moved = events(&mut connection);
+    assert_eq!(last(&moved, "suggest").unwrap()["selected"], 1);
+    swipe(&mut connection, &mut band, DOWN, 4.1);
+    swipe(&mut connection, &mut band, DOWN, 4.4);
+    let back = events(&mut connection);
+    assert_eq!(last(&back, "suggest").unwrap()["selected"], 0);
+    swipe(&mut connection, &mut band, RIGHT, 4.8);
+    let accepted = events(&mut connection);
+    assert_eq!(last(&accepted, "text").unwrap()["text"], "você ");
+    let next = last(&accepted, "suggest").unwrap();
+    assert_eq!(next["kind"], "next");
+    assert_eq!(next["items"][0], "está");
+    assert_eq!(next["notice"]["kind"], "accepted");
+    assert_eq!(next["mark"], serde_json::json!([0, 4]));
+    // The swipes stayed the writing's: no navigation ran.
+    assert!(connection.take_actions().is_empty());
+    // Left undoes it.
+    swipe(&mut connection, &mut band, LEFT, 5.2);
+    let undone = events(&mut connection);
+    assert_eq!(last(&undone, "text").unwrap()["text"], "vo");
+    // Writing goes on after the undo, from the decoder's own text.
+    write(&mut connection, &mut band, &[2, 99], 5.4);
+    assert_eq!(last(&events(&mut connection), "text").unwrap()["text"], "voc");
+}
+
+#[test]
+fn a_swipe_in_the_middle_of_a_stroke_does_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut connection, mut band, _) = with_suggestions(dir.path());
+    write(&mut connection, &mut band, &[21, 99, 14], 3.0);
+    events(&mut connection);
+    swipe(&mut connection, &mut band, RIGHT, 3.1);
+    assert!(last(&events(&mut connection), "text").is_none());
+    assert!(connection.take_log().iter().any(|line| line.contains("ignored")));
+}
+
+#[test]
+fn a_corrected_word_is_one_text_and_no_word_reaches_the_log() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut connection, mut band, _) = with_suggestions(dir.path());
+    connection.take_log();
+    // n, a, o, space
+    write(&mut connection, &mut band, &[13, 99, 0, 99, 14, 99, 88], 3.0);
+    let written = events(&mut connection);
+    let texts: Vec<&str> = written.iter().filter(|e| e["type"] == "text").map(|e| e["text"].as_str().unwrap()).collect();
+    assert_eq!(texts.last(), Some(&"não "));
+    assert!(!texts.contains(&"nao "), "{texts:?}");
+    let suggest = last(&written, "suggest").unwrap();
+    assert_eq!(suggest["notice"], serde_json::json!({"kind": "corrected", "from": "nao", "to": "não"}));
+    assert_eq!(suggest["undo"], true);
+    let log = connection.take_log().join("\n");
+    assert!(!log.contains("nao") && !log.contains("não"), "{log}");
+    // The band's decoder writes after the correction.
+    write(&mut connection, &mut band, &[4, 99], 3.3);
+    assert_eq!(last(&events(&mut connection), "text").unwrap()["text"], "não e");
+}
+
+#[test]
+fn what_the_suggestions_learned_is_saved_when_they_go_off() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut connection, mut band, store) = with_suggestions(dir.path());
+    // c, o, m, space, v
+    write(&mut connection, &mut band, &[2, 99, 14, 99, 12, 99, 88, 99, 21], 3.0);
+    let settings = writing::assistant::Settings { autocorrect: true, learn: true };
+    connection.set_writing_assist(false, "", "", settings, 20_000).unwrap();
+    let personal = writing::personal::Personal::from_bytes(&std::fs::read(&store).unwrap());
+    assert!(personal.word_count("com") >= 1.0);
+    // Off: the swipes do nothing again.
+    swipe(&mut connection, &mut band, RIGHT, 4.0);
+    assert!(connection.take_actions().is_empty());
+}
+
+#[test]
+fn practice_turns_suggestions_and_corrections_off() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut connection, mut band, _) = with_suggestions(dir.path());
+    connection.writing_train(Some("nao casa"));
+    events(&mut connection);
+    // n, a, o, space: "nao" stays as written, nothing is suggested.
+    write(&mut connection, &mut band, &[13, 99, 0, 99, 14, 99, 88], 3.0);
+    let written = events(&mut connection);
+    assert_eq!(last(&written, "text").unwrap()["text"], "nao ");
+    assert!(written.iter().filter(|e| e["type"] == "suggest").all(|e| e["kind"] == "none"));
+    connection.writing_train(None);
+    write(&mut connection, &mut band, &[13, 99, 0, 99, 14, 99, 88], 3.4);
+    assert_eq!(last(&events(&mut connection), "text").unwrap()["text"], "nao não ");
+}

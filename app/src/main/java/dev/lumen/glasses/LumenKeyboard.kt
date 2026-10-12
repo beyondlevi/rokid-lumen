@@ -62,6 +62,18 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
     private var lastWriting = 0L
     private var wrote = false
     private val idleCheck = Runnable { checkIdle() }
+    // The writing's suggestions (the band library's): on for this writing, and the last ones.
+    private var assistOn = false
+    private var suggestions = Suggestions.NONE
+    /**
+     * A writing trainer's practice (a web app's `lumen.writing.train`): what the wearer is about
+     * to write, and the field it's for (bound when one is focused). The index tap writes at once,
+     * the bar under the app replaces the panel, suggestions and corrections are off.
+     */
+    private var practice: String? = null
+    private var practiceField: String? = null
+    /** This writing is the practice's. */
+    private var practicing = false
     /** Our own edit is going in: the selection updates it causes don't need a read back. */
     private var editing = false
     private val reread = Runnable {
@@ -80,6 +92,8 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // The suggestions' lexicon, copied once per version, ready for the first writing.
+        WritingData.prepare(this, null)
         // Nothing of the window shows but the pill or the panel: black is see-through on the HUD anyway.
         window?.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         Log.d(TAG, "created")
@@ -140,6 +154,8 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
     /** No field any more: the panel closes and the phone hears it. */
     private fun leaveField() {
         closeNow()
+        // The practice was for this field: it ends with it.
+        if (practiceField != null && practiceField == field?.key) setPractice(null)
         if (field != null) Log.d(TAG, "field left")
         field = null
         PhoneKeyboard.detach(this)
@@ -255,6 +271,13 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
     private fun openPanel() {
         val field = field ?: return
         readField()
+        // A practice writes at once, in the bar under the app: the first of Lumen's fields opened
+        // after it was asked for is its field (a page may focus a new one right after asking).
+        if (practice != null && practiceField == null && field.packageName == packageName) practiceField = field.key
+        if (practice != null && practiceField == field.key && !field.kind.secret) {
+            if (!shown) requestShowSelf(0)
+            return write()
+        }
         choices = KeyboardChoice.forField(field.kind)
         mode = Mode.CHOOSING
         status = ""
@@ -299,8 +322,15 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
                 }
                 BandCommand.BACK -> return if (closing) closePanel() else finishDictation()
             }
-            // Only the middle tap reaches here while the band writes (the touchpad's Back too).
-            Mode.WRITING -> if (command == BandCommand.BACK) return closePanel()
+            // The band's middle tap (its swipes work the suggestions in the band library), and
+            // the touchpad: Back finishes, its arrows work the suggestions.
+            Mode.WRITING -> when (command) {
+                BandCommand.BACK -> return closePanel()
+                BandCommand.RIGHT -> if (assistOn) BandRuntime.writingCommand("accept")
+                BandCommand.LEFT -> if (assistOn) BandRuntime.writingCommand("undo")
+                BandCommand.UP -> if (assistOn) BandRuntime.writingCommand("previous")
+                BandCommand.DOWN -> if (assistOn) BandRuntime.writingCommand("next")
+            }
             Mode.PHONE -> if (command == BandCommand.BACK) return closePanel()
             Mode.CLOSED -> Unit
         }
@@ -422,19 +452,71 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
         }
         // The band writes after what the field already holds.
         BandRuntime.resetHandwritingText(text)
-        remember(KeyboardChoice.WRITE)
+        WritingProbe.begin(this, field?.label.orEmpty())
+        practicing = practice != null && practiceField == field?.key
+        // A practice doesn't change the composer's choice.
+        if (!practicing) remember(KeyboardChoice.WRITE)
         mode = Mode.WRITING
         status = getString(R.string.composer_write_preparing)
         lastWriting = System.currentTimeMillis()
         wrote = false
-        Log.d(TAG, "writing")
+        Log.d(TAG, if (practicing) "writing (practice)" else "writing")
+        field?.let { startAssist(it) }
+        if (practicing) practiceState(PRACTICE_PREPARING)
         render()
+    }
+
+    /**
+     * The band library's suggestions for this writing ([WritingAssist]); a practice turns them
+     * off and only teaches the letters. The lexicon is copied first if it isn't ready.
+     */
+    private fun startAssist(field: FocusedField) {
+        suggestions = Suggestions.NONE
+        val assist = if (practicing) WritingAssist(suggest = false, autocorrect = false, learn = true)
+        else WritingAssist.of(field, GestureMappings.writingSuggestions(this), GestureMappings.writingAutocorrect(this))
+        if (!assist.suggest && !practicing) return
+        val lexicon = WritingData.lexicon() ?: run {
+            WritingData.prepare(this) { main.post { if (mode == Mode.WRITING && !assistOn) this.field?.let { startAssist(it) } } }
+            return
+        }
+        assistOn = BandRuntime.setWritingAssist(true, lexicon.path, WritingData.store(this).path, assist.autocorrect, assist.learn, WritingData.today())
+        if (assistOn && practicing) BandRuntime.writingTrain(practice)
+        Log.d(TAG, "suggestions ${if (assistOn) "on" else "unavailable"} (autocorrect ${assist.autocorrect}, learn ${assist.learn}, practice $practicing)")
+    }
+
+    /** The suggestions off: what they learned is saved (before the band leaves the writing). */
+    private fun stopAssist() {
+        if (assistOn) BandRuntime.setWritingAssist(false, "", "", false, false, 0)
+        assistOn = false
+        suggestions = Suggestions.NONE
+    }
+
+    /** A web app's practice (see the companion's [train]); null ends it. */
+    private fun setPractice(text: String?) {
+        practice = text?.takeIf { it.isNotBlank() }
+        // Bound to a field when one is opened (see openPanel); a new practice starts unbound.
+        practiceField = null
+        // A round that changes while the band writes: the band library hears it at once.
+        if (mode == Mode.WRITING && practicing && assistOn) BandRuntime.writingTrain(practice)
+        if (practice == null && practicing && mode == Mode.WRITING) {
+            practicing = false
+            render()
+        }
+        Log.d(TAG, "practice ${if (practice != null) "set (${practice!!.length} chars)" else "off"}")
+    }
+
+    private fun practiceState(state: String) {
+        practiceListener?.invoke(state)
     }
 
     private fun stopWriting() {
         main.removeCallbacks(idleCheck)
         BandRuntime.removeHandwritingListener(handwriting)
+        stopAssist()
         BandRuntime.setHandwriting(false)
+        WritingProbe.end()
+        if (practicing) practiceState(PRACTICE_OFF)
+        practicing = false
         Log.d(TAG, "writing ends")
     }
 
@@ -447,12 +529,17 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
                     lastWriting = System.currentTimeMillis()
                     main.removeCallbacks(idleCheck)
                     main.postDelayed(idleCheck, IDLE_CHECK_MS)
+                    if (practicing) practiceState(PRACTICE_WRITING)
                 }
                 // The band stopped writing on its own (a failure, then its restore).
                 "restoring", "finished" -> {
                     val problem = event.optString("problem").takeIf { it.isNotEmpty() && it != "null" }
                     main.removeCallbacks(idleCheck)
                     BandRuntime.removeHandwritingListener(handwriting)
+                    stopAssist()
+                    WritingProbe.end()
+                    if (practicing) practiceState(PRACTICE_OFF)
+                    practicing = false
                     mode = Mode.CHOOSING
                     status = if (problem != null) getString(R.string.composer_write_failed, problem) else ""
                 }
@@ -462,6 +549,13 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
                 wrote = true
                 putText(event.optString("text"))
             }
+            // The band library's suggestions for the word being written (or the next one).
+            "suggest" -> {
+                lastWriting = System.currentTimeMillis()
+                suggestions = Suggestions.of(event)
+            }
+            // A debug build's probe records ([WritingProbe]): nothing to show.
+            else -> return
         }
         render()
     }
@@ -469,7 +563,8 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
     /** A pause in the writing finishes, as kinesis does: the text stays, the band goes back. */
     private fun checkIdle() {
         if (mode != Mode.WRITING) return
-        val limit = if (wrote) IDLE_MS else FIRST_LETTER_MS
+        // A practice waits longer: reading the next word is part of it.
+        val limit = (if (wrote) IDLE_MS else FIRST_LETTER_MS) * (if (practicing) 2 else 1)
         if (System.currentTimeMillis() - lastWriting >= limit) {
             Log.d(TAG, "writing paused for ${limit / 1000} s: done")
             closePanel()
@@ -624,6 +719,18 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
         val secret = field.kind.secret
         val action = actionName(field)
         val locale = resources.configuration.locales[0]
+        // A practice's bar, under the app: the app shows what's written itself.
+        if (mode == Mode.WRITING && practicing) {
+            val ready = status == getString(R.string.composer_write_ready)
+            return view.render(
+                KeyboardPanel.State(
+                    panel = false,
+                    hintLead = getString(if (ready) R.string.keyboard_practice_writing else R.string.keyboard_practice_preparing),
+                    hint = getString(R.string.keyboard_practice_hint),
+                    hintIcon = KeyboardPanel.Icon.PEN,
+                ),
+            )
+        }
         if (mode == Mode.CLOSED) {
             val named = field.action.named && text.isNotEmpty() && action != null
             val hint = when {
@@ -641,7 +748,13 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
         }
         val choosing = mode == Mode.CHOOSING
         val button = choosing && hasAction()
-        val statusLine = status.ifEmpty {
+        val writing = mode == Mode.WRITING && !secret
+        val notice = suggestions.notice.takeIf { writing }
+        val statusLine = when {
+            notice?.kind == "corrected" -> getString(R.string.keyboard_write_corrected, notice.from, notice.to)
+            notice?.kind == "undone" -> getString(R.string.keyboard_write_undone, notice.word)
+            else -> status
+        }.ifEmpty {
             when {
                 !choosing -> ""
                 secret -> getString(R.string.keyboard_status_password)
@@ -651,7 +764,11 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
         }
         val statusIcon = when (mode) {
             Mode.DICTATING -> KeyboardPanel.Icon.MIC
-            Mode.WRITING -> KeyboardPanel.Icon.PEN
+            Mode.WRITING -> when (notice?.kind) {
+                "corrected" -> KeyboardPanel.Icon.CHECK
+                "undone" -> KeyboardPanel.Icon.UNDO
+                else -> KeyboardPanel.Icon.PEN
+            }
             Mode.PHONE -> KeyboardPanel.Icon.PHONE
             else -> if (secret) KeyboardPanel.Icon.LOCK else null
         }
@@ -664,11 +781,18 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
                 },
             )
             Mode.DICTATING -> getString(R.string.composer_hint)
-            Mode.WRITING -> getString(if (secret) R.string.keyboard_password_writing_hint else R.string.composer_write_hint)
+            Mode.WRITING -> when {
+                secret -> getString(R.string.keyboard_password_writing_hint)
+                notice?.kind == "undone" -> getString(R.string.keyboard_write_learned_hint, notice.word)
+                writing && suggestions.any && suggestions.undo -> getString(R.string.keyboard_write_hint_undo)
+                writing && suggestions.any -> getString(R.string.keyboard_write_hint_suggest)
+                else -> getString(R.string.composer_write_hint)
+            }
             Mode.PHONE -> getString(R.string.keyboard_phone_hint)
             Mode.CLOSED -> ""
         }
         val shownText = if (secret) MASK.repeat(text.length) else text
+        val shown = tail(shownText)
         view.render(
             KeyboardPanel.State(
                 panel = true,
@@ -682,8 +806,12 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
                 fieldLabel = fieldName(field),
                 // The action button names it already.
                 fieldAction = if (!button && field.action.named && action != null) getString(R.string.keyboard_enter_label, action.lowercase(locale)) else "",
-                text = tail(shownText),
+                text = shown,
                 partial = if (mode == Mode.DICTATING) partial else "",
+                ghost = if (writing) suggestions.ghost else "",
+                suggestions = if (writing) suggestions.items else emptyList(),
+                suggestionSelected = if (writing && suggestions.any) suggestions.selected else -1,
+                mark = if (writing) Suggestions.markIn(shownText, shown, suggestions.mark) else null,
                 choices = if (choosing) choices.map { iconOf(it) to getString(it.label) } else emptyList(),
                 action = if (button) action ?: getString(R.string.keyboard_action_enter) else null,
                 actionIcon = if (field.action == EnterAction.SEARCH) KeyboardPanel.Icon.SEARCH else KeyboardPanel.Icon.ENTER,
@@ -746,6 +874,41 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
          */
         @JvmStatic
         fun onBandCommand(command: String, bannerUp: Boolean): Boolean = instance?.onBand(command, bannerUp) ?: false
+
+        /** A practice's state for the web app ([practiceListener]): the band is off. */
+        const val PRACTICE_OFF = "off"
+        /** The band is switching into its writing (1 to 2 s). */
+        const val PRACTICE_PREPARING = "preparing"
+        /** The band writes. */
+        const val PRACTICE_WRITING = "writing"
+
+        /** Who hears a practice's state (the web app in front, WebAppActivity). */
+        @JvmStatic
+        var practiceListener: ((String) -> Unit)? = null
+
+        /**
+         * A web app's practice (`lumen.writing.train`): [text] is what the wearer is about to
+         * write in its focused field (null ends it). False when Lumen's keyboard isn't running.
+         */
+        @JvmStatic
+        fun train(text: String?): Boolean {
+            val ime = instance ?: return false
+            ime.setPractice(text)
+            return true
+        }
+
+        /** A web app's `lumen.writing.stop()`: its practice's writing ends. */
+        @JvmStatic
+        fun stopPractice() {
+            instance?.let { ime -> if (ime.mode == Mode.WRITING && ime.practicing) ime.closePanel() }
+        }
+
+        /** Forgets what the suggestions learned (a writing in progress ends first, so it can't save it back). */
+        @JvmStatic
+        fun forgetWriting(context: Context) {
+            instance?.let { ime -> if (ime.mode == Mode.WRITING) ime.closePanel() }
+            WritingData.forget(context)
+        }
 
         /**
          * One of Lumen's screens took Android's focus off its field (the band moved to a send

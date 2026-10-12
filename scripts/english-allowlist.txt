@@ -10,3 +10,27 @@ app/src/main/java/dev/lumen/glasses/SelfArmWirelessDebuggingAutomator.kt	"ative 
 protocol/src/test/kotlin/dev/lumen/protocol/LinkTest.kt	"olá"
 # Languages in their own names.
 phone/src/main/java/dev/lumen/companion/speech/SpeechConfig.kt	"Français"
+# The writing suggestions: Portuguese is their subject (accent tables, the 2009 spelling rules,
+# tests of Portuguese words), and examples of what they correct.
+rust/writing/src/fold.rs	*
+rust/writing/src/build.rs	*
+rust/writing/src/search.rs	*
+rust/writing/src/assistant/tests.rs	*
+rust/writing-data/src/main.rs	*
+rust/bridge/tests/handwriting.rs	*
+rust/writing/src/assistant.rs	(esta -> está)
+rust/writing/src/assistant.rs	(nao -> não)
+rust/writing/src/format.rs	"esta", "está"
+rust/writing/examples/inspect.rs	nao voce eu
+phone/src/main/res/values/strings_keyboard.xml	(nao becomes não)
+CHANGELOG.md	("Corrected: nao → não")
+docs/features.md	("nao" finds "não")
+docs/features.md	("Corrected: nao → não")
+docs/features.md	(esta / está)
+app/src/test/java/dev/lumen/glasses/KeyboardLogicTest.kt	"items":["você","vocês","voltou"]
+app/src/test/java/dev/lumen/glasses/KeyboardLogicTest.kt	"to":"não"
+app/src/test/java/dev/lumen/glasses/KeyboardLogicTest.kt	listOf("você", "vocês", "voltou")
+app/src/test/java/dev/lumen/glasses/KeyboardLogicTest.kt	to = "não"
+app/src/test/java/dev/lumen/glasses/KeyboardLogicTest.kt	+ " não "
+app/src/test/java/dev/lumen/glasses/KeyboardLogicTest.kt	assertEquals("não", shown
+app/src/test/java/dev/lumen/glasses/KeyboardLogicTest.kt	"eu não "

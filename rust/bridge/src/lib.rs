@@ -9,6 +9,9 @@ use band_core::events::Event;
 use band_core::identity::EnrollmentIdentity;
 use band_core::session::BandSession;
 use serde::Serialize;
+use writing::assistant::{Assistant, Notice, Op, Settings};
+use writing::lexicon::Lexicon;
+use writing::personal::Personal;
 
 pub mod config;
 pub mod controller;
@@ -31,6 +34,11 @@ fn config_with(mapping: &str) -> Config {
 const BATTERY_EVERY: f64 = 60.0;
 const QUIET_QUERY: f64 = 2.0;
 const QUIET_QUERY_NO_MOTION: f64 = 30.0;
+/// The classes a writing probe's sample record keeps, likeliest first.
+const PROBE_TOP: usize = 8;
+/// A thumb swipe this soon after the band last wrote something (its clock, µs) is part of the
+/// writing, not a command.
+const STROKE_GUARD_US: u64 = 300_000;
 
 pub struct Connection {
     session: BandSession,
@@ -52,6 +60,14 @@ pub struct Connection {
     claim_pending: Option<Vec<u8>>,
     /// The handwriting capture's events, as JSON lines for the app.
     handwriting: Vec<String>,
+    /// Debug builds' writing probe: each sample's likeliest classes and the gestures that come
+    /// while the band writes also go out with the handwriting events (see `set_handwriting_probe`).
+    probe: bool,
+    /// The writing's suggestions (see `set_writing_assist`), where the wearer's store is kept,
+    /// and the suggestions' revision last sent.
+    assist: Option<Assistant>,
+    assist_store: Option<std::path::PathBuf>,
+    assist_sent: u64,
     /// When the air mouse's motion delay was last logged.
     delay_logged: f64,
 }
@@ -140,6 +156,10 @@ impl Connection {
             claim: Vec::new(),
             claim_pending: None,
             handwriting: Vec::new(),
+            probe: false,
+            assist: None,
+            assist_store: None,
+            assist_sent: 0,
             delay_logged: 0.0,
         }
     }
@@ -153,7 +173,7 @@ impl Connection {
     pub fn feed(&mut self, bytes: &[u8], now: f64) -> Result<Vec<u8>, String> {
         self.last_read = now;
         let result = self.session.feed(bytes, now).map_err(|e| e.to_string())?;
-        self.controller.set_writing(self.session.handwriting_active());
+        self.controller.set_writing(self.session.handwriting_active(), now);
         let mut outgoing = result.outgoing;
         for event in &result.events {
             outgoing.extend(self.on_event(event, now)?);
@@ -192,7 +212,7 @@ impl Connection {
     /// Call every ~50 ms (held single taps fire on time); returns bytes to write.
     pub fn tick(&mut self, now: f64) -> Result<Vec<u8>, String> {
         let mut outgoing = Vec::new();
-        self.controller.set_writing(self.session.handwriting_active());
+        self.controller.set_writing(self.session.handwriting_active(), now);
         for event in self.session.tick(now) {
             outgoing.extend(self.on_event(&event, now)?);
         }
@@ -262,7 +282,7 @@ impl Connection {
         self.session
             .set_handwriting(enabled, hints, now)
             .map_err(|e| e.to_string())?;
-        self.controller.set_writing(self.session.handwriting_active());
+        self.controller.set_writing(self.session.handwriting_active(), now);
         self.flush_handwriting(now)
     }
 
@@ -277,6 +297,124 @@ impl Connection {
     /// Start the written text over from `text`, what the field holds.
     pub fn reset_handwriting_text(&mut self, text: &str) {
         self.session.reset_handwriting_text(text);
+        if let Some(assist) = &mut self.assist {
+            assist.reset(text);
+        }
+        self.push_suggest();
+    }
+
+    /// The writing's suggestions on (the lexicon file at `lexicon`, the wearer's store at
+    /// `store`, `today` in days since 1970) or off (the store saved). On: each written word gets
+    /// `{"type":"suggest",…}` events (see `push_suggest`), a word that ends may be corrected
+    /// (a `text` event with the new text), and the thumb's swipes work the suggestions.
+    pub fn set_writing_assist(
+        &mut self,
+        enabled: bool,
+        lexicon: &str,
+        store: &str,
+        settings: Settings,
+        today: u32,
+    ) -> Result<(), String> {
+        self.end_writing_assist();
+        if !enabled {
+            return Ok(());
+        }
+        let lexicon = Lexicon::open(std::path::Path::new(lexicon))?;
+        let personal = std::fs::read(store).map(|bytes| Personal::from_bytes(&bytes)).unwrap_or_default();
+        let mut assist = Assistant::new(lexicon, personal, settings, today);
+        assist.reset(self.session.handwriting_text());
+        self.assist = Some(assist);
+        self.assist_store = Some(store.into());
+        self.assist_sent = 0;
+        self.session.set_handwriting_frames(true);
+        self.controller.set_writing_assist(true);
+        self.log.push("writing suggestions on".into());
+        self.push_suggest();
+        Ok(())
+    }
+
+    /// The suggestions off, what they learned saved (a new file, then renamed over the old).
+    fn end_writing_assist(&mut self) {
+        if let Some(mut assist) = self.assist.take() {
+            if let (Some(bytes), Some(path)) = (assist.finish(), self.assist_store.take()) {
+                let temporary = path.with_extension("tmp");
+                if let Err(error) = std::fs::write(&temporary, &bytes).and_then(|()| std::fs::rename(&temporary, &path)) {
+                    self.log.push(format!("writing suggestions: couldn't save what they learned ({error})"));
+                }
+            }
+            self.log.push("writing suggestions off".into());
+        }
+        self.assist_store = None;
+        self.session.set_handwriting_frames(self.probe);
+        self.controller.set_writing_assist(false);
+    }
+
+    /// Practice from a writing trainer (`text`: what the wearer is about to write, `None` to
+    /// end it): no suggestions or corrections, and the expected words teach the letters.
+    pub fn writing_train(&mut self, text: Option<&str>) {
+        let current = self.session.handwriting_text().to_owned();
+        if let Some(assist) = &mut self.assist {
+            assist.set_training(text, &current);
+            self.log.push(format!("writing practice {}", if text.is_some() { "on" } else { "off" }));
+        }
+        self.push_suggest();
+    }
+
+    /// The touchpad's arrows on the suggestions: "accept", "undo", "next", "previous".
+    pub fn writing_command(&mut self, op: &str) {
+        if let Some(op) = Op::from_name(op) {
+            self.write(op, None);
+        }
+    }
+
+    /// A command on the suggestions; `at`: the band time of the swipe that asked for it.
+    fn write(&mut self, op: Op, at: Option<u64>) {
+        let Some(assist) = &mut self.assist else { return };
+        if let (Some(at), Some(stroke)) = (at, assist.last_stroke())
+            && at < stroke + STROKE_GUARD_US
+        {
+            self.log.push("writing: a swipe during a stroke, ignored".into());
+            return;
+        }
+        let text = self.session.handwriting_text().to_owned();
+        if let Some(new) = assist.command(op, &text).text {
+            self.session.replace_handwriting_text(&new);
+            self.handwriting.push(serde_json::json!({"type": "text", "text": new, "raw": "", "class": -1}).to_string());
+        }
+        self.push_suggest();
+    }
+
+    /// The suggestions, when they changed: `{"type":"suggest","rev","kind":"word"|"next"|"none",
+    /// "word","items":[…],"selected","ghost","undo","notice","mark"}`. `ghost` is the gray rest
+    /// after the caret, `notice` a change to tell about (`{"kind":"corrected","from","to"}`,
+    /// `{"kind":"accepted","word"}`, `{"kind":"undone","word"}`), `mark` the UTF-16 range of
+    /// the word it changed. What someone writes: never log it.
+    fn push_suggest(&mut self) {
+        let Some(assist) = &self.assist else { return };
+        if assist.rev() == self.assist_sent {
+            return;
+        }
+        self.assist_sent = assist.rev();
+        let notice = assist.notice().map(|notice| match notice {
+            Notice::Corrected { from, to } => serde_json::json!({"kind": "corrected", "from": from, "to": to}),
+            Notice::Accepted { word } => serde_json::json!({"kind": "accepted", "word": word}),
+            Notice::Undone { word } => serde_json::json!({"kind": "undone", "word": word}),
+        });
+        self.handwriting.push(
+            serde_json::json!({
+                "type": "suggest",
+                "rev": assist.rev(),
+                "kind": assist.kind().name(),
+                "word": assist.word(),
+                "items": assist.items(),
+                "selected": assist.selected(),
+                "ghost": assist.ghost(),
+                "undo": assist.can_undo(),
+                "notice": notice,
+                "mark": assist.mark().map(|(start, end)| [start, end]),
+            })
+            .to_string(),
+        );
     }
 
     fn flush_handwriting(&mut self, now: f64) -> Result<Vec<u8>, String> {
@@ -288,6 +426,16 @@ impl Connection {
             outgoing.extend(self.on_event(event, now)?);
         }
         Ok(outgoing)
+    }
+
+    /// Debug builds' writing probe on or off: while the band writes, each of its samples goes
+    /// out as `{"type":"frame","seq","ts","lat","at","top":[[class,logp],…]}` (its 8 likeliest
+    /// classes) and each gesture message as `{"type":"gesture","finger","action","derived",
+    /// "synthetic","seq","ts","at"}` (`ts` the band's clock in µs, `at` the host's in seconds),
+    /// with the other handwriting events. What someone writes: only for a test's recording.
+    pub fn set_handwriting_probe(&mut self, on: bool) {
+        self.probe = on;
+        self.session.set_handwriting_frames(on);
     }
 
     /// The handwriting capture's events since the last call, one JSON object each:
@@ -339,6 +487,11 @@ impl Connection {
     /// Action names to run since the last call ("media.next", "volume.up", …).
     pub fn take_actions(&mut self) -> Vec<String> {
         std::mem::take(&mut self.actions)
+    }
+
+    /// A line for the log.
+    pub fn note(&mut self, line: &str) {
+        self.log.push(line.to_owned());
     }
 
     /// Log lines since the last call ("connected", "gesture swipe left", …).
@@ -426,6 +579,9 @@ impl Connection {
     }
 
     fn on_event(&mut self, event: &Event, now: f64) -> Result<Vec<u8>, String> {
+        if self.probe {
+            self.probe_event(event, now);
+        }
         match event {
             Event::CeremonyStage(stage) => {
                 self.log.push(format!("claim: {stage}"));
@@ -495,12 +651,26 @@ impl Connection {
                     .to_string(),
                 );
             }
+            Event::HandwritingFrame { timestamp_us, values, .. } => {
+                if let Some(assist) = &mut self.assist {
+                    assist.frame(*timestamp_us, values);
+                }
+            }
             Event::HandwritingText { text, raw, class } => {
+                // A word that ends may come back corrected: the field gets the new text.
+                let mut text = text.clone();
+                if let Some(assist) = &mut self.assist
+                    && let Some(new) = assist.written(&text, *class).text
+                {
+                    self.session.replace_handwriting_text(&new);
+                    text = new;
+                }
                 // The text itself never goes to the log.
                 self.handwriting.push(
                     serde_json::json!({"type": "text", "text": text, "raw": raw, "class": class})
                         .to_string(),
                 );
+                self.push_suggest();
             }
             _ => {}
         }
@@ -518,6 +688,48 @@ impl Connection {
         Ok(outgoing)
     }
 
+    /// The writing probe's records (see `set_handwriting_probe`).
+    fn probe_event(&mut self, event: &Event, now: f64) {
+        match event {
+            Event::HandwritingFrame { sequence, timestamp_us, latency_us, values } => {
+                let mut top: Vec<(usize, f32)> = values.iter().copied().enumerate().collect();
+                top.sort_by(|a, b| b.1.total_cmp(&a.1));
+                let top: Vec<serde_json::Value> = top
+                    .iter()
+                    .take(PROBE_TOP)
+                    .map(|&(class, value)| serde_json::json!([class, (f64::from(value) * 1000.0).round() / 1000.0]))
+                    .collect();
+                self.handwriting.push(
+                    serde_json::json!({
+                        "type": "frame",
+                        "seq": sequence,
+                        "ts": timestamp_us,
+                        "lat": latency_us,
+                        "at": now,
+                        "top": top,
+                    })
+                    .to_string(),
+                );
+            }
+            Event::Gesture(message) if self.session.handwriting_active() => {
+                self.handwriting.push(
+                    serde_json::json!({
+                        "type": "gesture",
+                        "finger": message.finger,
+                        "action": message.action,
+                        "derived": message.derived_action,
+                        "synthetic": message.synthetic,
+                        "seq": message.sequence,
+                        "ts": message.timestamp_us,
+                        "at": message.received_at,
+                    })
+                    .to_string(),
+                );
+            }
+            _ => {}
+        }
+    }
+
     fn apply(&mut self, command: Command, now: f64) -> Result<Vec<u8>, String> {
         match command {
             Command::Run(action) if action == DIAL_TOGGLE => {
@@ -532,6 +744,10 @@ impl Connection {
             Command::Run(action) => {
                 self.log.push(format!("action {action}"));
                 self.actions.push(action);
+            }
+            Command::Write(op, at) => {
+                self.log.push(format!("writing {op:?}").to_lowercase());
+                self.write(op, Some(at));
             }
             Command::SetHand(hand) => {
                 return self

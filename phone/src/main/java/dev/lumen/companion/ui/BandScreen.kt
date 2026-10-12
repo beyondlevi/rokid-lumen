@@ -560,14 +560,15 @@ private fun GlassesSettingsTab(state: CompanionUiState, actions: CompanionAction
         }
     }
     confirming?.let { action ->
+        val confirm = BandLabels.confirm(action.name)
         AlertDialog(
             onDismissRequest = { confirming = null },
             containerColor = Lumen.elevation1,
-            title = { Text(stringResource(R.string.band_forget_title)) },
-            text = { Text(stringResource(R.string.band_forget_text), color = Lumen.textSecondary) },
+            title = { Text(stringResource(confirm.title)) },
+            text = { Text(stringResource(confirm.text), color = Lumen.textSecondary) },
             confirmButton = {
                 TextButton(onClick = { confirming = null; actions.bandAction(action.name) }) {
-                    Text(BandLabels.action(action.name)?.let { stringResource(it) } ?: action.label, color = Lumen.negative)
+                    Text(stringResource(confirm.button), color = Lumen.negative)
                 }
             },
             dismissButton = { TextButton(onClick = { confirming = null }) { Text(stringResource(R.string.cancel), color = Lumen.textPrimary) } },

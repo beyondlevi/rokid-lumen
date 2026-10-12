@@ -6,4 +6,12 @@
     <string name="keyboard_notice_title">Os óculos pedem o teclado</string>
     <string name="keyboard_notice_text">Digite em %1$s · %2$s</string>
     <string name="keyboard_notice_text_field">Digite em %1$s</string>
+    <string name="band_setting_writing_suggestions">Sugestões ao escrever</string>
+    <string name="band_setting_writing_suggestions_hint">Completa a palavra e prevê a próxima enquanto você escreve com a band. Polegar para a direita aceita.</string>
+    <string name="band_setting_writing_autocorrect">Corrigir sozinho</string>
+    <string name="band_setting_writing_autocorrect_hint">No espaço, troca a palavra que parece errada (nao vira não). Polegar para a esquerda desfaz.</string>
+    <string name="band_action_forget_writing">Esquecer o que a escrita aprendeu</string>
+    <string name="band_forget_writing_title">Esquecer o que a escrita aprendeu?</string>
+    <string name="band_forget_writing_text">As palavras que você ensinou e o ajuste à sua letra saem dos óculos. As sugestões voltam a ser só as do dicionário.</string>
+    <string name="band_forget_writing_button">Esquecer</string>
 </resources>

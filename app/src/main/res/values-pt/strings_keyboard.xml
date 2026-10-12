@@ -27,4 +27,12 @@
     <string name="keyboard_field_url">Endereço</string>
     <string name="keyboard_field_number">Número</string>
     <string name="keyboard_field_phone">Telefone</string>
+    <string name="keyboard_write_hint_suggest">Polegar → aceitar · ↑↓ trocar · Médio: concluir</string>
+    <string name="keyboard_write_hint_undo">Polegar → aceitar · ← desfazer · Médio: concluir</string>
+    <string name="keyboard_write_corrected">Corrigido: %1$s → %2$s</string>
+    <string name="keyboard_write_undone">Desfeito: %1$s fica como você escreveu</string>
+    <string name="keyboard_write_learned_hint">Daqui em diante, %1$s é uma palavra sua · Médio: concluir</string>
+    <string name="keyboard_practice_writing">Escrevendo</string>
+    <string name="keyboard_practice_preparing">Preparando a band…</string>
+    <string name="keyboard_practice_hint">Empurrar: próxima · Médio: parar</string>
 </resources>

@@ -32,6 +32,8 @@ object BandLabels {
         "screen_timeout" to R.string.band_setting_screen_timeout,
         "lumen_keyboard" to R.string.band_setting_lumen_keyboard,
         "status_bar" to R.string.band_setting_status_bar,
+        "writing_suggestions" to R.string.band_setting_writing_suggestions,
+        "writing_autocorrect" to R.string.band_setting_writing_autocorrect,
         // The phone's own (PhoneSettings).
         "phone.swipe_up" to R.string.phone_gesture_swipe_up,
         "phone.swipe_down" to R.string.phone_gesture_swipe_down,
@@ -135,6 +137,8 @@ object BandLabels {
     private val descriptions = mapOf(
         "lumen_keyboard" to R.string.band_setting_lumen_keyboard_hint,
         "status_bar" to R.string.band_setting_status_bar_hint,
+        "writing_suggestions" to R.string.band_setting_writing_suggestions_hint,
+        "writing_autocorrect" to R.string.band_setting_writing_autocorrect_hint,
     )
 
     /** A slider's hint and the words at its two ends, by setting key. */
@@ -157,7 +161,16 @@ object BandLabels {
     private val actions = mapOf(
         "reconnect" to R.string.band_action_reconnect,
         "forget" to R.string.band_action_forget,
+        "forget_writing" to R.string.band_action_forget_writing,
         "reset_gestures" to R.string.band_action_reset_gestures,
+    )
+
+    /** A destructive action's confirmation: its title, its text and its button. */
+    data class Confirm(@StringRes val title: Int, @StringRes val text: Int, @StringRes val button: Int)
+
+    private val confirms = mapOf(
+        "forget" to Confirm(R.string.band_forget_title, R.string.band_forget_text, R.string.band_action_forget),
+        "forget_writing" to Confirm(R.string.band_forget_writing_title, R.string.band_forget_writing_text, R.string.band_forget_writing_button),
     )
 
     private val phases = mapOf(
@@ -181,6 +194,9 @@ object BandLabels {
     fun range(key: String): Range? = ranges[key]
 
     @StringRes fun action(name: String): Int? = actions[name]
+
+    /** How to confirm a destructive action; an unknown one gets the band's (the glasses' older ones). */
+    fun confirm(name: String): Confirm = confirms[name] ?: confirms.getValue("forget")
 
     @StringRes fun phase(phase: String): Int? = phases[phase]
 }
