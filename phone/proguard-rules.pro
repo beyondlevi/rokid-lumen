@@ -25,3 +25,15 @@
 -keepclassmembers class * extends com.sun.jna.** { *; }
 -dontwarn java.awt.**
 -dontwarn com.sun.jna.**
+
+# Kadb, the glasses' screen over adb (GlassesAdb, GlassesMirror), as it ships: its TLS and keys go
+# through BouncyCastle, whose provider registers each algorithm by class name, and its pairing
+# through spake2-java. GlassesAdb calls okio's Path.get(String) by reflection (as the glasses' self-arm
+# does). The glasses app, where Kadb has always run, isn't minified.
+-keep class com.flyfishxu.kadb.** { *; }
+-keep class com.flyfish233.crypto.spake2.** { *; }
+-keep class org.bouncycastle.** { *; }
+-keep class okio.Path { *; }
+-keep class okio.Path$Companion { *; }
+-dontwarn org.bouncycastle.**
+-dontwarn com.flyfishxu.kadb.**
