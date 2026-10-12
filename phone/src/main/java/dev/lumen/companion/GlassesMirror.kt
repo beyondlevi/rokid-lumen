@@ -52,13 +52,11 @@ class GlassesMirror(private val context: Context, private val onState: (State) -
         running = false
         val last = control
         control = null
-        val open = stream
-        stream = null
-        runCatching { open?.close() }
         background {
-            if (open != null) last?.shell("pkill -x screenrecord")
+            last?.shell(STOP_RECORDING)
             last?.close()
         }
+        closeStream()
         worker?.interrupt()
         watcher?.interrupt()
     }
@@ -66,7 +64,7 @@ class GlassesMirror(private val context: Context, private val onState: (State) -
     fun setPaused(on: Boolean) {
         paused = on
         if (on) {
-            closeStream()
+            stopRecording()
             report(State(Phase.PAUSED))
         }
     }
@@ -75,8 +73,16 @@ class GlassesMirror(private val context: Context, private val onState: (State) -
         if (next == quality) return
         quality = next
         // The new bitrate takes a new recording.
-        closeStream()
+        stopRecording()
     }
+
+    /**
+     * Ends the recording on the glasses: closing adb's stream here doesn't (screenrecord only
+     * notices when it next writes, and a still screen writes nothing), so the read never
+     * returned and the recording held the encoder up to its 3 minutes (measured). Its end
+     * closes the stream, and the recording thread goes on.
+     */
+    private fun stopRecording() = background { control?.shell(STOP_RECORDING) }
 
     /** Wakes the glasses' screen (the wake key, as the power button). */
     fun wake() = background { control?.shell("input keyevent 224") }
@@ -179,10 +185,6 @@ class GlassesMirror(private val context: Context, private val onState: (State) -
             if (running && !paused && quality == current) throw e
         } finally {
             closeStream()
-            // Closing adb's stream doesn't stop screenrecord on the glasses until it next writes,
-            // which a still screen never does (it stayed up to its 3 minutes, holding the
-            // encoder). Stopped here, on this thread, before the next recording starts.
-            runCatching { control?.shell("pkill -x screenrecord") }
         }
     }
 
@@ -226,5 +228,6 @@ class GlassesMirror(private val context: Context, private val onState: (State) -
         private const val LIGHT_FPS = 5
         private const val INPUT_WAIT_US = 50_000L
         private const val WATCH_MS = 3_000L
+        private const val STOP_RECORDING = "pkill -x screenrecord"
     }
 }
