@@ -3,6 +3,14 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.28]
+
+### Web apps
+
+- **A direct microphone for calls.** `getUserMedia({audio: {deviceId: 'glasses-direct'}})` takes
+  the glasses' microphone straight into the browser, without the trip to the phone and back that
+  dictation uses, so a live call hears you at once. The default microphone stays as it was.
+
 ## [0.2.0-beta.27]
 
 ### Glasses

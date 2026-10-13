@@ -121,8 +121,20 @@ class GeckoWebEngine(
             // the wearer allowed the app ([WebEngine.Host.onCameraRequest]).
             override fun onAndroidPermissionsRequest(s: GeckoSession, permissions: Array<out String>?, callback: GeckoSession.PermissionDelegate.Callback) {
                 val ctx = geckoView.context
-                if (permissions.orEmpty().all { ctx.checkSelfPermission(it) == android.content.pm.PackageManager.PERMISSION_GRANTED }) callback.grant()
-                else callback.reject()
+                val missing = permissions.orEmpty().filter { ctx.checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED }
+                if (missing.isEmpty()) return callback.grant()
+                // The direct microphone: the self-arm's shell grants it (no dialog on the HUD).
+                if (missing == listOf(android.Manifest.permission.RECORD_AUDIO)) {
+                    Thread {
+                        runCatching { SelfArmController.runShell(ctx, "pm grant ${ctx.packageName} ${android.Manifest.permission.RECORD_AUDIO}") }
+                            .onFailure { Log.w(TAG, "Could not grant the microphone: ${it.message}") }
+                        val ok = ctx.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                        Log.d(TAG, "Microphone permission for the direct microphone: $ok")
+                        geckoView.post { if (ok && !destroyed) callback.grant() else callback.reject() }
+                    }.start()
+                    return
+                }
+                callback.reject()
             }
 
             override fun onMediaPermissionRequest(
@@ -133,6 +145,15 @@ class GeckoWebEngine(
                 callback: GeckoSession.PermissionDelegate.MediaCallback,
             ) {
                 val camera = video?.firstOrNull { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_CAMERA }
+                val mic = audio?.firstOrNull { it.source == GeckoSession.PermissionDelegate.MediaSource.SOURCE_MICROPHONE }
+                // The direct microphone (the shim's deviceId 'glasses-direct'), for the app's own pages:
+                // granted without asking, as the phone's path is; with the camera, the camera's question.
+                if (mic != null && WebOrigin.matches(uri, WebOrigin.ofApp(app))) {
+                    Log.d(TAG, "Direct microphone for ${WebOrigin.of(uri)}${if (camera != null) " with the camera" else ""}")
+                    if (camera == null) return callback.grant(null, mic)
+                    host.onCameraRequest { allowed -> if (allowed && !destroyed) callback.grant(camera, mic) else callback.reject() }
+                    return
+                }
                 // The camera only, and only for the app's own pages (not another site's, a sign-in).
                 if (camera == null || !audio.isNullOrEmpty() || !WebOrigin.matches(uri, WebOrigin.ofApp(app))) {
                     Log.w(TAG, "Media request of ${WebOrigin.of(uri)} refused (camera=${camera != null}, audio=${audio?.size ?: 0})")

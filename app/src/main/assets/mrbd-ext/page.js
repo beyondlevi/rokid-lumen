@@ -385,8 +385,34 @@
       window.__lumenCameraStop = function () {
         cameraTracks.slice().forEach(function (track) { track.__lumenEnd(); });
       };
+      // The glasses' microphone straight into Gecko (deviceId 'glasses-direct'): no trip through
+      // the phone, so a live call hears you at once. The default stays the phone's path.
+      var DIRECT = 'glasses-direct';
+      var wantsDirect = function (audio) {
+        if (!audio || typeof audio !== 'object') return false;
+        var id = audio.deviceId;
+        if (id && typeof id === 'object') id = id.exact || id.ideal;
+        if (Array.isArray(id)) id = id[0];
+        return id === DIRECT;
+      };
+      var directAudio = function (audio) {
+        var copy = {};
+        Object.keys(audio).forEach(function (k) { if (k !== 'deviceId') copy[k] = audio[k]; });
+        if (copy.echoCancellation === undefined) copy.echoCancellation = true;
+        if (copy.noiseSuppression === undefined) copy.noiseSuppression = true;
+        if (copy.autoGainControl === undefined) copy.autoGainControl = true;
+        return copy;
+      };
       mediaDevices.getUserMedia = function (constraints) {
         if (!constraints || (!constraints.audio && !constraints.video)) return Promise.reject(new TypeError('audio or video required'));
+        if (wantsDirect(constraints.audio)) {
+          if (!nativeGetUserMedia) return Promise.reject(domError('NotFoundError', 'no direct microphone here'));
+          return nativeGetUserMedia({ audio: directAudio(constraints.audio), video: constraints.video || false }).then(function (stream) {
+            if (constraints.video) keepCamera(stream);
+            stream.getAudioTracks().forEach(function (t) { try { Object.defineProperty(t, 'label', { value: 'Glasses microphone (direct)' }); } catch (e) {} });
+            return stream;
+          });
+        }
         if (!constraints.video) return liveStream();
         if (!nativeGetUserMedia) return Promise.reject(domError('NotFoundError', 'the glasses have no camera for web apps'));
         return nativeGetUserMedia({ video: constraints.video, audio: false }).then(function (camera) {
@@ -402,10 +428,11 @@
       };
       mediaDevices.enumerateDevices = function () {
         var mic = { kind: 'audioinput', deviceId: 'glasses', groupId: 'glasses', label: 'Glasses microphone', toJSON: function () { return this; } };
+        var direct = { kind: 'audioinput', deviceId: DIRECT, groupId: 'glasses', label: 'Glasses microphone (direct)', toJSON: function () { return this; } };
         if (!nativeEnumerate) return Promise.resolve([mic]);
         return nativeEnumerate().then(function (list) {
-          return [mic].concat(Array.prototype.filter.call(list, function (d) { return d.kind === 'videoinput'; }));
-        }, function () { return [mic]; });
+          return [mic, direct].concat(Array.prototype.filter.call(list, function (d) { return d.kind === 'videoinput'; }));
+        }, function () { return [mic, direct]; });
       };
     }
 
