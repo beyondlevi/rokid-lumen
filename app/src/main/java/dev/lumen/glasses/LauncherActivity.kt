@@ -114,7 +114,7 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
 
         // The time at the top right, level with the tabs, and Wi-Fi's icon left of it while
         // connected (the phone's hotspot for a web app counts): as the glasses' status row.
-        // With the status bar on, the time is up there and only Wi-Fi's icon stays ([applyStatusBar]).
+        // With the status bar on, the time and Wi-Fi's icon are up there instead ([applyStatusBar]).
         clock = TextView(this).apply {
             setTextColor(MetaStyle.TEXT)
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, MetaStyle.textPx(context, 24f))
@@ -261,6 +261,7 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
     private fun applyStatusBar() {
         val bar = StatusBar.enabled(this)
         clock.visibility = if (bar) View.GONE else View.VISIBLE
+        updateWifi()
         (wifi.layoutParams as? LinearLayout.LayoutParams)?.let {
             it.marginEnd = if (bar) 0 else px(8f)
             wifi.layoutParams = it
@@ -268,7 +269,8 @@ class LauncherActivity : Activity(), BandAccessibilityService.InputTarget, Notif
     }
 
     private fun updateWifi() {
-        wifi.visibility = if (wifiNetworks.isEmpty()) View.GONE else View.VISIBLE
+        // With the status bar on, its own Wi-Fi icon is above this one: one is enough.
+        wifi.visibility = if (wifiNetworks.isEmpty() || StatusBar.enabled(this)) View.GONE else View.VISIBLE
     }
 
     override fun onGridChanged() = refreshApps()

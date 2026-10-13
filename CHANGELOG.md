@@ -3,6 +3,14 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.26]
+
+### Glasses
+
+- **Wi-Fi in the status bar.** The bar above every app shows Wi-Fi's icon next to the battery
+  while the glasses are on a Wi-Fi network (the phone's hotspot for an online app counts), as the
+  home did. With the status bar on, the home no longer shows its own copy.
+
 ## [0.2.0-beta.25]
 
 ### Band

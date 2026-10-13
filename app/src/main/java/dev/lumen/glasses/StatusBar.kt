@@ -11,6 +11,10 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.RectF
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
@@ -24,7 +28,7 @@ import android.widget.TextView
 import java.util.concurrent.CopyOnWriteArraySet
 
 /**
- * The glasses' status bar (the status bar canvas): the time and the glasses' battery in the strip
+ * The glasses' status bar (the status bar canvas): the time, Wi-Fi's icon while connected and the glasses' battery in the strip
  * above the app's square, over any app but the Rokid launcher (which has its own), so neither is
  * ever covered by a page. On by default, a Glasses setting turns it off; Lumen's home then shows
  * its own clock again ([addListener]).
@@ -84,6 +88,9 @@ class StatusBarOverlay(private val service: BandAccessibilityService) {
     private var percent: TextView? = null
     private var glyph: BatteryGlyph? = null
     private var camera: View? = null
+    private var wifi: android.widget.ImageView? = null
+    /** Wi-Fi networks up now (the phone's hotspot for a web app counts), as on Lumen's home. */
+    private val wifiNetworks = HashSet<Network>()
     private var battery: StatusBar.Battery? = null
     private var overFront = true
     private var started = false
@@ -97,6 +104,14 @@ class StatusBarOverlay(private val service: BandAccessibilityService) {
     private val debounced = Runnable { checkFront() }
     private val settingListener: () -> Unit = { update() }
     private val cameraListener: () -> Unit = { update() }
+    private val wifiCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            main.post { wifiNetworks += network; update() }
+        }
+        override fun onLost(network: Network) {
+            main.post { wifiNetworks -= network; update() }
+        }
+    }
 
     fun start() {
         if (started) return
@@ -113,6 +128,10 @@ class StatusBarOverlay(private val service: BandAccessibilityService) {
         StatusBar.addListener(settingListener)
         CameraState.start(service)
         CameraState.addListener(cameraListener)
+        runCatching {
+            service.getSystemService(ConnectivityManager::class.java).registerNetworkCallback(
+                NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(), wifiCallback)
+        }
         checkFront()
     }
 
@@ -122,6 +141,8 @@ class StatusBarOverlay(private val service: BandAccessibilityService) {
         runCatching { service.unregisterReceiver(receiver) }
         StatusBar.removeListener(settingListener)
         CameraState.removeListener(cameraListener)
+        runCatching { service.getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(wifiCallback) }
+        wifiNetworks.clear()
         main.removeCallbacksAndMessages(null)
         remove()
     }
@@ -169,6 +190,10 @@ class StatusBarOverlay(private val service: BandAccessibilityService) {
         }
         // Anyone has the camera (a web app, the capture screen, Rokid's photos): the camera canvas's pill.
         camera?.visibility = if (CameraState.inUse) View.VISIBLE else View.GONE
+        wifi?.apply {
+            visibility = if (wifiNetworks.isEmpty()) View.GONE else View.VISIBLE
+            setColorFilter(MetaStyle.TEXT_PLACEHOLDER, android.graphics.PorterDuff.Mode.SRC_IN)
+        }
         content.contentDescription = if (reading == null) time?.text else service.getString(
             if (reading.charging) R.string.status_bar_description_charging else R.string.status_bar_description,
             time?.text, reading.percent,
@@ -202,6 +227,15 @@ class StatusBarOverlay(private val service: BandAccessibilityService) {
         addView(View(service), LinearLayout.LayoutParams(0, 1, 1f))
         camera = cameraPill().also { addView(it, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, MetaStyle.px(service, 37.5f))) }
         addView(View(service), LinearLayout.LayoutParams(0, 1, 1f))
+        // Wi-Fi's icon left of the battery while connected, as on Lumen's home.
+        wifi = android.widget.ImageView(service).apply {
+            setImageResource(R.drawable.ic_wifi)
+            visibility = View.GONE
+        }.also {
+            addView(it, LinearLayout.LayoutParams(MetaStyle.px(service, WIFI), MetaStyle.px(service, WIFI)).apply {
+                marginEnd = MetaStyle.px(service, 12f)
+            })
+        }
         glyph = BatteryGlyph(service).also {
             addView(it, LinearLayout.LayoutParams(MetaStyle.px(service, 34f), MetaStyle.px(service, 17.5f)).apply {
                 marginEnd = MetaStyle.px(service, 9f)
@@ -249,6 +283,7 @@ class StatusBarOverlay(private val service: BandAccessibilityService) {
         percent = null
         glyph = null
         camera = null
+        wifi = null
     }
 
     /** The battery's outline with its level, and a bolt while plugged in (the canvas's 27 x 14). */
@@ -309,6 +344,8 @@ class StatusBarOverlay(private val service: BandAccessibilityService) {
         /** The canvas's 17 px text and 28 px sides, in viewport px (x 0.8 on the glasses). */
         private const val TEXT = 21f
         private const val SIDE = 35f
+        /** Wi-Fi's icon, the size of the text's line. */
+        private const val WIFI = 24f
         /** Below this strip (a display about as tall as wide) there's no room for it. */
         private const val MIN_STRIP = 40f
         private val LOW = Color.rgb(238, 190, 92)
