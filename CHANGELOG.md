@@ -3,6 +3,15 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.25]
+
+### Glasses
+
+- **The display stays on while you write with the band.** The band's letters didn't count as
+  use, so after the screen timeout (2 minutes by default) the display went off in the middle of a
+  sentence, ending the writing. Every letter and suggestion now restarts the countdown, as a
+  gesture does.
+
 ## [0.2.0-beta.24]
 
 ### Web apps

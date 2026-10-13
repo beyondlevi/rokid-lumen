@@ -522,6 +522,9 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
 
     private fun onHandwriting(event: JSONObject) {
         if (mode != Mode.WRITING) return
+        // The band's letters come straight to the keyboard, not through accessibility: without
+        // this the display went off mid-sentence after the screen timeout (ScreenTimeout).
+        ScreenTimeout.onUserActivity(this)
         when (event.optString("type")) {
             "state" -> when (event.optString("phase")) {
                 "ready" -> {
