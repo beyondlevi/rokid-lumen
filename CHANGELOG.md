@@ -5,7 +5,19 @@
 
 ## [0.2.0-beta.25]
 
+### Band
+
+- **The band stands by while the glasses' screen is off**, as with Meta's display glasses: it
+  sends no gestures and doesn't vibrate until you double tap with the middle finger, and your next
+  gesture turns the screen on. Power saving stays as it was, for a band that should send nothing
+  at all with the screen off. (Found with the help of Kinesis's author: the request is the band's
+  device state, standby or active.)
+
 ### Glasses
+
+- **An update keeps the band and Lumen's keyboard on.** Installing a new version turned the
+  band's service off and gave the default keyboard back to Rokid's until the glasses restarted;
+  both are now put back as soon as the update lands.
 
 - **The display stays on while you write with the band.** The band's letters didn't count as
   use, so after the screen timeout (2 minutes by default) the display went off in the middle of a

@@ -22,6 +22,15 @@ public final class BootReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
+        if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(intent.getAction())) {
+            // An update unbinds the accessibility service (Android drops it from the enabled
+            // list) and gives the default keyboard back to Rokid's: put both back at once, as the
+            // self-arm does at boot, instead of waiting for a watchdog that may not be running.
+            Log.d(TAG, "Updated: restoring the band's service and Lumen's keyboard");
+            KeyboardDefault.apply(context);
+            SelfArmController.armOnBoot(context);
+            return;
+        }
         if (!Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
             return;
         }

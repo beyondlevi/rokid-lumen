@@ -212,11 +212,18 @@ object BandRuntime {
     private var motion = true
     /** Gesture stream wanted: off while the screen is off in power saving. */
     private var gestures = true
+    /** The band was asked to stand by ([applyStreams]): it sends nothing until its wake gesture. */
+    private var standby = false
+
+    /** The band is standing by for the screen: its next gesture is the one after its wake gesture. */
+    @JvmStatic
+    fun inStandby() = standby && !screenOn
 
     /**
-     * The screen went on or off. Off, the band stops its motion streams, and with power saving
-     * ([GestureMappings.isPowerSaving]) its gestures too: it then sends nothing and doesn't
-     * vibrate, and only the glasses' button brings the screen (and the band) back.
+     * The screen went on or off. Off, the band stops its motion streams and stands by: it then
+     * sends nothing until the middle double tap wakes it, and its next gesture turns the screen on
+     * (see [inStandby]). With power saving ([GestureMappings.isPowerSaving]) its gestures stop too,
+     * as before: it doesn't vibrate, and only the glasses' button brings the screen back.
      */
     @JvmStatic
     fun setScreenOn(context: Context, on: Boolean) {
@@ -224,6 +231,15 @@ object BandRuntime {
         // No cursor over a dark display (and no motion for it).
         if (!on) GlassesPointer.stop()
         applyStreams(context)
+    }
+
+    /** Asks the band for a device state (1 standby, 2 active); false when it isn't connected. */
+    @JvmStatic
+    fun setDeviceState(state: Int): Boolean {
+        val device = device ?: return false
+        if (phase != Phase.CONNECTED) return false
+        device.setDeviceState(state)
+        return true
     }
 
     /** The air mouse on the band ([GlassesPointer]); false when the band isn't connected or can't run it. */
@@ -256,7 +272,17 @@ object BandRuntime {
             gestures = wantGestures
             device?.setGestures(wantGestures)
         }
+        // Meta's display glasses do the same: the band stands by with the display off.
+        val wantStandby = !screenOn && !GestureMappings.isPowerSaving(context) && phase == Phase.CONNECTED
+        if (standby != wantStandby && phase == Phase.CONNECTED) {
+            standby = wantStandby
+            device?.setDeviceState(if (wantStandby) DEVICE_STANDBY else DEVICE_ACTIVE)
+            note(if (wantStandby) "band standing by" else "band active")
+        }
     }
+
+    private const val DEVICE_STANDBY = 1
+    private const val DEVICE_ACTIVE = 2
 
     @JvmStatic
     fun setPaused(context: Context, paused: Boolean) {
@@ -309,7 +335,11 @@ object BandRuntime {
     }
 
     private fun setPhase(phase: Phase, band: String?) {
+        val connected = phase == Phase.CONNECTED && this.phase != Phase.CONNECTED
         this.phase = phase
+        // A new link starts active: stand it by again if the screen is off.
+        if (phase != Phase.CONNECTED) standby = false
+        if (connected) appContext?.let { applyStreams(it) }
         // The air mouse ends with the connection.
         if (phase != Phase.CONNECTED) GlassesPointer.stop()
         appContext?.let { BandSwitch.onPhase(it, phase) }

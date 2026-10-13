@@ -230,6 +230,8 @@ pub struct BandSession {
     end_link_sent: bool,
     configuration_id: u64,
     hand_request: Option<HandRequest>,
+    /// The id of a pending device-state request (ConfigReq field 6: 1 standby, 2 active).
+    device_state_request: Option<(u64, u64)>,
     hand: Option<Hand>,
     /// The band's handwriting model, switched on and off on request.
     model: ModelCapture,
@@ -306,6 +308,7 @@ impl BandSession {
             end_link_sent: false,
             configuration_id: 0,
             hand_request: None,
+            device_state_request: None,
             hand: None,
             model: ModelCapture::default(),
             settings_opened: false,
@@ -605,7 +608,20 @@ impl BandSession {
                             frame.payload.len()
                         ));
                     }
-                    let produced = self.input(&frame, time, &mut outgoing)?;
+                    let produced = match self.input(&frame, time, &mut outgoing) {
+                        Ok(produced) => produced,
+                        // A frame this firmware sends that we can't read is logged and skipped, not
+                        // fatal: one misread message mustn't drop the link.
+                        Err(error) if self.streaming && error.to_string().to_lowercase().contains("protobuf") => {
+                            vec![Event::DeviceStateReply(format!(
+                                "unreadable frame skipped ({error}): ch {:#x} words {:08x?} payload {}",
+                                frame.channel,
+                                frame.words,
+                                frame.payload.iter().take(96).map(|x| format!("{x:02x}")).collect::<String>()
+                            ))]
+                        }
+                        Err(error) => return Err(error),
+                    };
                     events.extend(produced);
                 }
                 if self.streaming && !self.stopping && time - self.last_heartbeat >= 0.2 {
@@ -726,6 +742,28 @@ impl BandSession {
         }
         self.dial = PinchDial::default();
         self.request_hand(Some(hand), false, time)
+    }
+
+    /// Asks the band for a device state, as Meta's client does on the middle double tap with
+    /// host sleep handling on (per Kinesis's author): ConfigReq field 6, 1 standby, 2 active. In
+    /// standby the band sends no gesture until its wake gesture (the middle double tap), which it
+    /// keeps and doesn't report; the reply (field 6 echoed) is only logged.
+    pub fn request_device_state(&mut self, state: u64) -> Result<Vec<u8>> {
+        let id = self.configuration_id + 1;
+        let words: &[u32] = if self.configuration_id == 0 {
+            &SERVICE_OPEN
+        } else {
+            &[]
+        };
+        let frame = encode_frame(
+            CONFIGURATION_CHANNEL,
+            words,
+            &[field_int(1, id), field_bytes(5, &field_int(6, state))].concat(),
+        )?;
+        let bytes = self.encrypt(&frame)?;
+        self.configuration_id = id;
+        self.device_state_request = Some((id, state));
+        Ok(bytes)
     }
 
     fn request_hand(&mut self, hand: Option<Hand>, reading: bool, time: f64) -> Result<Vec<u8>> {
@@ -1421,6 +1459,12 @@ impl BandSession {
                     "The band rejected the input subscription. Try reconnecting.",
                 ));
             }
+            if route(frame.channel) == 6 && self.device_state_request.take().is_some() {
+                return Ok(vec![Event::DeviceStateReply(format!(
+                    "device state request rejected, payload {}",
+                    frame.payload.iter().map(|x| format!("{x:02x}")).collect::<String>()
+                ))]);
+            }
             if route(frame.channel) == 6 && self.hand_request.is_some() {
                 self.hand_request = None;
                 self.hand = None;
@@ -1474,6 +1518,21 @@ impl BandSession {
                 return Ok(Vec::new());
             }
             let fields = ProtoFields::parse(&frame.payload)?;
+            if let Some((id, state)) = self.device_state_request {
+                if fields.integer(1).ok() == Some(id) {
+                    self.device_state_request = None;
+                    let status = fields.integer(2).map(|s| s.to_string()).unwrap_or_else(|_| "none".into());
+                    let config = if fields.contains(6) {
+                        fields.bytes(6).map(|b| b.iter().map(|x| format!("{x:02x}")).collect::<String>()).unwrap_or_default()
+                    } else {
+                        "-".into()
+                    };
+                    return Ok(vec![Event::DeviceStateReply(format!(
+                        "device state {state} reply: status {status}, config {config}, payload {}",
+                        frame.payload.iter().map(|x| format!("{x:02x}")).collect::<String>()
+                    ))]);
+                }
+            }
             return self.receive_hand(&fields, time, outgoing);
         }
         if kind == RPC_RESPONSE

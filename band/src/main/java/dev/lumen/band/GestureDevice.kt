@@ -43,6 +43,9 @@ interface GestureDevice {
      */
     fun setGestures(enabled: Boolean) = Unit
 
+    /** Asks the band for a device state (1 standby, 2 active). */
+    fun setDeviceState(state: Int) = Unit
+
     /** `gesture=action;…` (see [BandLink.Config.mapping]). */
     fun setMapping(mapping: String)
 

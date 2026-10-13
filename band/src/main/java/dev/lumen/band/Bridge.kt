@@ -25,6 +25,8 @@ object Bridge {
     @JvmStatic external fun setMotion(handle: Long, enabled: Boolean)
     /** The band's gesture stream on or off (off with motion off: the band's power saving); sent with the next tick. */
     @JvmStatic external fun setGestures(handle: Long, enabled: Boolean)
+    /** Asks the band for a device state (1 standby, 2 active). */
+    @JvmStatic external fun setDeviceState(handle: Long, state: Int)
     @JvmStatic external fun setDial(handle: Long, dial: String)
     /** `gesture=action;…` (see [BandLink.Config.mapping]). */
     @JvmStatic external fun setMapping(handle: Long, mapping: String)

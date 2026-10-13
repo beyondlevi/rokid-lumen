@@ -187,6 +187,13 @@ public final class BandAccessibilityService extends AccessibilityService {
                 });
                 return;
             }
+            String bandState = intent.getStringExtra("band_state");
+            if (bandState != null) {
+                // Debug builds: ask the band for a device state (1 standby, 2 active).
+                mainHandler.post(() -> Log.d(TAG, "Band device state " + bandState + ": "
+                        + BandRuntime.setDeviceState(Integer.parseInt(bandState))));
+                return;
+            }
             String handwritingText = intent.getStringExtra("handwriting_text");
             if (handwritingText != null) {
                 // Debug builds: what the simulated band writes while its handwriting is on.
@@ -464,6 +471,13 @@ public final class BandAccessibilityService extends AccessibilityService {
             return;
         }
         if (!isScreenOn()) {
+            // A standing-by band sends nothing until its wake gesture (the middle double tap,
+            // which it keeps): the first gesture after it turns the screen on.
+            if (BandRuntime.inStandby()) {
+                Log.d(TAG, "Band woke from standby: screen on for command=" + command);
+                wakeScreenForBandInput("standby");
+                return;
+            }
             Log.d(TAG, "Ignored band input with the screen off command=" + command);
             return;
         }

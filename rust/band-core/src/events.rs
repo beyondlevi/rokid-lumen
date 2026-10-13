@@ -151,6 +151,8 @@ pub enum Event {
     /// Relative wrist rotation while the dial is armed, coalesced to ≥ 20 ms.
     DialTurn(f64),
     Handedness(Hand),
+    /// The band's reply to a device-state request (ConfigReq field 6), described for the log.
+    DeviceStateReply(String),
     HandednessFailure(String),
     /// `None` = unknown (timed out, rejected or unsupported).
     BatteryStatus(Option<BatteryStatus>),
@@ -201,6 +203,7 @@ impl std::fmt::Debug for Event {
             Self::DialState(on) => f.debug_tuple("DialState").field(on).finish(),
             Self::DialTurn(delta) => f.debug_tuple("DialTurn").field(delta).finish(),
             Self::Handedness(hand) => f.debug_tuple("Handedness").field(hand).finish(),
+            Self::DeviceStateReply(text) => f.debug_tuple("DeviceStateReply").field(text).finish(),
             Self::HandednessFailure(message) => {
                 f.debug_tuple("HandednessFailure").field(message).finish()
             }

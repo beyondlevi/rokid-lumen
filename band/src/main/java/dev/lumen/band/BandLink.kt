@@ -184,6 +184,11 @@ class BandLink(
         if (handle != 0L) Bridge.setMotion(handle, enabled)
     }
 
+    /** Asks the band for a device state (1 standby, 2 active). */
+    override fun setDeviceState(state: Int) = synchronized(lock) {
+        if (handle != 0L) Bridge.setDeviceState(handle, state)
+    }
+
     /** The gesture stream on or off on the band; kept for the next connection. */
     override fun setGestures(enabled: Boolean) = synchronized(lock) {
         gestures = enabled

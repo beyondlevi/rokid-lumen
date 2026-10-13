@@ -281,6 +281,17 @@ pub extern "system" fn Java_dev_lumen_band_Bridge_setGestures<'local>(
     unsafe { connection(handle) }.set_gestures(enabled != 0);
 }
 
+/// Asks the band for a device state (1 standby, 2 active).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_lumen_band_Bridge_setDeviceState<'local>(
+    _env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    state: jint,
+) {
+    unsafe { connection(handle) }.set_device_state(state as u64);
+}
+
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_lumen_band_Bridge_setDial<'local>(
     mut env: JNIEnv<'local>,

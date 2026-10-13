@@ -52,6 +52,8 @@ pub struct Connection {
     motion: bool,
     gestures: bool,
     streams_sent: (bool, bool),
+    /// A device state to request with the next tick (1 standby, 2 active).
+    device_state: Option<u64>,
     actions: Vec<String>,
     log: Vec<String>,
     /// The ownership ceremony's events (claim mode), as JSON lines for the app.
@@ -151,6 +153,7 @@ impl Connection {
             motion: true,
             gestures: true,
             streams_sent: (true, true),
+            device_state: None,
             actions: Vec::new(),
             log: Vec::new(),
             claim: Vec::new(),
@@ -238,6 +241,16 @@ impl Connection {
             outgoing.extend(bytes);
             for event in &events {
                 outgoing.extend(self.on_event(event, now)?);
+            }
+        }
+        if self.session.streams_enabled() {
+            if let Some(state) = self.device_state.take() {
+                self.log.push(format!("device state {state} requested"));
+                outgoing.extend(
+                    self.session
+                        .request_device_state(state)
+                        .map_err(|e| e.to_string())?,
+                );
             }
         }
         let wanted = (self.gestures, self.motion);
@@ -512,6 +525,11 @@ impl Connection {
         self.gestures = enabled;
     }
 
+    /// Asks the band for a device state with the next tick (1 standby, 2 active).
+    pub fn set_device_state(&mut self, state: u64) {
+        self.device_state = Some(state);
+    }
+
     pub fn set_paused(&mut self, paused: bool, now: f64) {
         let pointer = self.controller.pointer_on();
         if paused {
@@ -621,6 +639,7 @@ impl Connection {
                 self.log.push("connected".into());
             }
             Event::Handedness(hand) => self.log.push(format!("hand {hand:?}").to_lowercase()),
+            Event::DeviceStateReply(text) => self.log.push(text.clone()),
             // While the air mouse runs, each pinch report (no sensor data), to see what the band sends.
             Event::Gesture(message) if self.controller.pointer_on() && message.finger != "thumb" => self.log.push(format!(
                 "air mouse pinch {} {}/{}{}",
