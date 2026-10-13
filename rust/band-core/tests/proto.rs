@@ -170,3 +170,27 @@ fn a_whole_block_of_padding_after_an_aligned_frame_is_dropped() {
     assert_eq!(frames[0].words, vec![0x02002001]);
     assert_eq!(frames[0].payload, second);
 }
+
+/// Newer firmware also splits a frame across records and pads the first part (seen on hardware
+/// 2026-10-13: a gesture-stream frame completed with 0xd0 padding, after which every frame was
+/// misread and gestures stopped reaching the app). Once a whole block of 0xd0 shows the firmware
+/// pads every record, each record's padding goes before the frame is reassembled.
+#[test]
+fn a_frame_split_across_padded_records_is_reassembled() {
+    let mut receiver = DataXReceiver::default();
+    let first: Vec<u8> = (0..24).collect();
+    let aligned = encode_frame(2, &[0x02003001], &first).unwrap();
+    assert_eq!(receiver.feed(&[aligned, vec![0xd0; 16]].concat()).unwrap().len(), 1);
+
+    let payload: Vec<u8> = (0..40).collect();
+    let frame = encode_frame(5, &[0x0200020f], &payload).unwrap();
+    assert_eq!(frame.len(), 48);
+    // 16 bytes of the frame, padded by a whole block; then the remaining 32, padded too.
+    let head = [frame[..16].to_vec(), vec![0xd0; 16]].concat();
+    assert!(receiver.feed(&head).unwrap().is_empty());
+    let frames = receiver.feed(&[frame[16..].to_vec(), vec![0xd0; 16]].concat()).unwrap();
+    assert_eq!(frames.len(), 1);
+    assert_eq!(frames[0].words, vec![0x0200020f]);
+    assert_eq!(frames[0].payload, payload);
+    assert_eq!(receiver.pending_len(), 0);
+}

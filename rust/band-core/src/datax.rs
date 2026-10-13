@@ -47,6 +47,10 @@ pub struct DataXFrame {
 #[derive(Default)]
 pub struct DataXReceiver {
     pending: Vec<u8>,
+    /// Newer firmware pads every record (1..=16 bytes): seen once (a whole block of 0xd0, which
+    /// older firmware never sends), each record loses its padding before it's appended, so a frame
+    /// split across records isn't completed with the first record's padding.
+    always_padded: bool,
 }
 
 impl std::fmt::Debug for DataXReceiver {
@@ -86,7 +90,20 @@ impl DataXReceiver {
         if plaintext.is_empty() || !plaintext.len().is_multiple_of(16) {
             return Err(perr("Unaligned DataX plaintext"));
         }
-        self.pending.extend_from_slice(plaintext);
+        if plaintext.len() >= 16 && plaintext[plaintext.len() - 16..].iter().all(|&byte| byte == 0xd0) {
+            self.always_padded = true;
+        }
+        let mut record = plaintext;
+        if self.always_padded {
+            let marker = plaintext[plaintext.len() - 1];
+            let count = usize::from(marker.wrapping_sub(0xc0));
+            if (1..=16).contains(&count)
+                && plaintext[plaintext.len() - count..].iter().all(|&byte| byte == marker)
+            {
+                record = &plaintext[..plaintext.len() - count];
+            }
+        }
+        self.pending.extend_from_slice(record);
         let mut frames = Vec::new();
         while self.pending.len() >= 4 {
             let length = be16(&self.pending, 0);

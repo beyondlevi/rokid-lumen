@@ -11,6 +11,11 @@
   use, so after the screen timeout (2 minutes by default) the display went off in the middle of a
   sentence, ending the writing. Every letter and suggestion now restarts the countdown, as a
   gesture does.
+- **Gestures no longer stop reaching the glasses while the band still vibrates.** Newer band
+  firmware can split a message across two records and pad the first one; Lumen read the padding
+  as the end of the message, and from then on misread everything the band sent, so gestures were
+  recognised by the band and ignored by the glasses, or the link dropped and reconnected in a loop.
+  Each record's padding is now removed before the message is put back together.
 
 ## [0.2.0-beta.24]
 
