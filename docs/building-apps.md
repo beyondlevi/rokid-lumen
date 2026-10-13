@@ -199,6 +199,19 @@ Failures are `Error`s with a `code`: `busy` (another recording, transcription or
 `unavailable` (the phone lost the microphone or couldn't encode) or `timeout` (the glasses
 stopped hearing from the phone).
 
+#### Live voice (calls, WebRTC): ask for `glasses-direct`
+
+For a live conversation, ask for the glasses' own microphone:
+`getUserMedia({audio: {deviceId: {exact: 'glasses-direct'}}})`. Lumen records it on the glasses
+with Android's voice-call source, which uses the platform's echo cancellation and noise
+suppression, and hands it to the page in 20 ms pieces. The default microphone goes through the
+phone and back over Rokid's link: fine for dictation and recordings, but too slow for a call.
+
+Don't bring your own capture through the browser's WebRTC processing. Measured on the glasses
+(2026-10-13): with echo cancellation and noise suppression on, it erased the voice; with them
+off, the voice was weak and the speakers' sound came in at the same level. `glasses-direct` keeps
+the voice strong while audio plays. A Volund OS call through it felt as quick as on a computer.
+
 ### Camera
 
 The glasses' camera (GeckoView apps), through the standard APIs:
