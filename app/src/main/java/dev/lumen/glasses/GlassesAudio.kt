@@ -54,6 +54,9 @@ object GlassesAudio {
     }
 
     private val main by lazy { Handler(Looper.getMainLooper()) }
+    /** The page's live audio from the glasses' own microphone ([LocalMicrophone]): its screen, page id and recorder. */
+    private class Local(val owner: Any, val pageId: String, val mic: LocalMicrophone)
+    private var local: Local? = null
     private val random = SecureRandom()
     private val jobs = LinkedHashMap<String, Job>()
 
@@ -63,6 +66,15 @@ object GlassesAudio {
         val pageId = message.optString("id")
         if (pageId.isEmpty()) return
         val job = jobs.values.firstOrNull { it.owner === owner && it.pageId == pageId }
+        local?.takeIf { it.owner === owner && it.pageId == pageId }?.let { l ->
+            when (message.optString("op")) {
+                AudioOps.STOP, AudioOps.CANCEL -> stopLocal(l, if (message.optString("op") == AudioOps.STOP) "stop" else null)
+            }
+            return
+        }
+        if (message.optString("op") == AudioOps.RECORD && message.optBoolean("live") && message.optBoolean("direct")) {
+            return recordLocal(owner, pageId, page)
+        }
         when (message.optString("op")) {
             AudioOps.RECORD -> record(owner, pageId, message.optLong("maxMs", AudioOps.MAX_RECORD_MS), message.optBoolean("live"), page)
             AudioOps.STOP -> job?.takeIf { it.kind == Kind.RECORD && !it.stopped }?.let { stop(it) }
@@ -73,12 +85,44 @@ object GlassesAudio {
 
     /** A recording or transcription is under way (the microphone and the engine are taken). */
     @JvmStatic
-    fun busy() = jobs.isNotEmpty()
+    fun busy() = jobs.isNotEmpty() || local != null
 
     /** The screen closed: its recordings and transcriptions end, on the phone too. */
     @JvmStatic
     fun closeAll(owner: Any) {
         jobs.values.filter { it.owner === owner }.forEach { cancel(it, quiet = true) }
+        local?.takeIf { it.owner === owner }?.let { stopLocal(it, null) }
+    }
+
+    /** A page's live audio from the glasses' own microphone: no phone in the path. */
+    private fun recordLocal(owner: Any, pageId: String, page: Page) {
+        val context = owner as? android.content.Context ?: return page.event(error(pageId, AudioError.UNAVAILABLE))
+        if (Dictation.isListening() || jobs.isNotEmpty() || local != null) return page.event(error(pageId, AudioError.BUSY))
+        lateinit var entry: Local
+        val mic = LocalMicrophone(
+            context.applicationContext,
+            onStarted = { if (local === entry) page.event(event("started", pageId)) },
+            onPcm = { seq, bytes ->
+                if (local === entry) page.event(event("pcm", pageId).put("seq", seq).put("data", Base64.encodeToString(bytes, Base64.NO_WRAP)))
+            },
+            onFailed = { message ->
+                if (local === entry) {
+                    local = null
+                    page.event(error(pageId, AudioError.UNAVAILABLE, message))
+                }
+            },
+        )
+        entry = Local(owner, pageId, mic)
+        local = entry
+        Log.d(TAG, "live audio for page id $pageId from the glasses' microphone")
+        mic.start()
+    }
+
+    private fun stopLocal(entry: Local, reason: String?) {
+        if (local !== entry) return
+        local = null
+        entry.mic.stop()
+        Log.d(TAG, "live audio for page id ${entry.pageId} from the glasses' microphone ends (${reason ?: "cancel"})")
     }
 
     private fun newId() = ByteArray(8).also(random::nextBytes).joinToString("") { "%02x".format(it) }

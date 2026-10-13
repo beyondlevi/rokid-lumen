@@ -282,7 +282,7 @@
       try { return new DOMException(message || name, name); } catch (e) { var error = new Error(message || name); error.name = name; return error; }
     }
     var GUM_ERRORS = { 'busy': 'NotReadableError', 'unavailable': 'NotReadableError', 'no-phone': 'NotFoundError', 'timeout': 'NotReadableError', 'cancelled': 'AbortError' };
-    function liveStream() {
+    function liveStream(direct) {
       var id = 'l' + audioId++;
       return new Promise(function (resolve, reject) {
         var Context = window.AudioContext || window.webkitAudioContext;
@@ -317,7 +317,7 @@
                 finish();
                 stopTrack();
               };
-              try { Object.defineProperty(track, 'label', { value: 'Glasses microphone' }); } catch (e) {}
+              try { Object.defineProperty(track, 'label', { value: direct ? 'Glasses microphone (direct)' : 'Glasses microphone' }); } catch (e) {}
               resolve(stream);
             } else if (event.type === 'pcm' && context && !done) {
               var raw = atob(event.data);
@@ -347,7 +347,7 @@
             }
           }
         };
-        audioSend({ op: 'record', id: id, live: true, maxMs: 30 * 60000 });
+        audioSend({ op: 'record', id: id, live: true, direct: !!direct, maxMs: 30 * 60000 });
       });
     }
     var mediaDevices = navigator.mediaDevices;
@@ -385,8 +385,8 @@
       window.__lumenCameraStop = function () {
         cameraTracks.slice().forEach(function (track) { track.__lumenEnd(); });
       };
-      // The glasses' microphone straight into Gecko (deviceId 'glasses-direct'): no trip through
-      // the phone, so a live call hears you at once. The default stays the phone's path.
+      // The glasses' own microphone (deviceId 'glasses-direct'), captured by Lumen on the glasses:
+      // no trip through the phone, so a live call hears you at once. The default stays the phone's.
       var DIRECT = 'glasses-direct';
       var wantsDirect = function (audio) {
         if (!audio || typeof audio !== 'object') return false;
@@ -395,22 +395,17 @@
         if (Array.isArray(id)) id = id[0];
         return id === DIRECT;
       };
-      var directAudio = function (audio) {
-        var copy = {};
-        Object.keys(audio).forEach(function (k) { if (k !== 'deviceId') copy[k] = audio[k]; });
-        if (copy.echoCancellation === undefined) copy.echoCancellation = true;
-        if (copy.noiseSuppression === undefined) copy.noiseSuppression = true;
-        if (copy.autoGainControl === undefined) copy.autoGainControl = true;
-        return copy;
-      };
       mediaDevices.getUserMedia = function (constraints) {
         if (!constraints || (!constraints.audio && !constraints.video)) return Promise.reject(new TypeError('audio or video required'));
         if (wantsDirect(constraints.audio)) {
-          if (!nativeGetUserMedia) return Promise.reject(domError('NotFoundError', 'no direct microphone here'));
-          return nativeGetUserMedia({ audio: directAudio(constraints.audio), video: constraints.video || false }).then(function (stream) {
-            if (constraints.video) keepCamera(stream);
-            stream.getAudioTracks().forEach(function (t) { try { Object.defineProperty(t, 'label', { value: 'Glasses microphone (direct)' }); } catch (e) {} });
-            return stream;
+          // Lumen's own capture on the glasses (Android's voice-call source); with a camera, its video too.
+          if (!constraints.video) return liveStream(true);
+          if (!nativeGetUserMedia) return Promise.reject(domError('NotFoundError', 'the glasses have no camera for web apps'));
+          return nativeGetUserMedia({ video: constraints.video, audio: false }).then(function (camera) {
+            var video = keepCamera(camera);
+            return liveStream(true).then(function (audio) {
+              return new MediaStream(video.getVideoTracks().concat(audio.getAudioTracks()));
+            });
           });
         }
         if (!constraints.video) return liveStream();

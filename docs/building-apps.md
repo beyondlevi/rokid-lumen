@@ -104,7 +104,7 @@ added only when the page doesn't have it already, and only where the host bridge
 | `window.lumen.config.get()` | Resolves to `{key: value}`: the app's settings, set from the phone. A key that isn't set is missing. |
 | `window.lumen.config.onChange(cb)` | Calls `cb(values)` whenever the phone changes a setting while the app is open. Returns a function that removes `cb`. |
 | `navigator.mediaDevices.getUserMedia({audio: true})` | A `MediaStream` from the glasses' microphone, live; `MediaRecorder` and Web Audio work on it as in any browser (see [Audio](#audio)). |
-| `getUserMedia({audio: {deviceId: 'glasses-direct'}})` | The glasses' microphone straight into the browser, with its echo cancellation and noise suppression: no trip through the phone, for live calls (WebRTC). The default path above goes through the phone and suits dictation and recordings. `enumerateDevices()` lists both. |
+| `getUserMedia({audio: {deviceId: 'glasses-direct'}})` | The glasses' microphone captured by Lumen on the glasses (Android's voice-call source, the platform's echo cancellation and noise suppression), 16 kHz in 20 ms pieces: no trip through the phone, for live calls (WebRTC). The default path above goes through the phone and suits dictation and recordings. `enumerateDevices()` lists both. |
 | `navigator.mediaDevices.getUserMedia({video: true})` | The glasses' camera, live, once the wearer allows the app (GeckoView; see [Camera](#camera)). With `audio` too, one stream with both. |
 | `<input type="file" accept="image/*">` | A photo taken on the glasses' capture screen (see [Camera](#camera)). |
 | `SpeechRecognition`, `webkitSpeechRecognition` | The Web Speech API's recognition, on the glasses' dictation (see [Audio](#audio)). |

@@ -8,8 +8,8 @@
 ### Web apps
 
 - **A direct microphone for calls.** `getUserMedia({audio: {deviceId: 'glasses-direct'}})` takes
-  the glasses' microphone straight into the browser, without the trip to the phone and back that
-  dictation uses, so a live call hears you at once. The default microphone stays as it was.
+  the glasses' microphone on the glasses themselves (Android's voice-call capture, with its echo
+  cancellation), without the trip to the phone and back that dictation uses, so a live call hears you at once. The default microphone stays as it was.
 
 ## [0.2.0-beta.27]
 
