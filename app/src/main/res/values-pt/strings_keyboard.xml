@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="keyboard_name">Teclado do Lumen</string>
-    <string name="keyboard_hint">Indicador: ditar, escrever ou celular</string>
-    <string name="keyboard_hint_password">Indicador: escrever ou celular</string>
     <string name="keyboard_hint_action">Indicador: %1$s ou continuar</string>
     <string name="keyboard_status_choose">Como escrever?</string>
     <string name="keyboard_status_continue">Como continuar?</string>
@@ -12,7 +10,7 @@
     <string name="keyboard_password_writing_hint">A senha não aparece · Médio: concluir</string>
     <string name="keyboard_choice_phone">Celular</string>
     <string name="keyboard_phone_status">Digite no celular</string>
-    <string name="keyboard_phone_hint">O teclado abriu no celular; o texto chega enquanto você digita · Médio: fechar</string>
+    <string name="keyboard_phone_hint">Digite no celular; o texto chega enquanto você digita · Indicador: trocar · Médio: fechar</string>
     <string name="keyboard_enter_label">Enter: %1$s</string>
     <string name="keyboard_action_enter">Enter</string>
     <string name="keyboard_action_search">Pesquisar</string>
@@ -27,12 +25,17 @@
     <string name="keyboard_field_url">Endereço</string>
     <string name="keyboard_field_number">Número</string>
     <string name="keyboard_field_phone">Telefone</string>
-    <string name="keyboard_write_hint_suggest">Polegar → aceitar · ↑↓ trocar · Médio: concluir</string>
-    <string name="keyboard_write_hint_undo">Polegar → aceitar · ← desfazer · Médio: concluir</string>
+    <string name="keyboard_write_hint_suggest">Polegar → aceitar · ↑↓ outra · Indicador: trocar · Médio: concluir</string>
+    <string name="keyboard_write_hint_undo">Polegar → aceitar · ← desfazer · Indicador: trocar · Médio: concluir</string>
     <string name="keyboard_write_corrected">Corrigido: %1$s → %2$s</string>
     <string name="keyboard_write_undone">Desfeito: %1$s fica como você escreveu</string>
     <string name="keyboard_write_learned_hint">Daqui em diante, %1$s é uma palavra sua · Médio: concluir</string>
     <string name="keyboard_practice_writing">Escrevendo</string>
     <string name="keyboard_practice_preparing">Preparando a band…</string>
     <string name="keyboard_practice_hint">Empurrar: próxima · Médio: parar</string>
+    <string name="keyboard_hint_write">Indicador: escrever · de novo: trocar</string>
+    <string name="keyboard_hint_dictate">Indicador: ditar · de novo: trocar</string>
+    <string name="keyboard_hint_phone">Indicador: celular · de novo: trocar</string>
+    <string name="keyboard_dictate_hint">Indicador: trocar · ←: apagar palavra · Médio: concluir</string>
+    <string name="keyboard_write_hint">Empurrar: espaço · Indicador: trocar · Médio: concluir</string>
 </resources>

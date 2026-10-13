@@ -279,16 +279,52 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
             return write()
         }
         choices = KeyboardChoice.forField(field.kind)
-        mode = Mode.CHOOSING
         status = ""
-        selected = if (hasAction()) choices.size else choices.indexOf(lastChoice(field)).coerceAtLeast(0)
         // A field of Lumen's own pages may not have asked for the keyboard (see onStartInput).
         if (!shown) {
             requestShowSelf(0)
             main.removeCallbacks(showCheck)
             main.postDelayed(showCheck, SHOW_WAIT_MS)
         }
-        Log.d(TAG, "panel opens (${field.describe()}, ${text.length} chars)")
+        // Text and an Enter to offer (the hint said "send or continue"): the choice, its button focused.
+        if (hasAction()) {
+            mode = Mode.CHOOSING
+            selected = choices.size
+            Log.d(TAG, "panel opens (${field.describe()}, ${text.length} chars): action")
+            return render()
+        }
+        // The first tap starts what was used last; a tap more opens the choice ([openChooser]).
+        val start = lastChoice(field)
+        Log.d(TAG, "panel opens (${field.describe()}, ${text.length} chars): ${start.name.lowercase()}")
+        start(start)
+    }
+
+    private fun start(choice: KeyboardChoice) = when (choice) {
+        KeyboardChoice.DICTATE -> dictate()
+        KeyboardChoice.WRITE -> write()
+        KeyboardChoice.PHONE -> phone()
+    }
+
+    /**
+     * A tap more while dictating, writing or on the phone: what was going on stops (the text stays)
+     * and the bar offers the three, the current one focused; with text and an Enter, its button too.
+     */
+    private fun openChooser() {
+        val field = field ?: return
+        val current = when (mode) {
+            Mode.DICTATING -> KeyboardChoice.DICTATE
+            Mode.WRITING -> KeyboardChoice.WRITE
+            Mode.PHONE -> KeyboardChoice.PHONE
+            else -> lastChoice(field)
+        }
+        if (mode == Mode.DICTATING) Dictation.stop()
+        if (mode == Mode.WRITING) stopWriting()
+        readField()
+        choices = KeyboardChoice.forField(field.kind)
+        mode = Mode.CHOOSING
+        status = ""
+        selected = choices.indexOf(current).coerceAtLeast(0)
+        Log.d(TAG, "choosing (was ${current.name.lowercase()})")
         render()
     }
 
@@ -310,12 +346,7 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
                 BandCommand.BACK -> return closePanel()
             }
             Mode.DICTATING -> when (command) {
-                BandCommand.ACTIVATE -> if (Dictation.isListening()) {
-                    Dictation.stop()
-                    status = getString(R.string.composer_paused)
-                } else {
-                    listen()
-                }
+                BandCommand.ACTIVATE -> return openChooser()
                 BandCommand.LEFT -> {
                     buffer = buffer.substringBeforeLast(' ', "").trim()
                     putText(buffer)
@@ -325,13 +356,17 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
             // The band's middle tap (its swipes work the suggestions in the band library), and
             // the touchpad: Back finishes, its arrows work the suggestions.
             Mode.WRITING -> when (command) {
+                BandCommand.ACTIVATE -> return openChooser()
                 BandCommand.BACK -> return closePanel()
                 BandCommand.RIGHT -> if (assistOn) BandRuntime.writingCommand("accept")
                 BandCommand.LEFT -> if (assistOn) BandRuntime.writingCommand("undo")
                 BandCommand.UP -> if (assistOn) BandRuntime.writingCommand("previous")
                 BandCommand.DOWN -> if (assistOn) BandRuntime.writingCommand("next")
             }
-            Mode.PHONE -> if (command == BandCommand.BACK) return closePanel()
+            Mode.PHONE -> when (command) {
+                BandCommand.ACTIVATE -> return openChooser()
+                BandCommand.BACK -> return closePanel()
+            }
             Mode.CLOSED -> Unit
         }
         render()
@@ -440,15 +475,11 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
     }
 
     private fun write() {
-        if (BandRuntime.phase != Phase.CONNECTED) {
-            status = getString(R.string.composer_write_no_band)
-            return render()
-        }
+        if (BandRuntime.phase != Phase.CONNECTED) return cantWrite()
         BandRuntime.addHandwritingListener(handwriting)
         if (!BandRuntime.setHandwriting(true)) {
             BandRuntime.removeHandwritingListener(handwriting)
-            status = getString(R.string.composer_write_no_band)
-            return render()
+            return cantWrite()
         }
         // The band writes after what the field already holds.
         BandRuntime.resetHandwritingText(text)
@@ -463,6 +494,16 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
         Log.d(TAG, if (practicing) "writing (practice)" else "writing")
         field?.let { startAssist(it) }
         if (practicing) practiceState(PRACTICE_PREPARING)
+        render()
+    }
+
+    /** No band to write with: the choice shows why, so another way can be picked (a first tap lands here too). */
+    private fun cantWrite() {
+        if (mode == Mode.CLOSED) {
+            mode = Mode.CHOOSING
+            selected = choices.indexOf(KeyboardChoice.WRITE).coerceAtLeast(0)
+        }
+        status = getString(R.string.composer_write_no_band)
         render()
     }
 
@@ -738,14 +779,18 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
             val named = field.action.named && text.isNotEmpty() && action != null
             val hint = when {
                 named -> getString(R.string.keyboard_hint_action, action!!.lowercase(locale))
-                secret -> getString(R.string.keyboard_hint_password)
-                else -> getString(R.string.keyboard_hint)
+                else -> getString(
+                    when (lastChoice(field)) {
+                        KeyboardChoice.DICTATE -> R.string.keyboard_hint_dictate
+                        KeyboardChoice.WRITE -> R.string.keyboard_hint_write
+                        KeyboardChoice.PHONE -> R.string.keyboard_hint_phone
+                    },
+                )
             }
             val icon = when {
                 named && field.action == EnterAction.SEARCH -> KeyboardPanel.Icon.SEARCH
                 named -> KeyboardPanel.Icon.ENTER
-                secret -> KeyboardPanel.Icon.PEN
-                else -> KeyboardPanel.Icon.MIC
+                else -> iconOf(lastChoice(field))
             }
             return view.render(KeyboardPanel.State(panel = false, hint = hint, hintIcon = icon))
         }
@@ -783,13 +828,13 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
                     else -> R.string.composer_choose_hint
                 },
             )
-            Mode.DICTATING -> getString(R.string.composer_hint)
+            Mode.DICTATING -> getString(R.string.keyboard_dictate_hint)
             Mode.WRITING -> when {
                 secret -> getString(R.string.keyboard_password_writing_hint)
                 notice?.kind == "undone" -> getString(R.string.keyboard_write_learned_hint, notice.word)
                 writing && suggestions.any && suggestions.undo -> getString(R.string.keyboard_write_hint_undo)
                 writing && suggestions.any -> getString(R.string.keyboard_write_hint_suggest)
-                else -> getString(R.string.composer_write_hint)
+                else -> getString(R.string.keyboard_write_hint)
             }
             Mode.PHONE -> getString(R.string.keyboard_phone_hint)
             Mode.CLOSED -> ""
@@ -799,7 +844,8 @@ class LumenKeyboard : InputMethodService(), PhoneKeyboard.Target {
         view.render(
             KeyboardPanel.State(
                 panel = true,
-                status = statusLine,
+                compact = true,
+                status = if (mode == Mode.DICTATING && partial.isNotBlank()) partial else statusLine,
                 statusIcon = statusIcon,
                 fieldIcon = when {
                     secret -> KeyboardPanel.Icon.LOCK

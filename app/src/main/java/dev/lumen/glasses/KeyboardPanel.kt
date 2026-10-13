@@ -39,6 +39,8 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
      */
     data class State(
         val panel: Boolean,
+        /** The panel as a bar under the app: no dim, no field or text (the app shows its own). */
+        val compact: Boolean = false,
         val hint: String = "",
         val hintIcon: Icon? = null,
         val hintLead: String = "",
@@ -85,6 +87,7 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
     private val actionText = text(19f, MetaStyle.TEXT, MetaStyle.MEDIUM)
     private val hint = text(14f, MetaStyle.TEXT_SECONDARY, MetaStyle.REGULAR)
     private var shownChoices: List<Pair<Icon, String>> = emptyList()
+    private var compact = false
 
     init {
         root.addView(dim, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
@@ -174,7 +177,19 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
     }
 
     fun render(state: State) {
-        dim.visibility = if (state.panel) View.VISIBLE else View.GONE
+        dim.visibility = if (state.panel && !state.compact) View.VISIBLE else View.GONE
+        fieldRow.visibility = if (state.compact) View.GONE else View.VISIBLE
+        textBox.visibility = if (state.compact) View.GONE else View.VISIBLE
+        if (state.compact != compact) {
+            compact = state.compact
+            if (compact) panel.setPadding(px(12f), px(10f), px(12f), px(10f)) else panel.setPadding(px(20f), px(18f), px(20f), px(18f))
+            (panel.background as? GradientDrawable)?.cornerRadius = px(if (compact) 26f else 28f).toFloat()
+            (panel.layoutParams as? FrameLayout.LayoutParams)?.let {
+                it.bottomMargin = px(if (compact) 10f else 12f)
+                panel.layoutParams = it
+            }
+            shownChoices = emptyList()
+        }
         pill.visibility = if (!state.panel && state.hint.isNotEmpty()) View.VISIBLE else View.GONE
         panel.visibility = if (state.panel) View.VISIBLE else View.GONE
         pillText.text = if (state.hintLead.isEmpty()) state.hint else SpannableStringBuilder().apply {
@@ -228,7 +243,7 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
             shownChoices = state.choices
             choiceRow.removeAllViews()
             state.choices.forEachIndexed { index, (icon, label) ->
-                choiceRow.addView(choiceView(icon, label, index), LinearLayout.LayoutParams(0, px(64f), 1f).apply { if (index > 0) marginStart = px(10f) })
+                choiceRow.addView(choiceView(icon, label, index), LinearLayout.LayoutParams(0, px(if (compact) 48f else 64f), 1f).apply { if (index > 0) marginStart = px(10f) })
             }
         }
         choiceRow.visibility = if (state.choices.isEmpty()) View.GONE else View.VISIBLE
@@ -250,7 +265,8 @@ class KeyboardPanel(private val context: Context, private val onTap: (Int) -> Un
     fun touchable(region: Region) {
         region.setEmpty()
         val target = when {
-            panel.visibility == View.VISIBLE -> root
+            panel.visibility == View.VISIBLE && !compact -> root
+            panel.visibility == View.VISIBLE -> panel
             pill.visibility == View.VISIBLE -> pill
             else -> return
         }

@@ -3,6 +3,18 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.27]
+
+### Glasses
+
+- **Lumen's keyboard starts on the first tap.** On a focused field the index tap starts the way
+  you wrote last time at once: dictation listens, the band writes, or the phone gets the
+  keyboard. A tap more stops it (the text stays) and offers dictate, write or phone, the current
+  one focused; what you pick is the next first tap. A field with text and an Enter still opens on
+  its button ("send or continue"). The hint says what the tap will do.
+- **The keyboard is a bar under the app**, no longer a panel over a dimmed page: status,
+  suggestions or the three ways, and the hint. The app's own field shows the text.
+
 ## [0.2.0-beta.26]
 
 ### Glasses

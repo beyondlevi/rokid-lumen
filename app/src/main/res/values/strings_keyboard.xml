@@ -3,8 +3,6 @@
 <resources>
     <string name="keyboard_name">Lumen keyboard</string>
     <!-- The hint pill, with a field focused and the panel closed. -->
-    <string name="keyboard_hint">Index: dictate, write or phone</string>
-    <string name="keyboard_hint_password">Index: write or phone</string>
     <!-- %1$s: the field's Enter action, lower case ("search"). -->
     <string name="keyboard_hint_action">Index: %1$s or continue</string>
     <!-- The panel's status line while choosing. -->
@@ -16,7 +14,7 @@
     <string name="keyboard_password_writing_hint">The password doesn\'t show · Middle: done</string>
     <string name="keyboard_choice_phone">Phone</string>
     <string name="keyboard_phone_status">Type on the phone</string>
-    <string name="keyboard_phone_hint">The keyboard opened on the phone; the text comes as you type · Middle: close</string>
+    <string name="keyboard_phone_hint">Type on the phone; the text comes as you type · Index: switch · Middle: close</string>
     <!-- %1$s: the field's Enter action, lower case ("search"). -->
     <string name="keyboard_enter_label">Enter: %1$s</string>
     <!-- The field's Enter actions (Android's IME actions). -->
@@ -34,12 +32,18 @@
     <string name="keyboard_field_url">Address</string>
     <string name="keyboard_field_number">Number</string>
     <string name="keyboard_field_phone">Phone number</string>
-    <string name="keyboard_write_hint_suggest">Thumb → accept · ↑↓ switch · Middle: done</string>
-    <string name="keyboard_write_hint_undo">Thumb → accept · ← undo · Middle: done</string>
+    <string name="keyboard_write_hint_suggest">Thumb → accept · ↑↓ other · Index: switch · Middle: done</string>
+    <string name="keyboard_write_hint_undo">Thumb → accept · ← undo · Index: switch · Middle: done</string>
     <string name="keyboard_write_corrected">Corrected: %1$s → %2$s</string>
     <string name="keyboard_write_undone">Undone: %1$s stays as you wrote it</string>
     <string name="keyboard_write_learned_hint">From now on, %1$s is one of your words · Middle: done</string>
     <string name="keyboard_practice_writing">Writing</string>
     <string name="keyboard_practice_preparing">Getting the band ready…</string>
     <string name="keyboard_practice_hint">Push: next · Middle: stop</string>
+    <!-- The first index tap starts the last way of writing; a tap more offers the three. -->
+    <string name="keyboard_hint_write">Index: write · again: switch</string>
+    <string name="keyboard_hint_dictate">Index: dictate · again: switch</string>
+    <string name="keyboard_hint_phone">Index: phone · again: switch</string>
+    <string name="keyboard_dictate_hint">Index: switch · ←: delete a word · Middle: done</string>
+    <string name="keyboard_write_hint">Push forward: space · Index: switch · Middle: done</string>
 </resources>
