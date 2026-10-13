@@ -7,11 +7,9 @@
 
 ### Glasses
 
-- **Lumen's keyboard starts on the first tap.** On a focused field the index tap starts the way
-  you wrote last time at once: dictation listens, the band writes, or the phone gets the
-  keyboard. A tap more stops it (the text stays) and offers dictate, write or phone, the current
-  one focused; what you pick is the next first tap. A field with text and an Enter still opens on
-  its button ("send or continue"). The hint says what the tap will do.
+- **One tap less in Lumen's keyboard.** The index tap that puts the focus in a field also opens
+  its choice (dictate, write or phone) with the last one focused: one tap to enter the field, one
+  to start. A field the app focuses by itself, or that you reach by moving, keeps its hint.
 - **The keyboard is a bar under the app**, no longer a panel over a dimmed page: status,
   suggestions or the three ways, and the hint. The app's own field shows the text.
 
