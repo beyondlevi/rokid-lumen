@@ -76,6 +76,7 @@ object LumenIcons {
         "M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4",
     )
     val wifiOff = icon("wifi_off", "M2 9a15 15 0 0 1 20 0", "M5.5 12.5a10 10 0 0 1 13 0", "M9 16a5 5 0 0 1 6 0", "M3 3l18 18")
+    val search = icon("search", "M17 11a6 6 0 1 1-12 0a6 6 0 1 1 12 0", "M20 20l-4.5-4.5")
 
     private fun icon(name: String, vararg paths: String, width: Float = 1.8f): ImageVector {
         val builder = ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)

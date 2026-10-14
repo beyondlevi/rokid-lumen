@@ -752,4 +752,14 @@
     <string name="phone_write_no_touch">Escrever com um gesto precisa dos Gestos na tela ligados no Rokid Lumen</string>
     <string name="glasses_option_devices">Escolher aparelho da band</string>
     <string name="band_sending">enviando</string>
+    <!-- Janela larga (dobrável aberto): os painéis de Apps, Banda e Ajustes. -->
+    <string name="apps_tab_grid">Na grade · %1$d</string>
+    <string name="apps_tab_available">Disponíveis · %1$d</string>
+    <string name="apps_search">Buscar app</string>
+    <string name="apps_search_clear">Limpar a busca</string>
+    <string name="apps_search_none">Nenhum app com “%1$s”</string>
+    <string name="apps_preview_all">Mostrar todos os %1$d</string>
+    <string name="apps_preview_less">Mostrar menos</string>
+    <string name="settings_developer_hint">Depuração sem fio e a tela dos óculos</string>
+    <string name="band_settings_here">A band está aqui</string>
 </resources>

@@ -6,9 +6,13 @@ import androidx.compose.ui.platform.LocalContext
 import android.text.format.DateFormat
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -19,7 +23,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -30,6 +34,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -330,6 +337,18 @@ private enum class Tab(@StringRes val label: Int, val icon: ImageVector) {
     SETTINGS(R.string.tab_settings, LumenIcons.gear),
 }
 
+/**
+ * A wide window (a foldable opened, a tablet): the tabs move to a rail on the left, and the screens
+ * use the width ([LocalWide]) with panes that scroll on their own instead of one long page.
+ */
+internal val WIDE_LAYOUT = 600.dp
+
+/** True on a wide window ([WIDE_LAYOUT]): screens lay out side by side. */
+internal val LocalWide = androidx.compose.runtime.staticCompositionLocalOf { false }
+
+/** The tabs whose wide layout fills the window with panes of their own, each scrolling apart. */
+private val Tab.ownsScrollWhenWide: Boolean get() = this == Tab.APPS || this == Tab.BAND || this == Tab.SETTINGS
+
 @Composable
 fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: String? = null) {
     // The keyboard is Home's page; the updates and their notes are Settings'.
@@ -339,80 +358,128 @@ fun CompanionApp(state: CompanionUiState, actions: CompanionActions, startPage: 
         page = if (page?.startsWith(PAGE_NOTES) == true && tab == Tab.SETTINGS) PAGE_UPDATES else null
     }
     val scrollLock = remember { mutableStateOf(false) }
-    Scaffold(
-        containerColor = Lumen.window,
-        bottomBar = {
-            NavigationBar(containerColor = Lumen.bar) {
-                Tab.entries.forEach { entry ->
-                    NavigationBarItem(
-                        selected = tab == entry,
-                        onClick = {
-                            tab = entry
-                            page = null
-                            if (entry == Tab.BAND) actions.refreshBand()
-                            if (entry == Tab.APPS) actions.refreshGrid()
-                        },
-                        icon = { Icon(entry.icon, contentDescription = null) },
-                        label = { Text(stringResource(entry.label), style = MaterialTheme.typography.labelSmall) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Lumen.accent,
-                            selectedTextColor = Lumen.accent,
-                            unselectedIconColor = Lumen.textPlaceholder,
-                            unselectedTextColor = Lumen.textPlaceholder,
-                            indicatorColor = Color.Transparent,
-                        ),
-                    )
+    val pick: (Tab) -> Unit = { entry ->
+        tab = entry
+        page = null
+        if (entry == Tab.BAND) actions.refreshBand()
+        if (entry == Tab.APPS) actions.refreshGrid()
+    }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val wide = maxWidth >= WIDE_LAYOUT
+        Scaffold(
+            containerColor = Lumen.window,
+            bottomBar = {
+                if (!wide) {
+                    NavigationBar(containerColor = Lumen.bar) {
+                        Tab.entries.forEach { entry ->
+                            NavigationBarItem(
+                                selected = tab == entry,
+                                onClick = { pick(entry) },
+                                icon = { Icon(entry.icon, contentDescription = null) },
+                                label = { Text(stringResource(entry.label), style = MaterialTheme.typography.labelSmall) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = Lumen.accent,
+                                    selectedTextColor = Lumen.accent,
+                                    unselectedIconColor = Lumen.textPlaceholder,
+                                    unselectedTextColor = Lumen.textPlaceholder,
+                                    indicatorColor = Color.Transparent,
+                                ),
+                            )
+                        }
+                    }
+                }
+            },
+        ) { padding ->
+            Row(Modifier.fillMaxSize().padding(padding)) {
+                if (wide) TabRail(tab, pick)
+                // Each tab and page starts at its own top: switching doesn't carry another's scroll.
+                val scroll = remember(tab, page) { ScrollState(0) }
+                val fills = wide && page == null && tab.ownsScrollWhenWide
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .let { if (fills) it else it.verticalScroll(scroll, enabled = !scrollLock.value) }
+                        .padding(horizontal = if (wide) Lumen.spacingLarge else Lumen.spacingMedium, vertical = Lumen.spacingLarge),
+                    verticalArrangement = Arrangement.spacedBy(Lumen.spacingMedium),
+                ) {
+                    androidx.compose.runtime.CompositionLocalProvider(LocalScrollLock provides scrollLock, LocalWide provides wide) {
+                        val current = page
+                        when {
+                            current == PAGE_SETUP -> SetupPage(state, actions, onBack = { page = null })
+                            current == PAGE_GLASSES_SCREEN -> GlassesScreenPage(onBack = { page = null })
+                            current == PAGE_BAND_KEY -> BandKeyPage(state, actions, onBack = { page = null })
+                            current != null && current.startsWith("$PAGE_PROFILE:") ->
+                                ProfilePage(state, actions, current.removePrefix("$PAGE_PROFILE:"), onBack = { page = null })
+                            current == PAGE_COMPUTERS -> ComputersPage(state, actions, onBack = { page = null })
+                            current != null && current.startsWith("$PAGE_COMPUTER_PROFILE:") ->
+                                ComputerProfilePage(state, actions, current.removePrefix("$PAGE_COMPUTER_PROFILE:"), onBack = { page = null })
+                            current == PAGE_KEYBOARD -> KeyboardPage(state.keyboardField, state.link.healthy, actions, onBack = { page = null })
+                            current == PAGE_UPDATES -> UpdatesPage(state.update, actions, onNotes = { page = PAGE_NOTES }, onBack = { page = null })
+                            current != null && current.startsWith(PAGE_NOTES) -> NotesPage(
+                                state.update, current.substringAfter(':', "").ifEmpty { null }, actions,
+                                onPick = { page = "$PAGE_NOTES:$it" },
+                                onBack = { page = if (tab == Tab.SETTINGS) PAGE_UPDATES else null },
+                            )
+                            else -> when (tab) {
+                                Tab.HOME -> HomeScreen(state, actions, onKeyboard = { page = PAGE_KEYBOARD }, onSetup = { page = PAGE_SETUP }) { page = PAGE_NOTES }
+                                Tab.APPS -> AppsScreen(
+                                    state.gridItems, state.gridAvailable, state.gridKnown, state.gridIcons, state.gridError, state.packageTransfer,
+                                    GridSync(state.gridSending, state.gridSendingFields, state.gridSlow, state.gridFailed), actions,
+                                    modifier = if (fills) Modifier.weight(1f) else Modifier,
+                                )
+                                Tab.BAND -> BandScreen(
+                                    state, actions,
+                                    onProfile = { page = "$PAGE_PROFILE:$it" },
+                                    onKey = { page = PAGE_BAND_KEY },
+                                    onComputers = { page = PAGE_COMPUTERS },
+                                    onComputerProfile = { page = "$PAGE_COMPUTER_PROFILE:$it" },
+                                    modifier = if (fills) Modifier.weight(1f) else Modifier,
+                                )
+                                Tab.NOTIFICATIONS -> NotificationsScreen(state, actions)
+                                Tab.SETTINGS -> SettingsScreen(
+                                    state, actions, onSetup = { page = PAGE_SETUP }, onScreen = { page = PAGE_GLASSES_SCREEN },
+                                    modifier = if (fills) Modifier.weight(1f) else Modifier,
+                                ) { page = PAGE_UPDATES }
+                            }
+                        }
+                    }
+                    state.message?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary, modifier = Modifier.padding(horizontal = Lumen.spacingSmall))
+                    }
                 }
             }
+        }
+    }
+}
+
+/** The tabs on a wide window: a rail on the left, so the screen keeps its height. */
+@Composable
+private fun TabRail(tab: Tab, onPick: (Tab) -> Unit) {
+    NavigationRail(
+        containerColor = Lumen.bar,
+        header = {
+            Box(
+                Modifier.padding(vertical = Lumen.spacingSmall).size(44.dp).clip(RoundedCornerShape(14.dp)).background(Lumen.elevation2),
+                contentAlignment = Alignment.Center,
+            ) { Icon(LumenIcons.glasses, contentDescription = null, tint = Lumen.textPrimary, modifier = Modifier.size(24.dp)) }
         },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState(), enabled = !scrollLock.value)
-                .padding(horizontal = Lumen.spacingMedium, vertical = Lumen.spacingLarge),
-            verticalArrangement = Arrangement.spacedBy(Lumen.spacingMedium),
-        ) {
-            androidx.compose.runtime.CompositionLocalProvider(LocalScrollLock provides scrollLock) {
-            val current = page
-            when {
-                current == PAGE_SETUP -> SetupPage(state, actions, onBack = { page = null })
-                current == PAGE_GLASSES_SCREEN -> GlassesScreenPage(onBack = { page = null })
-                current == PAGE_BAND_KEY -> BandKeyPage(state, actions, onBack = { page = null })
-                current != null && current.startsWith("$PAGE_PROFILE:") ->
-                    ProfilePage(state, actions, current.removePrefix("$PAGE_PROFILE:"), onBack = { page = null })
-                current == PAGE_COMPUTERS -> ComputersPage(state, actions, onBack = { page = null })
-                current != null && current.startsWith("$PAGE_COMPUTER_PROFILE:") ->
-                    ComputerProfilePage(state, actions, current.removePrefix("$PAGE_COMPUTER_PROFILE:"), onBack = { page = null })
-                current == PAGE_KEYBOARD -> KeyboardPage(state.keyboardField, state.link.healthy, actions, onBack = { page = null })
-                current == PAGE_UPDATES -> UpdatesPage(state.update, actions, onNotes = { page = PAGE_NOTES }, onBack = { page = null })
-                current != null && current.startsWith(PAGE_NOTES) -> NotesPage(
-                    state.update, current.substringAfter(':', "").ifEmpty { null }, actions,
-                    onPick = { page = "$PAGE_NOTES:$it" },
-                    onBack = { page = if (tab == Tab.SETTINGS) PAGE_UPDATES else null },
-                )
-                else -> when (tab) {
-                Tab.HOME -> HomeScreen(state, actions, onKeyboard = { page = PAGE_KEYBOARD }, onSetup = { page = PAGE_SETUP }) { page = PAGE_NOTES }
-                Tab.APPS -> AppsScreen(
-                    state.gridItems, state.gridAvailable, state.gridKnown, state.gridIcons, state.gridError, state.packageTransfer,
-                    GridSync(state.gridSending, state.gridSendingFields, state.gridSlow, state.gridFailed), actions,
-                )
-                Tab.BAND -> BandScreen(
-                    state, actions,
-                    onProfile = { page = "$PAGE_PROFILE:$it" },
-                    onKey = { page = PAGE_BAND_KEY },
-                    onComputers = { page = PAGE_COMPUTERS },
-                    onComputerProfile = { page = "$PAGE_COMPUTER_PROFILE:$it" },
-                )
-                Tab.NOTIFICATIONS -> NotificationsScreen(state, actions)
-                Tab.SETTINGS -> SettingsScreen(state, actions, onSetup = { page = PAGE_SETUP }, onScreen = { page = PAGE_GLASSES_SCREEN }) { page = PAGE_UPDATES }
-                }
-            }
-            }
-            state.message?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary, modifier = Modifier.padding(horizontal = Lumen.spacingSmall))
-            }
+    ) {
+        Spacer(Modifier.height(Lumen.spacingSmall))
+        Tab.entries.forEach { entry ->
+            NavigationRailItem(
+                selected = tab == entry,
+                onClick = { onPick(entry) },
+                icon = { Icon(entry.icon, contentDescription = null) },
+                label = { Text(stringResource(entry.label), style = MaterialTheme.typography.labelSmall) },
+                colors = NavigationRailItemDefaults.colors(
+                    selectedIconColor = Lumen.accent,
+                    selectedTextColor = Lumen.accent,
+                    unselectedIconColor = Lumen.textPlaceholder,
+                    unselectedTextColor = Lumen.textPlaceholder,
+                    indicatorColor = Lumen.accent.copy(alpha = 0.16f),
+                ),
+            )
         }
     }
 }
@@ -422,6 +489,27 @@ private fun HomeScreen(state: CompanionUiState, actions: CompanionActions, onKey
     Header(stringResource(R.string.home_title), stringResource(R.string.home_subtitle))
     if (!state.setup.done) SetupCard(state.setup, onSetup)
     state.update.offered?.let { UpdateCard(it, onUpdate) }
+    if (LocalWide.current) {
+        // The devices on the left, with what the link can do; what's on the glasses now on the right.
+        Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingMedium), verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Lumen.spacingMedium)) {
+                GlassesCard(state) { LinkButtons(state, actions) }
+                HomeBandCard(state)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Lumen.spacingMedium)) {
+                HomeNow(state, onKeyboard)
+            }
+        }
+        return
+    }
+    GlassesCard(state, null)
+    HomeBandCard(state)
+    HomeNow(state, onKeyboard)
+    LinkButtons(state, actions)
+}
+
+@Composable
+private fun GlassesCard(state: CompanionUiState, actions: (@Composable () -> Unit)?) {
     Card {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Lumen.spacingMedium)) {
             Box(
@@ -433,7 +521,12 @@ private fun HomeScreen(state: CompanionUiState, actions: CompanionActions, onKey
                 StatusPill(stringResource(state.link.label), if (state.link.healthy) Lumen.positive else Lumen.warning)
             }
         }
+        actions?.invoke()
     }
+}
+
+@Composable
+private fun HomeBandCard(state: CompanionUiState) {
     // The band's state from the device it's with: the glasses report it stopped while it's here.
     BandStatusCard(
         if (state.bandOnPhone) state.phoneBandStatus else state.bandStatus,
@@ -449,36 +542,47 @@ private fun HomeScreen(state: CompanionUiState, actions: CompanionActions, onKey
         ),
         lockedPause = state.bandOnPhone && !state.phoneListening,
     )
-    SectionTitle(stringResource(R.string.home_now))
-    Group {
-        ListRow(
-            title = stringResource(R.string.home_dictation),
-            subtitle = engineName(state.dictation.engine) + " · " +
-                stringResource(if (state.dictation.missing == null) R.string.speech_ready else R.string.speech_needs_setup),
-            icon = LumenIcons.mic,
-        )
-        ListRow(
-            title = stringResource(R.string.keyboard_title),
-            subtitle = if (state.keyboardField.focused) {
-                stringResource(R.string.home_keyboard_field, fieldName(state.keyboardField), state.keyboardField.app)
-            } else {
-                stringResource(R.string.home_keyboard_no_field)
-            },
-            icon = LumenIcons.keyboard,
-            onClick = onKeyboard,
-        )
-        ListRow(
-            title = stringResource(R.string.notifications_title),
-            subtitle = stringResource(
-                when {
-                    !state.notificationAccess -> R.string.home_notifications_no_access
-                    state.sendNotifications -> R.string.home_notifications_on
-                    else -> R.string.home_notifications_off
+}
+
+@Composable
+private fun HomeNow(state: CompanionUiState, onKeyboard: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(Lumen.spacingSmall)) {
+        SectionTitle(stringResource(R.string.home_now))
+        Group {
+            ListRow(
+                title = stringResource(R.string.home_dictation),
+                subtitle = engineName(state.dictation.engine) + " · " +
+                    stringResource(if (state.dictation.missing == null) R.string.speech_ready else R.string.speech_needs_setup),
+                icon = LumenIcons.mic,
+            )
+            ListRow(
+                title = stringResource(R.string.keyboard_title),
+                subtitle = if (state.keyboardField.focused) {
+                    stringResource(R.string.home_keyboard_field, fieldName(state.keyboardField), state.keyboardField.app)
+                } else {
+                    stringResource(R.string.home_keyboard_no_field)
                 },
-            ),
-            icon = LumenIcons.bell,
-        )
+                icon = LumenIcons.keyboard,
+                onClick = onKeyboard,
+            )
+            ListRow(
+                title = stringResource(R.string.notifications_title),
+                subtitle = stringResource(
+                    when {
+                        !state.notificationAccess -> R.string.home_notifications_no_access
+                        state.sendNotifications -> R.string.home_notifications_on
+                        else -> R.string.home_notifications_off
+                    },
+                ),
+                icon = LumenIcons.bell,
+            )
+        }
     }
+}
+
+/** Reconnect and Stop, or Authorize before the first link. */
+@Composable
+private fun LinkButtons(state: CompanionUiState, actions: CompanionActions) {
     Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed), modifier = Modifier.fillMaxWidth()) {
         if (state.authorized) {
             PillButton(stringResource(R.string.action_stop), primary = false, modifier = Modifier.weight(1f)) { actions.stop() }
@@ -492,6 +596,24 @@ private fun HomeScreen(state: CompanionUiState, actions: CompanionActions, onKey
 @Composable
 private fun NotificationsScreen(state: CompanionUiState, actions: CompanionActions) {
     Header(stringResource(R.string.notifications_title), stringResource(R.string.notifications_subtitle))
+    if (LocalWide.current) {
+        // What reaches the glasses on the left; which apps, and a test, on the right.
+        Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingMedium), verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Lumen.spacingMedium)) {
+                NotificationToggles(state, actions)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Lumen.spacingMedium)) {
+                NotificationApps(state, actions)
+            }
+        }
+        return
+    }
+    NotificationToggles(state, actions)
+    NotificationApps(state, actions)
+}
+
+@Composable
+private fun NotificationToggles(state: CompanionUiState, actions: CompanionActions) {
     Group {
         SwitchRow(stringResource(R.string.notifications_send), null, state.sendNotifications, actions::setSendNotifications)
         SwitchRow(
@@ -513,6 +635,10 @@ private fun NotificationsScreen(state: CompanionUiState, actions: CompanionActio
             actions::setSnooze,
         )
     }
+}
+
+@Composable
+private fun NotificationApps(state: CompanionUiState, actions: CompanionActions) {
     SectionTitle(stringResource(R.string.notifications_apps))
     Group {
         ListRow(
@@ -535,9 +661,54 @@ private fun NotificationsScreen(state: CompanionUiState, actions: CompanionActio
     PillButton(stringResource(R.string.notifications_test), primary = false, icon = LumenIcons.bell, modifier = Modifier.fillMaxWidth()) { actions.sendTestNotification() }
 }
 
+/** Settings' parts: on a wide window, a list on the left and the chosen part on the right. */
+private enum class SettingsPart { LINK, DICTATION, DEVELOPER, ABOUT }
+
 @Composable
-private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions, onSetup: () -> Unit, onScreen: () -> Unit, onUpdates: () -> Unit) {
+private fun SettingsScreen(
+    state: CompanionUiState,
+    actions: CompanionActions,
+    onSetup: () -> Unit,
+    onScreen: () -> Unit,
+    modifier: Modifier = Modifier,
+    onUpdates: () -> Unit,
+) {
+    if (!LocalWide.current) {
+        Header(stringResource(R.string.settings_title), null)
+        SettingsLink(state, actions, onSetup)
+        DictationSection(state, actions)
+        WirelessDebugSection(state, actions, onScreen)
+        SettingsAbout(state, actions, onUpdates)
+        return
+    }
+    var part by rememberSaveable { mutableStateOf(SettingsPart.LINK) }
     Header(stringResource(R.string.settings_title), null)
+    MasterDetail(
+        modifier = modifier,
+        key = part,
+        master = {
+            PartRow(stringResource(R.string.settings_link), stringResource(if (state.authorized) R.string.settings_authorized else R.string.settings_not_authorized), LumenIcons.link, part == SettingsPart.LINK) { part = SettingsPart.LINK }
+            PartRow(
+                stringResource(R.string.settings_dictation),
+                engineName(state.dictation.engine) + " · " + stringResource(if (state.dictation.missing == null) R.string.speech_ready else R.string.speech_needs_setup),
+                LumenIcons.mic,
+                part == SettingsPart.DICTATION,
+            ) { part = SettingsPart.DICTATION }
+            PartRow(stringResource(R.string.debug_section), stringResource(R.string.settings_developer_hint), LumenIcons.keyboard, part == SettingsPart.DEVELOPER) { part = SettingsPart.DEVELOPER }
+            PartRow(stringResource(R.string.settings_about), stringResource(R.string.settings_version, state.version), LumenIcons.download, part == SettingsPart.ABOUT) { part = SettingsPart.ABOUT }
+        },
+    ) {
+        when (part) {
+            SettingsPart.LINK -> SettingsLink(state, actions, onSetup)
+            SettingsPart.DICTATION -> DictationSection(state, actions)
+            SettingsPart.DEVELOPER -> WirelessDebugSection(state, actions, onScreen)
+            SettingsPart.ABOUT -> SettingsAbout(state, actions, onUpdates)
+        }
+    }
+}
+
+@Composable
+private fun SettingsLink(state: CompanionUiState, actions: CompanionActions, onSetup: () -> Unit) {
     SectionTitle(stringResource(R.string.settings_link))
     Group {
         ListRow(
@@ -559,8 +730,10 @@ private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions, o
             onClick = onSetup,
         )
     }
-    DictationSection(state, actions)
-    WirelessDebugSection(state, actions, onScreen)
+}
+
+@Composable
+private fun SettingsAbout(state: CompanionUiState, actions: CompanionActions, onUpdates: () -> Unit) {
     SectionTitle(stringResource(R.string.settings_about))
     Group {
         ListRow(title = stringResource(R.string.app_name), subtitle = stringResource(R.string.settings_version, state.version))
@@ -591,6 +764,51 @@ private fun SettingsScreen(state: CompanionUiState, actions: CompanionActions, o
             },
             onClick = actions::shareLogs,
         )
+    }
+}
+
+/**
+ * Two panes that scroll apart, for a wide window: a list of parts ([master], 320 dp) and the
+ * chosen part ([detail]), which starts at its top whenever [key] changes.
+ */
+@Composable
+internal fun MasterDetail(modifier: Modifier, key: Any, master: @Composable () -> Unit, detail: @Composable () -> Unit) {
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Lumen.spacingMedium)) {
+        Column(
+            Modifier.width(MASTER_WIDTH).fillMaxHeight().clip(RoundedCornerShape(Lumen.radiusCard)).background(Lumen.bar)
+                .verticalScroll(remember { ScrollState(0) }).padding(Lumen.spacingSmall),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) { master() }
+        val scroll = remember(key) { ScrollState(0) }
+        Column(
+            Modifier.weight(1f).fillMaxHeight().verticalScroll(scroll, enabled = !LocalScrollLock.current.value),
+            verticalArrangement = Arrangement.spacedBy(Lumen.spacingMedium),
+        ) { detail() }
+    }
+}
+
+private val MASTER_WIDTH = 320.dp
+
+/** One part in a [MasterDetail] list: its icon, name and state; the chosen one is outlined. */
+@Composable
+internal fun PartRow(title: String, subtitle: String?, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(Lumen.radiusRow)
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 64.dp).clip(shape)
+            .background(if (selected) Lumen.elevation1 else Color.Transparent)
+            .let { if (selected) it.border(2.dp, Lumen.accent, shape) else it }
+            .clickable(role = Role.Tab, onClick = onClick)
+            .padding(horizontal = Lumen.spacingSmMed, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed),
+    ) {
+        Box(Modifier.size(36.dp).clip(CircleShape).background(Lumen.elevation2), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = Lumen.textPrimary)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary, maxLines = 2)
+        }
     }
 }
 

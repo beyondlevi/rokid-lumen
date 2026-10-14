@@ -1,6 +1,9 @@
 package dev.lumen.companion.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -67,6 +70,7 @@ internal fun BandScreen(
     onKey: () -> Unit,
     onComputers: () -> Unit,
     onComputerProfile: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val here = when {
         state.bandOnComputer -> TAB_COMPUTER
@@ -78,6 +82,39 @@ internal fun BandScreen(
     LaunchedEffect(here) { tab = here }
 
     Header(stringResource(R.string.band_title), stringResource(R.string.band_subtitle))
+    if (LocalWide.current) {
+        // The band and its device on the left, with the three devices' settings as a list; the
+        // chosen device's settings on the right, scrolling on their own.
+        Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Lumen.spacingMedium)) {
+            Column(
+                Modifier.width(BAND_LIST_WIDTH).fillMaxHeight().verticalScroll(remember { ScrollState(0) }),
+                verticalArrangement = Arrangement.spacedBy(Lumen.spacingMedium),
+            ) {
+                BandHereCard(state, actions, onKey, onComputers)
+                SectionTitle(stringResource(R.string.band_settings_of))
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(Lumen.radiusCard)).background(Lumen.bar).padding(Lumen.spacingSmall),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    val hereText = stringResource(R.string.band_settings_here)
+                    PartRow(stringResource(R.string.band_tab_glasses), hereText.takeIf { here == TAB_GLASSES }, LumenIcons.glasses, tab == TAB_GLASSES) { tab = TAB_GLASSES }
+                    PartRow(stringResource(R.string.band_tab_phone), hereText.takeIf { here == TAB_PHONE }, LumenIcons.phone, tab == TAB_PHONE) { tab = TAB_PHONE }
+                    PartRow(stringResource(R.string.band_tab_computer), hereText.takeIf { here == TAB_COMPUTER }, LumenIcons.laptop, tab == TAB_COMPUTER) { tab = TAB_COMPUTER }
+                }
+            }
+            Column(
+                Modifier.weight(1f).fillMaxHeight().verticalScroll(remember(tab) { ScrollState(0) }, enabled = !LocalScrollLock.current.value),
+                verticalArrangement = Arrangement.spacedBy(Lumen.spacingMedium),
+            ) {
+                when (tab) {
+                    TAB_PHONE -> PhoneSettingsTab(state, actions, onProfile, onKey)
+                    TAB_COMPUTER -> ComputerSettingsTab(state, actions, onComputers, onComputerProfile, onKey)
+                    else -> GlassesSettingsTab(state, actions)
+                }
+            }
+        }
+        return
+    }
     BandHereCard(state, actions, onKey, onComputers)
     Column(verticalArrangement = Arrangement.spacedBy(Lumen.spacingSmall)) {
         SectionTitle(stringResource(R.string.band_settings_of))
@@ -98,6 +135,8 @@ internal fun BandScreen(
         else -> GlassesSettingsTab(state, actions)
     }
 }
+
+private val BAND_LIST_WIDTH = 380.dp
 
 private const val TAB_PHONE = "phone"
 private const val TAB_GLASSES = "glasses"
