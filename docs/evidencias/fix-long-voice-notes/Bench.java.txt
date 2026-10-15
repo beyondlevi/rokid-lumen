@@ -1,0 +1,89 @@
+import android.media.MediaCodec;
+import android.media.MediaFormat;
+import java.nio.ByteBuffer;
+
+public class Bench {
+    static final int RATE = 16000;
+    static final long T = 10000;
+
+    static MediaCodec open() throws Exception {
+        MediaFormat f = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, RATE, 1);
+        f.setInteger(MediaFormat.KEY_BIT_RATE, 24000);
+        f.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 16 * 1024);
+        MediaCodec c = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_OPUS);
+        c.configure(f, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+        c.start();
+        return c;
+    }
+
+    // The loop as shipped (one input and one output per turn).
+    static int oldLoop(byte[] pcm) throws Exception {
+        MediaCodec c = open();
+        MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+        int fed = 0, packets = 0; boolean inDone = false, outDone = false;
+        while (!outDone) {
+            if (!inDone) {
+                int i = c.dequeueInputBuffer(T);
+                if (i >= 0) {
+                    ByteBuffer b = c.getInputBuffer(i);
+                    int size = Math.min(b.remaining(), pcm.length - fed) & ~1;
+                    long ts = (long) (fed / 2) * 1000000L / RATE;
+                    if (size <= 0) { c.queueInputBuffer(i, 0, 0, ts, MediaCodec.BUFFER_FLAG_END_OF_STREAM); inDone = true; }
+                    else { b.put(pcm, fed, size); c.queueInputBuffer(i, 0, size, ts, 0); fed += size; }
+                }
+            }
+            int o = c.dequeueOutputBuffer(info, T);
+            if (o >= 0) {
+                if (info.size > 0 && (info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) packets++;
+                c.releaseOutputBuffer(o, false);
+                if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) outDone = true;
+            }
+        }
+        c.stop(); c.release();
+        return packets;
+    }
+
+    // The fixed loop (every free input, every ready output).
+    static int newLoop(byte[] pcm) throws Exception {
+        MediaCodec c = open();
+        MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+        int fed = 0, packets = 0; boolean inDone = false, outDone = false;
+        while (!outDone) {
+            boolean queued = false;
+            while (!inDone) {
+                int i = c.dequeueInputBuffer(0);
+                if (i < 0) break;
+                ByteBuffer b = c.getInputBuffer(i);
+                int size = Math.min(b.remaining(), pcm.length - fed) & ~1;
+                long ts = (long) (fed / 2) * 1000000L / RATE;
+                if (size <= 0) { c.queueInputBuffer(i, 0, 0, ts, MediaCodec.BUFFER_FLAG_END_OF_STREAM); inDone = true; }
+                else { b.put(pcm, fed, size); c.queueInputBuffer(i, 0, size, ts, 0); fed += size; }
+                queued = true;
+            }
+            int o = c.dequeueOutputBuffer(info, queued ? 0 : T);
+            while (o != MediaCodec.INFO_TRY_AGAIN_LATER && !outDone) {
+                if (o >= 0) {
+                    if (info.size > 0 && (info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0) packets++;
+                    c.releaseOutputBuffer(o, false);
+                    if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) outDone = true;
+                }
+                if (!outDone) o = c.dequeueOutputBuffer(info, 0);
+            }
+        }
+        c.stop(); c.release();
+        return packets;
+    }
+
+    public static void main(String[] args) throws Exception {
+        java.util.Random r = new java.util.Random(1);
+        for (int seconds : new int[] {10, 30, 40, 60, 120}) {
+            byte[] pcm = new byte[seconds * RATE * 2];
+            for (int i = 0; i < pcm.length / 2; i++) {
+                int v = (int) (6000 * Math.sin(2 * Math.PI * 220 * i / RATE)) + r.nextInt(2000) - 1000;
+                pcm[2 * i] = (byte) v; pcm[2 * i + 1] = (byte) (v >> 8);
+            }
+            long a = System.nanoTime(); int pa = oldLoop(pcm); long b = System.nanoTime(); int pb = newLoop(pcm); long e = System.nanoTime();
+            System.out.println(seconds + " s of audio: old loop " + (b - a) / 1000000 + " ms (" + pa + " packets), new loop " + (e - b) / 1000000 + " ms (" + pb + " packets)");
+        }
+    }
+}

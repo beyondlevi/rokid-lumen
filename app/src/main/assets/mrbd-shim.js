@@ -114,7 +114,8 @@
   // dictation engine chosen in the companion. record(options) resolves to a recording (onLevel,
   // onEnd, stop(), cancel()); transcribe(blob, options) to {text}, with options.onPartial(text)
   // as it grows. Failures are Errors with a `code` (busy, no-phone, unavailable, too-large,
-  // unsupported-format, no-speech, engine, cancelled, timeout).
+  // unsupported-format, no-speech, engine, cancelled, timeout). A stop() that fails with a
+  // retryable timeout (the voice note didn't arrive in time) can be called again.
   if (window.lumen && host && host.audio && !window.lumen.audio) {
     var audioId = 1;
     var audioJobs = {};
@@ -190,8 +191,16 @@
                 }
                 if (!started) { started = true; resolve(recording); }
               } else if (event.type === 'error') {
-                delete audioJobs[id];
                 var error = audioError(event.code || 'unavailable', event.message);
+                // The voice note was recorded but didn't arrive in time: the phone keeps it, and
+                // stop() again asks for it (error.retryable).
+                if (stopping && error.code === 'timeout') {
+                  error.retryable = true;
+                  var failed = stopping;
+                  stopping = null;
+                  return failed.reject(error);
+                }
+                delete audioJobs[id];
                 if (!started) return reject(error);
                 if (stopping) stopping.reject(error);
                 else {

@@ -1,0 +1,7 @@
+# Opus encoding time on the phone (Galaxy Z Fold8, SM-F971B), app_process, c2.android.opus.encoder
+# old loop = AudioCodec.encodeOggOpus before this branch; new loop = after
+10 s of audio: old loop 7618 ms (500 packets), new loop 121 ms (500 packets)
+30 s of audio: old loop 19637 ms (1500 packets), new loop 530 ms (1500 packets)
+40 s of audio: old loop 29998 ms (2000 packets), new loop 402 ms (2000 packets)
+60 s of audio: old loop 37082 ms (3000 packets), new loop 1090 ms (3000 packets)
+120 s of audio: old loop 72964 ms (6000 packets), new loop 858 ms (6000 packets)

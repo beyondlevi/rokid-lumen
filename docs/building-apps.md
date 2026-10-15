@@ -199,6 +199,12 @@ Failures are `Error`s with a `code`: `busy` (another recording, transcription or
 `unavailable` (the phone lost the microphone or couldn't encode) or `timeout` (the glasses
 stopped hearing from the phone).
 
+`no-phone` means the phone never answered; once it has (the recording started), a silence is a
+`timeout`. A `stop()` that fails with `timeout` and `error.retryable` set lost only the trip of
+the voice note from the phone, which keeps it for 10 minutes: call `stop()` again to ask for it
+once more (a "Try again" that sends what was recorded, not a new recording). `cancel()` drops it.
+Encoding a long recording takes the phone a moment; the glasses wait up to a minute for it.
+
 #### Live voice (calls, WebRTC): ask for `glasses-direct`
 
 For a live conversation, ask for the glasses' own microphone:

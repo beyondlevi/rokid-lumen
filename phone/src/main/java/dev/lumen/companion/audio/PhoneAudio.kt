@@ -59,6 +59,9 @@ class PhoneAudio(private val context: Context, private val host: Host) {
 
     private inner class Outgoing(val id: String, val sender: ChunkSender)
 
+    /** A recording's file once encoded, kept to send again on a repeated stop ([AudioOps.KEEP_FILE_MS]). */
+    private class Finished(val id: String, val header: JSONObject, val bytes: ByteArray, val at: Long)
+
     private inner class Transcription(val id: String, val receiver: ChunkReceiver, val mime: String) {
         var session: DictationSession? = null
         /** The whole file is in and on its way to the engine (repeats of a piece change nothing). */
@@ -69,6 +72,9 @@ class PhoneAudio(private val context: Context, private val host: Host) {
 
     private var recording: Recording? = null
     private var outgoing: Outgoing? = null
+    /** The recording being encoded, and its length: a repeated stop is answered with `stopping`. */
+    private var encoding: Pair<String, Long>? = null
+    private var finished: Finished? = null
     private var transcription: Transcription? = null
 
     fun busy() = recording != null || transcription != null
@@ -94,6 +100,7 @@ class PhoneAudio(private val context: Context, private val host: Host) {
         if (busy() || host.dictating()) return error(id, AudioError.BUSY)
         val rec = Recording(id, maxMs.coerceIn(1_000, if (live) AudioOps.MAX_LIVE_MS else AudioOps.MAX_RECORD_MS), live)
         recording = rec
+        finished = null
         Log.d(TAG, "record $id up to ${rec.maxMs} ms")
         host.startMicrophone(onPcm = { pcm -> onPcm(rec, pcm) }) { ok ->
             main.post {
@@ -141,7 +148,7 @@ class PhoneAudio(private val context: Context, private val host: Host) {
     }
 
     private fun stop(id: String, reason: String) {
-        val rec = recording?.takeIf { it.id == id } ?: return
+        val rec = recording?.takeIf { it.id == id } ?: return again(id)
         if (rec.live) {
             synchronized(rec) { rec.stopped = true }
             recording = null
@@ -160,22 +167,55 @@ class PhoneAudio(private val context: Context, private val host: Host) {
         val durationMs = pcm.size / 2L * 1000 / AudioCodec.RATE
         Log.d(TAG, "record $id stopped ($reason): $durationMs ms")
         if (pcm.isEmpty()) return error(id, AudioError.UNAVAILABLE, "no audio from the glasses")
+        // The file takes a moment: the glasses hear at once that it's coming.
+        encoding = id to durationMs
+        host.sendAudio(AudioOps.event(AudioOps.STOPPING, id).put("durationMs", durationMs))
         work.execute {
+            val began = System.currentTimeMillis()
             val file = runCatching { AudioCodec.encodeOggOpus(pcm) }
             main.post {
+                // Cancelled meanwhile: nothing to send.
+                if (encoding?.first != id) return@post
+                encoding = null
                 file.onSuccess { bytes ->
-                    Log.d(TAG, "record $id: ${bytes.size} B of Ogg Opus")
+                    Log.d(TAG, "record $id: ${bytes.size} B of Ogg Opus in ${System.currentTimeMillis() - began} ms")
                     val header = AudioOps.header(AudioOps.event(AudioOps.FILE, id), bytes)
                         .put("mime", AudioOps.RECORDING_MIME).put("durationMs", durationMs).put("reason", reason)
-                    host.sendAudio(header)
-                    outgoing = Outgoing(id, ChunkSender(bytes))
-                    pump()
+                    finished = Finished(id, header, bytes, System.currentTimeMillis())
+                    send(id, header, bytes)
                 }.onFailure {
                     Log.w(TAG, "encoding failed", it)
                     error(id, AudioError.UNAVAILABLE, "encoding failed: ${it.message}")
                 }
             }
         }
+    }
+
+    /**
+     * A stop for a recording that's no longer recording: the glasses didn't hear the answer, or
+     * the page asks again for a voice note that didn't make it across. Still encoding: `stopping`
+     * again; encoded: the file again, from its first piece.
+     */
+    private fun again(id: String) {
+        encoding?.takeIf { it.first == id }?.let { (_, durationMs) ->
+            host.sendAudio(AudioOps.event(AudioOps.STOPPING, id).put("durationMs", durationMs))
+            return
+        }
+        val kept = finished?.takeIf { it.id == id } ?: return
+        if (System.currentTimeMillis() - kept.at > AudioOps.KEEP_FILE_MS) {
+            finished = null
+            return
+        }
+        // Already on its way (a stop repeated while the first pieces cross): let it be.
+        if (outgoing?.id == id) return
+        Log.d(TAG, "record $id: sending the file again")
+        send(id, kept.header, kept.bytes)
+    }
+
+    private fun send(id: String, header: JSONObject, bytes: ByteArray) {
+        host.sendAudio(header)
+        outgoing = Outgoing(id, ChunkSender(bytes))
+        pump()
     }
 
     private fun cancel(id: String) {
@@ -186,6 +226,8 @@ class PhoneAudio(private val context: Context, private val host: Host) {
             Log.d(TAG, "record $id cancelled")
         }
         if (outgoing?.id == id) outgoing = null
+        if (finished?.id == id) finished = null
+        if (encoding?.first == id) encoding = null
         transcription?.takeIf { it.id == id }?.let { t ->
             t.cancelled = true
             t.session?.cancel()
