@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice test</title>
+<style>body{margin:0;background:#000;color:#3ddc84;font:28px/1.35 sans-serif;padding:40px}h1{font-size:34px;margin:0 0 20px}button{font:inherit;color:#3ddc84;background:#000;border:2px solid #3ddc84;border-radius:30px;padding:10px 26px;margin-top:20px}button:focus{outline:4px solid #3ddc84}#log{white-space:pre-line}</style></head>
+<body><h1>Voice test (45 s)</h1><div id="log">Press Enter to record 45 s.</div><button id="go">Record 45 s</button>
+<script>
+const log = document.getElementById('log');
+const say = t => { log.textContent = t; };
+const go = document.getElementById('go');
+go.focus();
+let busy = false;
+go.addEventListener('click', async () => {
+  if (busy) return; busy = true;
+  const audio = window.lumen && window.lumen.audio;
+  if (!audio) { say('No window.lumen.audio'); busy = false; return; }
+  try {
+    const rec = await audio.record({maxMs: 120000});
+    const t0 = Date.now();
+    rec.onLevel = (level, ms) => say('Recording ' + (ms / 1000).toFixed(0) + ' s');
+    await new Promise(r => setTimeout(r, 45000));
+    say('Stopping…');
+    const s0 = Date.now();
+    let result;
+    for (let attempt = 1; ; attempt++) {
+      try { result = await rec.stop(); break; }
+      catch (e) {
+        if (e.retryable && attempt < 3) { say('Stop failed (' + e.code + '), asking again…'); continue; }
+        throw e;
+      }
+    }
+    say('OK: ' + (result.durationMs / 1000).toFixed(1) + ' s of audio, ' + result.blob.size + ' B ' + result.mimeType + '\nfile arrived ' + ((Date.now() - s0) / 1000).toFixed(1) + ' s after stop');
+  } catch (e) {
+    say('FAILED: ' + (e.code || '') + ' ' + (e.message || e) + (e.retryable ? ' (retryable)' : ''));
+  }
+  busy = false;
+});
+</script></body></html>
