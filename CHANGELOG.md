@@ -3,7 +3,19 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
-## [Unreleased]
+## [0.2.0-beta.29]
+
+### Companion
+
+- **A layout for wide screens** (a foldable opened, a tablet). The tabs move to a rail on the left.
+  In Apps, the list and an app's details are two panes that scroll apart, so the details of an
+  app far down the list are in view at once, with its name at the top and Take off and Delete at
+  the bottom; the grid and the apps to add are two segments with their counts, a search filters
+  them, and each row shows its place on the glasses' grid. Band and Settings list their parts on
+  the left and show the chosen one on the right; Home and Notifications use two columns.
+- **Each tab starts at its own top**: switching tabs no longer carries another tab's scroll. On a
+  phone, the preview of the glasses' grid shows three rows until "Show all", and an app's sheet
+  scrolls when its details are taller than the screen.
 
 ### Web apps
 
