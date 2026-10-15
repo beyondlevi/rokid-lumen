@@ -3,6 +3,20 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [Unreleased]
+
+### Web apps
+
+- **Voice notes longer than about 30 seconds arrive again.** The phone took half the recording's
+  length or more to encode it (40 s of voice, 20 to 30 s on a Galaxy Z Fold8), while the glasses
+  waited 15 s for the file and then reported "no phone". It now encodes in under half a second
+  for 40 s, says at once that the file is coming (`stopping`), and the glasses wait up to a
+  minute for it.
+- **A voice note that didn't arrive can be asked for again.** The phone keeps the last recording
+  for 10 minutes; a `stop()` that failed with a retryable `timeout` can be called again and gets
+  it, instead of recording anew. Once the phone has answered, a silence is a `timeout`, no longer
+  `no-phone` ("the glasses aren't connected to the phone").
+
 ## [0.2.0-beta.28]
 
 ### Web apps

@@ -45,45 +45,54 @@ object AudioCodec {
             var fed = 0
             var inputDone = false
             var outputDone = false
+            // Every free input buffer is filled and every ready packet taken on each turn. One of
+            // each per turn, as before, left the encoder waiting on the 10 ms timeouts: half real
+            // time or slower on a Galaxy Z Fold8 (measured: 40 s of voice in 20 to 30 s, so a voice
+            // note past ~30 s missed the glasses' wait); this way 40 s take under half a second.
             while (!outputDone) {
-                if (!inputDone) {
-                    val index = codec.dequeueInputBuffer(TIMEOUT_US)
-                    if (index >= 0) {
-                        val buffer = codec.getInputBuffer(index)!!
-                        val size = minOf(buffer.remaining(), pcm.size - fed) and 1.inv()
-                        val timeUs = fed / 2 * 1_000_000L / RATE
-                        if (size <= 0) {
-                            codec.queueInputBuffer(index, 0, 0, timeUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                            inputDone = true
-                        } else {
-                            buffer.put(pcm, fed, size)
-                            codec.queueInputBuffer(index, 0, size, timeUs, 0)
-                            fed += size
-                        }
+                var queued = false
+                while (!inputDone) {
+                    val index = codec.dequeueInputBuffer(0)
+                    if (index < 0) break
+                    val buffer = codec.getInputBuffer(index)!!
+                    val size = minOf(buffer.remaining(), pcm.size - fed) and 1.inv()
+                    val timeUs = fed / 2 * 1_000_000L / RATE
+                    if (size <= 0) {
+                        codec.queueInputBuffer(index, 0, 0, timeUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                        inputDone = true
+                    } else {
+                        buffer.put(pcm, fed, size)
+                        codec.queueInputBuffer(index, 0, size, timeUs, 0)
+                        fed += size
                     }
+                    queued = true
                 }
-                val out = codec.dequeueOutputBuffer(info, TIMEOUT_US)
-                when {
-                    out == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                        // csd-0 is the encoder's OpusHead; its pre-skip is what to tell players.
-                        codec.outputFormat.getByteBuffer("csd-0")?.let { head ->
-                            val bytes = ByteArray(head.remaining()).also { head.duplicate().get(it) }
-                            if (bytes.size >= 12 && String(bytes, 0, 8, Charsets.US_ASCII) == "OpusHead") {
-                                preSkip = (bytes[10].toInt() and 0xff) or ((bytes[11].toInt() and 0xff) shl 8)
+                // Wait for the encoder only when there was nothing to give it.
+                var out = codec.dequeueOutputBuffer(info, if (queued) 0 else TIMEOUT_US)
+                while (out != MediaCodec.INFO_TRY_AGAIN_LATER && !outputDone) {
+                    when {
+                        out == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                            // csd-0 is the encoder's OpusHead; its pre-skip is what to tell players.
+                            codec.outputFormat.getByteBuffer("csd-0")?.let { head ->
+                                val bytes = ByteArray(head.remaining()).also { head.duplicate().get(it) }
+                                if (bytes.size >= 12 && String(bytes, 0, 8, Charsets.US_ASCII) == "OpusHead") {
+                                    preSkip = (bytes[10].toInt() and 0xff) or ((bytes[11].toInt() and 0xff) shl 8)
+                                }
                             }
                         }
-                    }
-                    out >= 0 -> {
-                        val buffer = codec.getOutputBuffer(out)!!
-                        if (info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
-                            val packet = ByteArray(info.size)
-                            buffer.position(info.offset)
-                            buffer.get(packet)
-                            (writer ?: OggOpusWriter(preSkip, RATE).also { writer = it }).packet(packet)
+                        out >= 0 -> {
+                            val buffer = codec.getOutputBuffer(out)!!
+                            if (info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
+                                val packet = ByteArray(info.size)
+                                buffer.position(info.offset)
+                                buffer.get(packet)
+                                (writer ?: OggOpusWriter(preSkip, RATE).also { writer = it }).packet(packet)
+                            }
+                            codec.releaseOutputBuffer(out, false)
+                            if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) outputDone = true
                         }
-                        codec.releaseOutputBuffer(out, false)
-                        if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) outputDone = true
                     }
+                    if (!outputDone) out = codec.dequeueOutputBuffer(info, 0)
                 }
             }
         } finally {

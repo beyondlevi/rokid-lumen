@@ -1,0 +1,26 @@
+# A 40 s voice note on 2026-10-15, 08:07, before the fix (Galaxy Z Fold8 + Rokid glasses, Lumen 0.2.0-beta.28)
+
+## Glasses (adb logcat, BandAudio)
+10-15 08:07:11.711 D/BandAudio( 2026): record 47189d663165170f for page id r1
+10-15 08:08:07.176 W/BandAudio( 2026): audio 47189d663165170f: no-phone
+
+## Phone (adb logcat): the audio stream, the stop, the Opus encoder
+10-15 08:07:11.968 I/cxr-service-jni( 8921): recv Notify: cmd nb.audio
+10-15 08:07:11.972 I/CXRLink (25376): cxrl -- setInterruptAiWake:true
+10-15 08:07:11.977 I/CXRLink (25376): cxrl--onAudioStreamStateChanged
+10-15 08:07:52.209 I/cxr-service-jni( 8921): recv Notify: cmd nb.audio
+10-15 08:07:52.214 I/CXRLink (25376): cxrl--onAudioStreamStateChanged
+10-15 08:07:52.214 I/CXRLink (25376): cxrl -- setInterruptAiWake:false
+10-15 08:07:52.306 I/CCodec  (25376): [c2.android.opus.encoder] state->set(RUNNING)
+10-15 08:07:55.179 I/cxr-service-jni( 8921): recv Notify: cmd nb.audio
+10-15 08:07:58.271 I/cxr-service-jni( 8921): recv Notify: cmd nb.audio
+10-15 08:08:01.208 I/cxr-service-jni( 8921): recv Notify: cmd nb.audio
+10-15 08:08:04.209 I/cxr-service-jni( 8921): recv Notify: cmd nb.audio
+10-15 08:08:07.206 I/cxr-service-jni( 8921): recv Notify: cmd nb.audio
+10-15 08:08:12.154 D/CCodecBuffers(25376): [c2.android.opus.encoder#487:1D-Output] received null buffer
+
+## Reading
+- 08:07:11.7 record; 08:07:52.2 the stop reaches the phone, which starts the Opus encoder.
+- No nb.audio.event leaves the phone after the stop (no file header) while the encoder runs.
+- 08:08:07.2 the glasses give up after 5 repeats of the stop, 3 s apart: no-phone.
+- 08:08:12 the encoder's last output: about 20 s of encoding for 40 s of voice.
