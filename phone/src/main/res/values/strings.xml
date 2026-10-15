@@ -761,4 +761,14 @@
     <string name="phone_write_no_touch">Writing with a gesture needs Screen gestures turned on in Rokid Lumen</string>
     <string name="glasses_option_devices">Choose the band\'s device</string>
     <string name="band_sending">sending</string>
+    <!-- A wide window (a foldable opened): the panes of Apps, Band and Settings. -->
+    <string name="apps_tab_grid">On the grid · %1$d</string>
+    <string name="apps_tab_available">Available · %1$d</string>
+    <string name="apps_search">Search apps</string>
+    <string name="apps_search_clear">Clear the search</string>
+    <string name="apps_search_none">No app matches “%1$s”</string>
+    <string name="apps_preview_all">Show all %1$d</string>
+    <string name="apps_preview_less">Show fewer</string>
+    <string name="settings_developer_hint">Wireless debugging and the glasses\' screen</string>
+    <string name="band_settings_here">The band is here</string>
 </resources>

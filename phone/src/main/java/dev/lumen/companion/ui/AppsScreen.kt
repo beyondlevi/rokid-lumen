@@ -2,6 +2,15 @@ package dev.lumen.companion.ui
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,7 +22,6 @@ import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,7 +32,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -81,9 +88,11 @@ import dev.lumen.protocol.GridItem
 import kotlin.math.roundToInt
 
 /**
- * The glasses' apps, arranged from here: a small preview of the HUD's grid (pages of 3x3), the
- * grid as a list in the HUD's order (hold and drag to reorder), and the apps that can be added.
- * An app's details open in a sheet on a phone and beside the list on a wide screen.
+ * The glasses' apps, arranged from here: a small preview of the HUD's grid, the grid as a list in
+ * the HUD's order (hold and drag to reorder), and the apps that can be added. On a phone they
+ * stack in one page and an app's details open in a sheet. On a wide window ([LocalWide]) the list
+ * (the grid or the apps to add, with a search) and the details are two panes side by side, each
+ * scrolling on its own, and the details keep their header and actions in view.
  */
 @Composable
 internal fun AppsScreen(
@@ -95,6 +104,7 @@ internal fun AppsScreen(
     transfer: PackageShare.Transfer?,
     sync: GridSync,
     actions: CompanionActions,
+    modifier: Modifier = Modifier,
 ) {
     var selected by remember { mutableStateOf<String?>(null) }
     var dialog by remember { mutableStateOf<AddDialog?>(null) }
@@ -102,63 +112,85 @@ internal fun AppsScreen(
     var editing by remember { mutableStateOf<Pair<GridItem, AppConfigField>?>(null) }
     /** Naming a web app: renaming it (false) or a new copy of it (true). */
     var naming by remember { mutableStateOf<Pair<GridItem, Boolean>?>(null) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var showAvailable by rememberSaveable { mutableStateOf(false) }
+    val wide = LocalWide.current
 
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val wide = maxWidth >= WIDE
-        Column(verticalArrangement = Arrangement.spacedBy(Lumen.spacingLarge)) {
-            AppsHeader(items.size, available.size, onAdd = { dialog = it }, onAddFile = actions::pickPackageFile)
-            transfer?.let { TransferCard(it, onDismiss = actions::dismissPackageTransfer) }
-            if (sync.slow) SyncCard()
-            sync.failed?.let { FailureCard(it, onDismiss = actions::dismissGridFailure) }
-            if (!known) {
-                Card {
-                    Text(stringResource(R.string.band_waiting), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.apps_waiting_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
-                }
-                return@Column
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (wide) Lumen.spacingMedium else Lumen.spacingLarge)) {
+        AppsHeader(
+            items.size, available.size, onAdd = { dialog = it }, onAddFile = actions::pickPackageFile,
+            search = if (wide) ({ SearchField(query) { query = it } }) else null,
+        )
+        transfer?.let { TransferCard(it, onDismiss = actions::dismissPackageTransfer) }
+        if (sync.slow) SyncCard()
+        sync.failed?.let { FailureCard(it, onDismiss = actions::dismissGridFailure) }
+        if (!known) {
+            Card {
+                Text(stringResource(R.string.band_waiting), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.apps_waiting_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textSecondary)
             }
-            if (error != null) {
-                Text(
-                    stringResource(R.string.band_refused, error.error),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Lumen.negative,
-                    modifier = Modifier.padding(horizontal = Lumen.spacingSmall),
-                )
-            }
-            val current = items.firstOrNull { it.id == selected }
-            val onDetail: @Composable (GridItem) -> Unit = { item ->
-                AppDetail(
-                    item, icons[item.id], actions, sync,
-                    onClose = if (wide) null else ({ selected = null }),
-                    onEdit = { editing = item to it },
-                    onDelete = { confirmDelete = item },
-                    onTakeOff = { selected = null; actions.hideGridItem(item.id) },
-                    onRename = { naming = item to false },
-                    onCopy = { naming = item to true },
-                    originalName = items.plus(available).firstOrNull { it.id == item.copyOf }?.name,
-                    busy = transfer?.busy == true,
-                )
-            }
-            if (wide) {
-                Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingLarge), verticalAlignment = Alignment.Top) {
-                    Column(Modifier.widthIn(max = LIST_MAX).weight(1f), verticalArrangement = Arrangement.spacedBy(Lumen.spacingLarge)) {
-                        GridPreview(items, icons, selected)
-                        GridList(items, icons, selected, sync.sending, actions) { selected = it }
-                        AvailableList(available, icons, actions)
-                    }
+            return@Column
+        }
+        if (error != null) {
+            Text(
+                stringResource(R.string.band_refused, error.error),
+                style = MaterialTheme.typography.bodySmall,
+                color = Lumen.negative,
+                modifier = Modifier.padding(horizontal = Lumen.spacingSmall),
+            )
+        }
+        val current = items.firstOrNull { it.id == selected }
+        val detail = DetailCallbacks(
+            onEdit = { item, field -> editing = item to field },
+            onDelete = { confirmDelete = it },
+            onTakeOff = { selected = null; actions.hideGridItem(it.id) },
+            onRename = { naming = it to false },
+            onCopy = { naming = it to true },
+        )
+        val originalName: (GridItem) -> String? = { item -> items.plus(available).firstOrNull { it.id == item.copyOf }?.name }
+        val busy = transfer?.busy == true
+        if (wide) {
+            Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Lumen.spacingMedium)) {
+                Column(Modifier.width(LIST_WIDTH).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed)) {
+                    ListSwitch(showAvailable, items.size, available.size) { showAvailable = it }
+                    val matches: (GridItem) -> Boolean = { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
+                    // Each list keeps to its own top: switching doesn't carry the other's scroll.
+                    val listScroll = remember(showAvailable) { ScrollState(0) }
                     Column(
-                        Modifier.weight(1f).clip(RoundedCornerShape(Lumen.radiusCard)).background(Lumen.surface).padding(Lumen.spacingMedLg),
-                        verticalArrangement = Arrangement.spacedBy(Lumen.spacingMedLg),
+                        Modifier.weight(1f).fillMaxWidth().verticalScroll(listScroll, enabled = !LocalScrollLock.current.value),
+                        verticalArrangement = Arrangement.spacedBy(Lumen.spacingSmall),
                     ) {
-                        if (current != null) onDetail(current)
-                        else Text(stringResource(R.string.apps_pick_one), style = MaterialTheme.typography.bodyMedium, color = Lumen.textSecondary)
+                        val shown = (if (showAvailable) available else items).filter(matches)
+                        when {
+                            shown.isEmpty() && query.isNotBlank() -> Text(
+                                stringResource(R.string.apps_search_none, query.trim()),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Lumen.textSecondary,
+                                modifier = Modifier.padding(Lumen.spacingSmall),
+                            )
+                            showAvailable -> AvailableList(shown, icons, actions, title = false)
+                            else -> GridList(
+                                shown, icons, selected, sync.sending, actions,
+                                positions = items.withIndex().associate { (index, item) -> item.id to index + 1 },
+                                // Reordering a filtered list would mean moving among hidden rows.
+                                reorderable = query.isBlank(),
+                                title = false,
+                            ) { selected = it }
+                        }
                     }
                 }
-            } else {
-                GridPreview(items, icons, selected)
-                GridList(items, icons, selected, sync.sending, actions) { selected = it }
-                AvailableList(available, icons, actions)
-                if (current != null) DetailSheet(onDismiss = { selected = null }) { onDetail(current) }
+                DetailPane(current, icons, actions, sync, detail, originalName, busy, Modifier.weight(1f).fillMaxHeight())
+            }
+        } else {
+            GridPreview(items, icons, selected)
+            GridList(items, icons, selected, sync.sending, actions) { selected = it }
+            AvailableList(available, icons, actions)
+            if (current != null) {
+                DetailSheet(onDismiss = { selected = null }) {
+                    AppDetailHeader(current, icons[current.id], sync, onClose = { selected = null })
+                    AppDetailBody(current, actions, sync, detail, originalName(current), busy)
+                    AppDetailActions(current, detail)
+                }
             }
         }
     }
@@ -197,13 +229,108 @@ internal fun AppsScreen(
     }
 }
 
+/** What an app's details ask of the screen: the dialogs and taking it off. */
+private class DetailCallbacks(
+    val onEdit: (GridItem, AppConfigField) -> Unit,
+    val onDelete: (GridItem) -> Unit,
+    val onTakeOff: (GridItem) -> Unit,
+    val onRename: (GridItem) -> Unit,
+    val onCopy: (GridItem) -> Unit,
+)
+
+/** The grid or the apps to add, as two segments with their counts. */
+@Composable
+private fun ListSwitch(showAvailable: Boolean, onGrid: Int, available: Int, onPick: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(Lumen.radiusRow)).background(Lumen.bar)
+            .border(BorderStroke(1.dp, Lumen.border.copy(alpha = 0.12f)), RoundedCornerShape(Lumen.radiusRow)).padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Segment(stringResource(R.string.apps_tab_grid, onGrid), !showAvailable) { onPick(false) }
+        Segment(stringResource(R.string.apps_tab_available, available), showAvailable) { onPick(true) }
+    }
+}
+
+/** Filters the list by the app's name. */
+@Composable
+private fun SearchField(query: String, onChange: (String) -> Unit) {
+    val hint = stringResource(R.string.apps_search)
+    Row(
+        Modifier.width(SEARCH_WIDTH).heightIn(min = 48.dp).clip(CircleShape).background(Lumen.elevation1).padding(horizontal = Lumen.spacingMedium),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmall),
+    ) {
+        Icon(LumenIcons.search, contentDescription = null, tint = Lumen.textPlaceholder, modifier = Modifier.size(18.dp))
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (query.isEmpty()) Text(hint, style = MaterialTheme.typography.bodyMedium, color = Lumen.textPlaceholder)
+            BasicTextField(
+                query, onChange,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Lumen.textPrimary),
+                cursorBrush = SolidColor(Lumen.accent),
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = hint },
+            )
+        }
+        if (query.isNotEmpty()) {
+            val clear = stringResource(R.string.apps_search_clear)
+            Box(
+                Modifier.size(32.dp).clip(CircleShape).clickable(role = Role.Button) { onChange("") }.semantics { contentDescription = clear },
+                contentAlignment = Alignment.Center,
+            ) { Icon(LumenIcons.close, contentDescription = null, tint = Lumen.textSecondary, modifier = Modifier.size(16.dp)) }
+        }
+    }
+}
+
+/**
+ * The details beside the list: the app's name and state stay at the top and its actions at the
+ * bottom, the settings between them scroll on their own (from the top for each app).
+ */
+@Composable
+private fun DetailPane(
+    item: GridItem?,
+    icons: Map<String, Bitmap>,
+    actions: CompanionActions,
+    sync: GridSync,
+    detail: DetailCallbacks,
+    originalName: (GridItem) -> String?,
+    busy: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier.clip(RoundedCornerShape(Lumen.radiusCard)).background(Lumen.surface)) {
+        if (item == null) {
+            Box(Modifier.fillMaxSize().padding(Lumen.spacingLarge), contentAlignment = Alignment.Center) {
+                Text(stringResource(R.string.apps_pick_one), style = MaterialTheme.typography.bodyMedium, color = Lumen.textSecondary, textAlign = TextAlign.Center)
+            }
+            return@Column
+        }
+        Box(Modifier.padding(start = Lumen.spacingMedLg, end = Lumen.spacingMedLg, top = Lumen.spacingMedLg, bottom = Lumen.spacingMedium)) {
+            AppDetailHeader(item, icons[item.id], sync, onClose = null)
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(DIVIDER))
+        Column(
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(remember(item.id) { ScrollState(0) })
+                .padding(horizontal = Lumen.spacingMedLg, vertical = Lumen.spacingMedium),
+            verticalArrangement = Arrangement.spacedBy(Lumen.spacingMedLg),
+        ) {
+            AppDetailBody(item, actions, sync, detail, originalName(item), busy)
+        }
+        if (item.removable || item.kind == GridItem.Kind.WEB) {
+            Box(Modifier.fillMaxWidth().height(1.dp).background(DIVIDER))
+            Box(Modifier.padding(horizontal = Lumen.spacingMedLg, vertical = Lumen.spacingSmMed)) { AppDetailActions(item, detail) }
+        }
+    }
+}
+
 private enum class AddDialog { WEB, PACKAGE }
 
 private const val COLUMNS = 3
+/** Rows of the preview shown before "Show all": the whole grid made a page without end. */
+private const val PREVIEW_ROWS = 3
 private const val ENGINE_GECKO = "GECKO"
 private const val ENGINE_SYSTEM = "SYSTEM"
-private val WIDE = 600.dp
-private val LIST_MAX = 460.dp
+private val LIST_WIDTH = 400.dp
+private val SEARCH_WIDTH = 260.dp
+private val DIVIDER = Color(0x14FFFFFF)
 private val ROW_HEIGHT = 64.dp
 private val ROW_GAP = 4.dp
 private val WARNING_TEXT = Color(0xFFF5C451)
@@ -213,9 +340,9 @@ private val NEGATIVE_BACKGROUND = Color(0xFF3B1E23)
 private val GridItem.needsSetup: Boolean get() = config.any { it.missing }
 
 @Composable
-private fun AppsHeader(onGrid: Int, available: Int, onAdd: (AddDialog) -> Unit, onAddFile: () -> Unit) {
+private fun AppsHeader(onGrid: Int, available: Int, onAdd: (AddDialog) -> Unit, onAddFile: () -> Unit, search: (@Composable () -> Unit)? = null) {
     var menu by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed)) {
+    Row(verticalAlignment = if (search != null) Alignment.CenterVertically else Alignment.Top, horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed)) {
         Column(Modifier.weight(1f).padding(start = Lumen.spacingSmall), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.apps_title), style = MaterialTheme.typography.headlineMedium)
             Text(
@@ -225,6 +352,7 @@ private fun AppsHeader(onGrid: Int, available: Int, onAdd: (AddDialog) -> Unit, 
                 color = Lumen.textSecondary,
             )
         }
+        search?.invoke()
         Box {
             PillButton(stringResource(R.string.apps_add_short), primary = true, icon = LumenIcons.plus) { menu = true }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = Lumen.elevation1) {
@@ -256,9 +384,15 @@ private fun MenuText(title: Int, hint: Int) {
     }
 }
 
-/** The HUD's Apps tab, small: every app in rows of three, as the glasses scroll through them. */
+/**
+ * The HUD's Apps tab, small: the apps in rows of three, as the glasses scroll through them. The
+ * first rows only, until "Show all": with the whole grid the page grew without end.
+ */
 @Composable
 private fun GridPreview(items: List<GridItem>, icons: Map<String, Bitmap>, selected: String?) {
+    var all by rememberSaveable { mutableStateOf(false) }
+    val shown = items.filter { it.kind != GridItem.Kind.NOTIFICATIONS }
+    val rows = shown.chunked(COLUMNS)
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(Lumen.radiusCard)).background(Lumen.surface).padding(Lumen.spacingMedium),
         verticalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed),
@@ -268,8 +402,7 @@ private fun GridPreview(items: List<GridItem>, icons: Map<String, Bitmap>, selec
             Modifier.fillMaxWidth().clip(RoundedCornerShape(Lumen.radiusRow)).background(Lumen.window).padding(Lumen.spacingSmMed),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            val shown = items.filter { it.kind != GridItem.Kind.NOTIFICATIONS }
-            shown.chunked(COLUMNS).forEach { row ->
+            (if (all) rows else rows.take(PREVIEW_ROWS)).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     (0 until COLUMNS).forEach { column ->
                         val item = row.getOrNull(column)
@@ -277,6 +410,14 @@ private fun GridPreview(items: List<GridItem>, icons: Map<String, Bitmap>, selec
                     }
                 }
             }
+        }
+        if (rows.size > PREVIEW_ROWS) {
+            Text(
+                if (all) stringResource(R.string.apps_preview_less) else stringResource(R.string.apps_preview_all, shown.size),
+                style = MaterialTheme.typography.labelLarge,
+                color = Lumen.accent,
+                modifier = Modifier.clip(CircleShape).clickable(role = Role.Button) { all = !all }.padding(horizontal = Lumen.spacingSmall, vertical = Lumen.spacingSmall),
+            )
         }
     }
 }
@@ -335,7 +476,18 @@ private fun metaDot(item: GridItem): Color? = when {
  * glasses (their answer replaces it).
  */
 @Composable
-private fun GridList(items: List<GridItem>, icons: Map<String, Bitmap>, selected: String?, sending: Set<String>, actions: CompanionActions, onSelect: (String) -> Unit) {
+private fun GridList(
+    items: List<GridItem>,
+    icons: Map<String, Bitmap>,
+    selected: String?,
+    sending: Set<String>,
+    actions: CompanionActions,
+    /** Each app's place on the HUD (1 is the first), shown on its row. */
+    positions: Map<String, Int>? = null,
+    reorderable: Boolean = true,
+    title: Boolean = true,
+    onSelect: (String) -> Unit,
+) {
     var order by remember(items) { mutableStateOf(items) }
     var dragging by remember { mutableStateOf<String?>(null) }
     var offset by remember { mutableFloatStateOf(0f) }
@@ -374,9 +526,11 @@ private fun GridList(items: List<GridItem>, icons: Map<String, Bitmap>, selected
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(Lumen.spacingSmall)) {
-        Row(Modifier.padding(horizontal = Lumen.spacingSmall), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.apps_on_grid).uppercase(), style = MaterialTheme.typography.labelMedium, color = Lumen.textPlaceholder, modifier = Modifier.weight(1f))
-            Text(stringResource(R.string.apps_drag_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textPlaceholder)
+        if (title) {
+            Row(Modifier.padding(horizontal = Lumen.spacingSmall), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.apps_on_grid).uppercase(), style = MaterialTheme.typography.labelMedium, color = Lumen.textPlaceholder, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.apps_drag_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textPlaceholder)
+            }
         }
         Column(verticalArrangement = Arrangement.spacedBy(ROW_GAP)) {
             order.forEachIndexed { index, item ->
@@ -389,7 +543,7 @@ private fun GridList(items: List<GridItem>, icons: Map<String, Bitmap>, selected
                     else -> 0f
                 }
                 val slide by animateFloatAsState(shift, label = "slide")
-                val handle = Modifier.pointerInput(item.id) {
+                val handle = if (!reorderable) Modifier else Modifier.pointerInput(item.id) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         down.consume()
@@ -401,7 +555,7 @@ private fun GridList(items: List<GridItem>, icons: Map<String, Bitmap>, selected
                         drop()
                     }
                 }
-                val hold = Modifier.pointerInput(item.id) {
+                val hold = if (!reorderable) Modifier else Modifier.pointerInput(item.id) {
                     detectDragGesturesAfterLongPress(
                         onDragStart = { lift(item.id) },
                         onDragEnd = { drop() },
@@ -411,7 +565,7 @@ private fun GridList(items: List<GridItem>, icons: Map<String, Bitmap>, selected
                 }
                 AppRow(
                     item, icons[item.id], selected = item.id == selected, lifted = lifted, sending = item.id in sending,
-                    handle = handle, hold = hold,
+                    handle = handle, hold = hold, position = positions?.get(item.id), reorderable = reorderable,
                     modifier = Modifier
                         .zIndex(if (lifted) 1f else 0f)
                         .graphicsLayer {
@@ -423,6 +577,9 @@ private fun GridList(items: List<GridItem>, icons: Map<String, Bitmap>, selected
                         },
                 ) { onSelect(item.id) }
             }
+        }
+        if (!title && reorderable && order.size > 1) {
+            Text(stringResource(R.string.apps_drag_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textPlaceholder, modifier = Modifier.padding(Lumen.spacingSmall))
         }
     }
 }
@@ -437,6 +594,8 @@ private fun AppRow(
     handle: Modifier,
     hold: Modifier,
     modifier: Modifier = Modifier,
+    position: Int? = null,
+    reorderable: Boolean = true,
     onClick: () -> Unit,
 ) {
     val shape = RoundedCornerShape(Lumen.radiusRow)
@@ -459,7 +618,20 @@ private fun AppRow(
             Modifier.size(width = 44.dp, height = ROW_HEIGHT).then(handle).semantics { contentDescription = reorder },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(LumenIcons.grip, contentDescription = null, tint = if (lifted) Lumen.textPrimary else Lumen.textPlaceholder, modifier = Modifier.size(18.dp))
+            Icon(
+                LumenIcons.grip, contentDescription = null,
+                tint = if (lifted) Lumen.textPrimary else Lumen.textPlaceholder.copy(alpha = if (reorderable) 1f else 0.35f),
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        if (position != null) {
+            Text(
+                position.toString(),
+                style = MaterialTheme.typography.labelMedium,
+                color = Lumen.textPlaceholder,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(24.dp).padding(start = 0.dp),
+            )
         }
         Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Lumen.elevation1), contentAlignment = Alignment.Center) {
             AppIcon(item, icon, 22.dp)
@@ -533,15 +705,17 @@ private fun SetupBadge() {
 }
 
 @Composable
-private fun AvailableList(available: List<GridItem>, icons: Map<String, Bitmap>, actions: CompanionActions) {
+private fun AvailableList(available: List<GridItem>, icons: Map<String, Bitmap>, actions: CompanionActions, title: Boolean = true) {
     if (available.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(Lumen.spacingSmall)) {
-        Text(
-            stringResource(R.string.apps_available).uppercase(),
-            style = MaterialTheme.typography.labelMedium,
-            color = Lumen.textPlaceholder,
-            modifier = Modifier.padding(horizontal = Lumen.spacingSmall),
-        )
+        if (title) {
+            Text(
+                stringResource(R.string.apps_available).uppercase(),
+                style = MaterialTheme.typography.labelMedium,
+                color = Lumen.textPlaceholder,
+                modifier = Modifier.padding(horizontal = Lumen.spacingSmall),
+            )
+        }
         Column(verticalArrangement = Arrangement.spacedBy(ROW_GAP)) {
             available.forEach { item ->
                 Row(
@@ -580,28 +754,15 @@ private fun DetailSheet(onDismiss: () -> Unit, content: @Composable () -> Unit) 
         shape = RoundedCornerShape(topStart = Lumen.radiusCard, topEnd = Lumen.radiusCard),
     ) {
         Column(
-            Modifier.padding(horizontal = Lumen.spacingMedium).padding(bottom = Lumen.spacingLarge).navigationBarsPadding(),
+            Modifier.verticalScroll(rememberScrollState()).padding(horizontal = Lumen.spacingMedium).padding(bottom = Lumen.spacingLarge).navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(Lumen.spacingMedLg),
         ) { content() }
     }
 }
 
-/** Everything about one app: what it still needs, its settings, its camera, its engine, taking it off. */
+/** An app's name, kind and state, with a close button in the sheet. */
 @Composable
-private fun AppDetail(
-    item: GridItem,
-    icon: Bitmap?,
-    actions: CompanionActions,
-    sync: GridSync,
-    onClose: (() -> Unit)?,
-    onEdit: (AppConfigField) -> Unit,
-    onDelete: () -> Unit,
-    onTakeOff: () -> Unit,
-    onRename: () -> Unit,
-    onCopy: () -> Unit,
-    originalName: String?,
-    busy: Boolean,
-) {
+private fun AppDetailHeader(item: GridItem, icon: Bitmap?, sync: GridSync, onClose: (() -> Unit)?) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         Box(Modifier.size(56.dp).clip(RoundedCornerShape(Lumen.radiusRow)).background(Lumen.elevation2), contentAlignment = Alignment.Center) {
             AppIcon(item, icon, 30.dp)
@@ -614,6 +775,7 @@ private fun AppDetail(
                 if (item.id in sync.sending) Tag(stringResource(R.string.band_sending))
             }
         }
+        if (item.needsSetup) SetupBadge()
         if (onClose != null) {
             val close = stringResource(R.string.apps_close)
             Box(
@@ -623,6 +785,11 @@ private fun AppDetail(
             ) { Icon(LumenIcons.close, contentDescription = null, tint = Lumen.textPrimary, modifier = Modifier.size(18.dp)) }
         }
     }
+}
+
+/** Everything about one app: what it still needs, its settings, its camera, its package, its name and engine. */
+@Composable
+private fun AppDetailBody(item: GridItem, actions: CompanionActions, sync: GridSync, callbacks: DetailCallbacks, originalName: String?, busy: Boolean) {
     if (item.copyOf.isNotEmpty()) {
         Text(
             stringResource(R.string.apps_copy_of, originalName ?: stringResource(R.string.apps_copy_of_unknown)),
@@ -657,7 +824,7 @@ private fun AppDetail(
                         else -> field.value
                     }
                     Row(
-                        Modifier.fillMaxWidth().heightIn(min = ROW_HEIGHT).background(Lumen.elevation1).clickable(role = Role.Button) { onEdit(field) }
+                        Modifier.fillMaxWidth().heightIn(min = ROW_HEIGHT).background(Lumen.elevation1).clickable(role = Role.Button) { callbacks.onEdit(item, field) }
                             .padding(horizontal = Lumen.spacingMedium, vertical = Lumen.spacingSmMed),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmMed),
@@ -706,8 +873,8 @@ private fun AppDetail(
     if (item.kind == GridItem.Kind.WEB) {
         DetailSection(stringResource(R.string.apps_name), null) {
             Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmall)) {
-                PillButton(stringResource(R.string.apps_rename), primary = false, modifier = Modifier.weight(1f), onClick = onRename)
-                PillButton(stringResource(R.string.apps_add_copy), primary = false, modifier = Modifier.weight(1f), icon = LumenIcons.plus, onClick = onCopy)
+                PillButton(stringResource(R.string.apps_rename), primary = false, modifier = Modifier.weight(1f)) { callbacks.onRename(item) }
+                PillButton(stringResource(R.string.apps_add_copy), primary = false, modifier = Modifier.weight(1f), icon = LumenIcons.plus) { callbacks.onCopy(item) }
             }
             Text(stringResource(R.string.apps_copy_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textPlaceholder, modifier = Modifier.padding(horizontal = Lumen.spacingSmall))
         }
@@ -719,14 +886,19 @@ private fun AppDetail(
             Text(stringResource(R.string.apps_engine_hint), style = MaterialTheme.typography.bodySmall, color = Lumen.textPlaceholder, modifier = Modifier.padding(horizontal = Lumen.spacingSmall))
         }
     }
+}
+
+/** Taking the app off the grid, and deleting a web app. */
+@Composable
+private fun AppDetailActions(item: GridItem, callbacks: DetailCallbacks) {
     if (item.removable || item.kind == GridItem.Kind.WEB) {
         Row(horizontalArrangement = Arrangement.spacedBy(Lumen.spacingSmall)) {
             if (item.removable) {
-                PillButton(stringResource(R.string.apps_take_off), primary = false, modifier = Modifier.weight(1f), icon = LumenIcons.eyeOff, onClick = onTakeOff)
+                PillButton(stringResource(R.string.apps_take_off), primary = false, modifier = Modifier.weight(1f), icon = LumenIcons.eyeOff, onClick = { callbacks.onTakeOff(item) })
             }
             if (item.kind == GridItem.Kind.WEB) {
                 androidx.compose.material3.Button(
-                    onClick = onDelete,
+                    onClick = { callbacks.onDelete(item) },
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                     shape = CircleShape,
                     colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = NEGATIVE_BACKGROUND, contentColor = Lumen.negative),

@@ -23,6 +23,11 @@ import java.security.SecureRandom
  * host → page `{type: started|level|result|pcm|ended|partial|transcript|error, id, …}` ([Page.event]).
  * A live recording (the page's getUserMedia) gets `pcm` events (base64 16 kHz mono PCM16) as
  * the phone sends them, then `ended`.
+ *
+ * After a stop the phone answers `stopping` and encodes; the file may then take a while
+ * ([AudioOps.FILE_WAIT_MS]). Once the phone has answered, a silence is a `timeout`, not
+ * `no-phone`. A stopped recording that didn't arrive can be asked for again: the page's next
+ * `stop` for it goes to the phone, which still has the file.
  */
 object GlassesAudio {
     private const val TAG = "BandAudio"
@@ -48,6 +53,8 @@ object GlassesAudio {
         var header: JSONObject? = null
         var acks = 0
         var stopped = false
+        /** The phone answered once: it's there, so a later silence is a timeout. */
+        var reached = false
         var durationMs = 0L
         var reason = "stop"
         var mime = AudioOps.RECORDING_MIME
@@ -59,6 +66,11 @@ object GlassesAudio {
     private var local: Local? = null
     private val random = SecureRandom()
     private val jobs = LinkedHashMap<String, Job>()
+
+    /** A stopped recording whose file didn't arrive: the page may ask for it again. */
+    private class Unfetched(val owner: Any, val pageId: String, val linkId: String, val page: Page, val at: Long)
+    private var unfetched: Unfetched? = null
+    private const val UNFETCHED_MS = 10 * 60_000L
 
     /** A page's request; [owner] is its screen, so closing it ends what it started ([closeAll]). */
     @JvmStatic
@@ -77,8 +89,12 @@ object GlassesAudio {
         }
         when (message.optString("op")) {
             AudioOps.RECORD -> record(owner, pageId, message.optLong("maxMs", AudioOps.MAX_RECORD_MS), message.optBoolean("live"), page)
-            AudioOps.STOP -> job?.takeIf { it.kind == Kind.RECORD && !it.stopped }?.let { stop(it) }
-            AudioOps.CANCEL -> job?.let { cancel(it) }
+            AudioOps.STOP -> if (job == null) fetchAgain(owner, pageId, page) else job.takeIf { it.kind == Kind.RECORD && !it.stopped }?.let { stop(it) }
+            AudioOps.CANCEL -> if (job != null) cancel(job) else unfetched?.takeIf { it.owner === owner && it.pageId == pageId }?.let {
+                // The page gave up on a voice note that didn't arrive: the phone may drop it.
+                unfetched = null
+                send(AudioOps.message(AudioOps.CANCEL, it.linkId))
+            }
             AudioOps.TRANSCRIBE -> transcribe(owner, pageId, message, page)
         }
     }
@@ -90,6 +106,7 @@ object GlassesAudio {
     /** The screen closed: its recordings and transcriptions end, on the phone too. */
     @JvmStatic
     fun closeAll(owner: Any) {
+        unfetched?.takeIf { it.owner === owner }?.let { send(AudioOps.message(AudioOps.CANCEL, it.linkId)); unfetched = null }
         jobs.values.filter { it.owner === owner }.forEach { cancel(it, quiet = true) }
         local?.takeIf { it.owner === owner }?.let { stopLocal(it, null) }
     }
@@ -132,6 +149,8 @@ object GlassesAudio {
         if (PhoneLink.ensure() == null) return page.event(error(pageId, AudioError.NO_PHONE))
         if (Dictation.isListening() || jobs.isNotEmpty()) return page.event(error(pageId, AudioError.BUSY))
         val job = Job(Kind.RECORD, pageId, newId(), page, owner, live)
+        // A new recording: the phone forgets the last one's file, so do the glasses.
+        unfetched = null
         jobs[job.linkId] = job
         Log.d(TAG, "record ${job.linkId} for page id $pageId${if (live) " (live)" else ""}")
         val limit = if (live) AudioOps.MAX_LIVE_MS else AudioOps.MAX_RECORD_MS
@@ -143,7 +162,21 @@ object GlassesAudio {
         ask(job, AudioOps.message(AudioOps.STOP, job.linkId))
     }
 
+    /** The page asks again for a stopped recording that didn't arrive: the phone kept its file. */
+    private fun fetchAgain(owner: Any, pageId: String, page: Page) {
+        val lost = unfetched?.takeIf { it.owner === owner && it.pageId == pageId } ?: return
+        unfetched = null
+        if (android.os.SystemClock.uptimeMillis() - lost.at > UNFETCHED_MS) return page.event(error(pageId, AudioError.UNAVAILABLE, "the recording is no longer on the phone"))
+        if (PhoneLink.ensure() == null) return page.event(error(pageId, AudioError.NO_PHONE))
+        if (Dictation.isListening() || jobs.isNotEmpty()) return page.event(error(pageId, AudioError.BUSY))
+        val job = Job(Kind.RECORD, pageId, lost.linkId, page, owner).apply { reached = true }
+        jobs[job.linkId] = job
+        Log.d(TAG, "record ${job.linkId}: asking the phone for the file again")
+        stop(job)
+    }
+
     private fun cancel(job: Job, quiet: Boolean = false) {
+        if (unfetched?.linkId == job.linkId) unfetched = null
         jobs.remove(job.linkId)
         main.removeCallbacksAndMessages(job)
         send(AudioOps.message(AudioOps.CANCEL, job.linkId))
@@ -177,13 +210,14 @@ object GlassesAudio {
     private fun repeatAsk(job: Job) {
         val request = job.ask ?: return
         if (jobs[job.linkId] !== job) return
-        if (job.asked >= REPEATS) return fail(job, AudioError.NO_PHONE)
+        if (job.asked >= REPEATS) return fail(job, if (job.reached) AudioError.TIMEOUT else AudioError.NO_PHONE)
         job.asked++
         send(request)
         main.postAtTime({ repeatAsk(job) }, job, android.os.SystemClock.uptimeMillis() + REPEAT_MS)
     }
 
     private fun answered(job: Job) {
+        job.reached = true
         job.ask = null
         main.removeCallbacksAndMessages(job)
     }
@@ -211,6 +245,12 @@ object GlassesAudio {
                 answered(job)
                 job.page.event(event("started", job.pageId))
             }
+            AudioOps.STOPPING -> if (job.kind == Kind.RECORD && job.receiver == null) {
+                // The phone has the stop and encodes: the file comes, give it time.
+                answered(job)
+                job.durationMs = json.optLong("durationMs")
+                main.postAtTime({ fail(job, AudioError.TIMEOUT) }, job, android.os.SystemClock.uptimeMillis() + AudioOps.FILE_WAIT_MS)
+            }
             AudioOps.LEVEL -> if (job.kind == Kind.RECORD && !job.stopped) {
                 answered(job)
                 job.page.event(event("level", job.pageId).put("level", json.optDouble("level")).put("ms", json.optLong("ms")))
@@ -230,6 +270,7 @@ object GlassesAudio {
                 if (bytes == null || !receiver.put(seq, bytes)) return
                 send(AudioOps.message(AudioOps.ACK, job.linkId).put("seq", seq))
                 if (!receiver.complete) return
+                if (unfetched?.linkId == job.linkId) unfetched = null
                 jobs.remove(job.linkId)
                 main.removeCallbacksAndMessages(job)
                 val file = receiver.bytes() ?: return job.page.event(error(job.pageId, AudioError.UNAVAILABLE, "the recording arrived damaged"))
@@ -262,7 +303,10 @@ object GlassesAudio {
             AudioOps.ERROR -> {
                 jobs.remove(job.linkId)
                 main.removeCallbacksAndMessages(job)
-                job.page.event(error(job.pageId, AudioError.of(json.optString("code")), json.optString("message")))
+                val code = AudioError.of(json.optString("code"))
+                // The file stopped crossing: the phone still has it, the page may ask again.
+                if (code == AudioError.TIMEOUT) keepForRetry(job)
+                job.page.event(error(job.pageId, code, json.optString("message")))
             }
         }
     }
@@ -271,8 +315,19 @@ object GlassesAudio {
         if (jobs.remove(job.linkId) == null) return
         main.removeCallbacksAndMessages(job)
         Log.w(TAG, "audio ${job.linkId}: ${code.code}")
+        if (code == AudioError.TIMEOUT && keepForRetry(job)) {
+            // Not cancelled on the phone: it keeps the file for the page's next try.
+            return job.page.event(error(job.pageId, code))
+        }
         send(AudioOps.message(AudioOps.CANCEL, job.linkId))
         job.page.event(error(job.pageId, code))
+    }
+
+    /** A stopped recording that didn't arrive: remembered so the page's next stop asks again. */
+    private fun keepForRetry(job: Job): Boolean {
+        if (job.kind != Kind.RECORD || !job.stopped || job.live) return false
+        unfetched = Unfetched(job.owner, job.pageId, job.linkId, job.page, android.os.SystemClock.uptimeMillis())
+        return true
     }
 
     private fun send(json: JSONObject, bytes: ByteArray? = null) = PhoneLink.send(Link.AUDIO, json, bytes)

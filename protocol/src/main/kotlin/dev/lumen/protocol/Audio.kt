@@ -13,6 +13,7 @@ import java.security.MessageDigest
  *                                        {op: chunk, id, seq} + bytes (a file going to the phone)
  *                                        {op: ack, id, seq} (a chunk of the phone's file arrived)
  *   phone → glasses  [Link.AUDIO_EVENT]  {type: started, id} | {type: level, id, level, ms}
+ *                                        {type: stopping, id, durationMs} (a stop arrived: the file follows)
  *                                        {type: file, id, size, sha256, chunks, mime, durationMs, reason}
  *                                        {type: chunk, id, seq} + bytes | {type: ack, id, seq}
  *                                        {type: pcm, id, seq} + bytes | {type: ended, id} (a live recording)
@@ -23,6 +24,11 @@ import java.security.MessageDigest
  * in flight at a time ([ChunkSender]), each acknowledged, missing ones sent again; the receiver
  * ([ChunkReceiver]) checks the size and SHA-256 at the end. Bytes ride in the Caps after the
  * JSON. Error codes are the page's ([AudioError]).
+ *
+ * Encoding a long recording takes the phone a moment, so it answers a stop with `stopping` at
+ * once and the glasses then wait up to [FILE_WAIT_MS] for the file. The phone keeps the last
+ * recording's file a while ([KEEP_FILE_MS]): a `stop` for it again sends it again, which is how
+ * the page retries a voice note that didn't make it across.
  *
  * A live recording (`live: true`, for the page's `getUserMedia`) sends no file: the PCM itself
  * (16 kHz mono PCM16) in [LIVE_CHUNK_MS] pieces as it comes, unacknowledged (a lost piece is a
@@ -37,6 +43,7 @@ object AudioOps {
     const val ACK = "ack"
 
     const val STARTED = "started"
+    const val STOPPING = "stopping"
     const val LEVEL = "level"
     const val FILE = "file"
     const val PARTIAL = "partial"
@@ -48,6 +55,11 @@ object AudioOps {
     /** A live recording's pieces, and its longest run. */
     const val LIVE_CHUNK_MS = 100L
     const val MAX_LIVE_MS = 30 * 60_000L
+
+    /** After `stopping`, how long the glasses wait for the file before giving up ([AudioError.TIMEOUT]). */
+    const val FILE_WAIT_MS = 60_000L
+    /** How long the phone keeps the last recording's file, to send it again on a repeated stop. */
+    const val KEEP_FILE_MS = 10 * 60_000L
 
     /** The longest recording, and the default. */
     const val MAX_RECORD_MS = 120_000L

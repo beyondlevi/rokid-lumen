@@ -3,6 +3,32 @@
 <!-- The release workflow takes a version's notes from its "## [x.y.z]" heading up to the next
      "## " heading, so keep the brackets. -->
 
+## [0.2.0-beta.29]
+
+### Companion
+
+- **A layout for wide screens** (a foldable opened, a tablet). The tabs move to a rail on the left.
+  In Apps, the list and an app's details are two panes that scroll apart, so the details of an
+  app far down the list are in view at once, with its name at the top and Take off and Delete at
+  the bottom; the grid and the apps to add are two segments with their counts, a search filters
+  them, and each row shows its place on the glasses' grid. Band and Settings list their parts on
+  the left and show the chosen one on the right; Home and Notifications use two columns.
+- **Each tab starts at its own top**: switching tabs no longer carries another tab's scroll. On a
+  phone, the preview of the glasses' grid shows three rows until "Show all", and an app's sheet
+  scrolls when its details are taller than the screen.
+
+### Web apps
+
+- **Voice notes longer than about 30 seconds arrive again.** The phone took half the recording's
+  length or more to encode it (40 s of voice, 20 to 30 s on a Galaxy Z Fold8), while the glasses
+  waited 15 s for the file and then reported "no phone". It now encodes in under half a second
+  for 40 s, says at once that the file is coming (`stopping`), and the glasses wait up to a
+  minute for it.
+- **A voice note that didn't arrive can be asked for again.** The phone keeps the last recording
+  for 10 minutes; a `stop()` that failed with a retryable `timeout` can be called again and gets
+  it, instead of recording anew. Once the phone has answered, a silence is a `timeout`, no longer
+  `no-phone` ("the glasses aren't connected to the phone").
+
 ## [0.2.0-beta.28]
 
 ### Web apps
