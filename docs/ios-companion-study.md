@@ -16,7 +16,9 @@ settings, the grid and setup.
 What iOS does not allow, no matter how the app is written:
 
 - reading other apps' notifications on the phone, and replying to them in text;
-- opening a hotspot from an app (the user turns Personal Hotspot on by hand);
+- opening a hotspot from an app. The phone's internet still reaches the glasses, by one of two
+  routes; see [Internet through the iPhone](#internet-through-the-iphone), the main goal of an
+  iOS companion;
 - acting as a Bluetooth keyboard and mouse for a computer;
 - driving the phone itself (system gestures, other apps' media, volume and brightness from the
   background).
@@ -85,7 +87,7 @@ Legend: **Yes** works on iOS much as on Android; **Partial** works with real lim
 | Self-arm, band key import | `nb.settings`, `nb.band.key` | same commands | **Yes** |
 | Band key with the Meta account | `WebView` + `CookieManager`, ported from kinesis `MetaAuth.swift` | the original Swift from kinesis, `WKWebView` | **Yes** |
 | Install a `.mrbd.zip` | the glasses GET it from the phone's `WebProxy` over the hotspot | serve it while the app is open, or send it over `sendCustomCmdStream` with the existing chunking | **Partial** (protocol change) |
-| Internet for the glasses | `startLocalOnlyHotspot` + local proxy | no API to open a hotspot. The user turns on Personal Hotspot; the companion sends its name and password (typed once) in `NetEvent.Ready`; no proxy needed, it is real internet | **Partial** (one manual step, glasses change) |
+| Internet for the glasses | `startLocalOnlyHotspot` + local proxy | no API to open a hotspot. Either the iPhone's Personal Hotspot, or the glasses' own network with the companion as the proxy, as Meta's app does; see [below](#internet-through-the-iphone) | **Partial** (glasses change) |
 | Notifications: forward, inbox, banner | `NotificationListenerService` | none for apps. Only path: the **glasses** read the iPhone's ANCS over BLE | **Glasses** |
 | Notifications: reply in text, reactions | `RemoteInput` on the notification's action | ANCS has only a positive and a negative action, no text | **No** |
 | Notifications: dismiss | `cancelNotification` | ANCS negative action (usually "clear") | **Glasses**, partial |
@@ -95,6 +97,108 @@ Legend: **Yes** works on iOS much as on Android; **Partial** works with real lim
 | The band on a computer (phone as HID) | `BluetoothHidDevice` | CoreBluetooth refuses the HID service UUID | **No** |
 | Glasses mirror, adb pairing | kadb | no adb client for iOS in use; developer feature | **No** (skip) |
 | Companion self-update | `PackageInstaller` from GitHub releases | App Store, TestFlight or sideloading | **Partial** |
+
+## Internet through the iPhone
+
+The reason for an iOS companion: web apps (online apps, video included) on the glasses, through
+the iPhone's connection. On Android the companion opens a local-only hotspot, the glasses join
+it with `cmd wifi connect-network` (`PhoneInternet.kt:303`), and the web engines go through the
+companion's HTTP proxy (`SystemWebEngine.kt:273-290`), ~2.9 MB/s measured
+(`PhoneInternet.kt:26`). iOS has no API to open a hotspot
+([NEHotspotConfiguration](https://developer.apple.com/documentation/networkextension/nehotspotconfiguration)
+only joins one), so the network has to come from somewhere else.
+
+### How Meta's app does it
+
+Meta does not document the data path to Meta Ray-Ban Display. What its own notes show:
+
+- The glasses publish a Wi-Fi network and the iPhone joins it: the Meta AI app shows
+  "Meta AI wants to Join Wi-Fi network..." on iPhone
+  ([release notes, v26, 2026-06-29](https://www.meta.com/help/ai-glasses/1809764829519902/)),
+  and Meta's developer docs say "On iOS, a Wi-Fi prompt should appear"
+  ([display overview](https://wearables.developer.meta.com/docs/develop/dat/display-overview/)).
+- Since v26 (Early Access) that prompt is gone through **Wi-Fi Aware**, iOS 26's peer-to-peer
+  Wi-Fi, for imports and updates.
+- Reels play on the display since 2026-03-04; how their video reaches the glasses is not
+  documented.
+
+This is the pattern Apple calls a *stand-alone accessory*: the accessory publishes a network
+with no internet, the iPhone joins it, and iOS "will typically leave the default route" on
+cellular, so the app reaches the internet over cellular while talking to the accessory over
+Wi-Fi ([Working with a Wi-Fi Accessory](https://developer.apple.com/forums/thread/734344),
+[Apple DTS](https://developer.apple.com/forums/thread/789103)). Rokid's own iOS SDK for its
+media sync does the same (CXR-M iOS: `connectToHotspot`, `RGEasyHotspotInfo`,
+`NEHotspotConfiguration`).
+
+### Route A: the iPhone's Personal Hotspot
+
+The iPhone shares its connection itself; iOS does the routing, no proxy.
+
+- **Companion:** a screen to enter the hotspot's name and password once (iOS gives an app no
+  way to read them), sent to the glasses in `NetEvent.Ready` with no proxy.
+- **Glasses:** keep that network saved instead of forgetting it after use
+  (`PhoneInternet.kt:370`), go direct (proxy null), and say on the HUD when the hotspot is not in
+  range ("Open Personal Hotspot on the iPhone").
+- **For:** works with the iPhone locked and the companion closed, full speed, video included;
+  the smallest change on both sides.
+- **Against:** the user turns the hotspot on by hand. Apple: third-party devices are dropped
+  after 90 s without traffic
+  ([Apple platform support](https://support.apple.com/guide/platform-support/sup025284ac0)), and
+  the iPhone stops broadcasting shortly after leaving its Personal Hotspot screen if nobody
+  joins (an older Apple forum answer, to measure on current iOS). It needs a plan that allows
+  tethering, and it uses cellular even when the iPhone is on Wi-Fi.
+
+### Route B: the glasses' network, the companion as the proxy (Meta's pattern)
+
+The glasses publish a Wi-Fi network; the iPhone joins it; the companion runs the same HTTP proxy
+the Android one does, and sends what it relays out over cellular.
+
+- **Glasses:** start a soft AP with a fixed name and password (through the self-arm's shell,
+  `cmd wifi start-softap`, to confirm on the firmware; or `startLocalOnlyHotspot`, whose random
+  credentials would bring the iOS prompt back each time), and send them to the phone, the
+  reverse of today's `NetEvent.Ready`.
+- **Companion:** `NEHotspotConfiguration(ssid:passphrase:isWEP:)` with `joinOnce = false`
+  (one system prompt the first time), the proxy ported from `WebProxy.kt` (379 lines) to
+  `Network.framework` (`NWListener`), outgoing connections on the default route (cellular) or
+  forced with `requiredInterfaceType = .cellular`; the Local Network permission
+  ([TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)).
+  `.mrbd.zip` packages keep coming from the proxy, as today.
+- **For:** no step in Settings; the companion turns it on and off on its own, as on Android.
+- **Against:**
+  - **The companion has to keep running.** iOS suspends a backgrounded app and its listening
+    socket with it. The background modes that exist (`bluetooth-central`, `audio`) are tied to
+    real Bluetooth or audio work and do not promise a server
+    ([Core Bluetooth background](https://developer.apple.com/library/archive/documentation/NetworkingInternetWeb/Conceptual/CoreBluetooth_concepts/CoreBluetoothBackgroundProcessingForIOSApps/PerformingTasksWhileYourAppIsInTheBackground.html)).
+    Whether the CXR link keeps the app awake enough is the first thing to measure.
+  - **The iPhone leaves its own Wi-Fi** while joined to the glasses (one infrastructure network
+    at a time), so its internet is cellular only.
+  - A network that is not the default route is not auto-joined again after the phone locks
+    (Apple DTS, same post).
+
+### Route C: Wi-Fi Aware (what Meta moved to)
+
+Peer-to-peer Wi-Fi with no prompt, the iPhone staying on its own Wi-Fi
+([WiFiAware](https://developer.apple.com/documentation/wifiaware/connecting-paired-devices.md),
+iOS 26, iPhone 12 and later). **Not open to these glasses today:** iOS requires Wi-Fi Aware 4.0
+pairing with encrypted data paths, and on Android that is `AwarePairingConfig` and
+`Characteristics.isAwarePairingSupported()`, API 34
+([Android reference](https://developer.android.com/reference/kotlin/android/net/wifi/aware/Characteristics)).
+The Rokid RG glasses run Android 12. Developers also report iOS and Android Wi-Fi Aware failing
+to interoperate even on Android phones that support it
+([Apple forums](https://developer.apple.com/forums/thread/790195)). It comes back only if Rokid
+ships an Android 14 firmware with Aware pairing.
+
+### Route D: over Bluetooth
+
+The CXR link or a BLE L2CAP channel can carry small API calls, not pages or video. A fallback
+for text-only apps at most.
+
+### Recommendation
+
+Build **Route A first**: it is small on both sides, survives the iPhone being locked, and video
+works. Prototype **Route B** in the spike, because the background behaviour decides it and
+nothing short of a device answers that. If B holds with the iPhone locked, it becomes the
+default and A the fallback, as Wi-Fi then needs no step from the user.
 
 ## Code that carries over
 
@@ -146,24 +250,31 @@ unchanged:
 4. Start the mic stream (PCM 16 kHz), check the format, transcribe one sentence.
 5. Lock the phone for five minutes; check the link and the stream.
 6. `installApp` with a debug APK.
-7. ANCS probe on the glasses: is the iPhone's ANCS visible to a third-party BLE central while
+7. Internet, Route A: Personal Hotspot on, glasses joined, an online app and a video playing;
+   time how long it lasts with the iPhone locked and the app idle.
+8. Internet, Route B: a soft AP on the glasses (`cmd wifi start-softap` through the self-arm),
+   the iPhone joins with `NEHotspotConfiguration`, a minimal `NWListener` CONNECT proxy;
+   measure throughput, then lock the iPhone and time how long the proxy keeps answering.
+9. On the glasses: `pm list features | grep -i aware` and `dumpsys wifiaware`, to know whether
+   Wi-Fi Aware exists in the hardware at all.
+10. ANCS probe on the glasses: is the iPhone's ANCS visible to a third-party BLE central while
    Hi Rokid is connected, and do Rokid's own notifications show up in the glasses' notification
    system?
 
-**Go** if 1 to 4 pass. 5 decides how much dictation works locked; 7 decides the notifications
-phase.
+**Go** if 1 to 4 pass and 7 or 8 does. 5 and 8 decide whether the companion can live in the
+background; 10 decides the notifications phase.
 
-### Phase 1: MVP companion
+### Phase 1: MVP companion, internet first
 
-Hi Rokid authorization, the setup page (install and open the glasses app, self-arm, band key
-import), the Apps tab (grid and app settings), dictation (Apple Speech and the cloud engines),
-the keyboard from the phone. `protocol/` shared through fixtures or KMP.
+Hi Rokid authorization, **internet through Route A** (Personal Hotspot handoff, the glasses keep
+the network and go direct), the setup page (install and open the glasses app, self-arm, band key
+import), the Apps tab (grid and app settings). `protocol/` shared through fixtures or KMP.
 
-### Phase 2: internet and packages
+### Phase 2: Route B, packages, dictation
 
-Personal Hotspot handoff (the glasses accept a fixed SSID they keep, instead of a new one each
-time), `.mrbd.zip` delivery over the CXR link, so it works without the companion in the
-foreground.
+Route B (the glasses' network and the companion's proxy) if the spike showed it holds in the
+background. `.mrbd.zip` packages: from the proxy under Route B, over the CXR link under
+Route A. Dictation (Apple Speech and the cloud engines) and the keyboard from the phone.
 
 ### Phase 3: notifications
 
