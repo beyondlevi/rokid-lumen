@@ -193,12 +193,98 @@ ships an Android 14 firmware with Aware pairing.
 The CXR link or a BLE L2CAP channel can carry small API calls, not pages or video. A fallback
 for text-only apps at most.
 
+### How other devices do it
+
+Devices other than Meta Ray-Ban Display that need the internet, or a lot of bandwidth, through
+an iPhone. Read in October 2026; "?" is not documented.
+
+| Device | Link to the iPhone | Who publishes the Wi-Fi | Where the internet comes from | iPhone locked |
+| --- | --- | --- | --- | --- |
+| **Mentra Live** (Android glasses, open source) | BLE + Wi-Fi | the glasses' soft AP for media and updates; otherwise a router or the Personal Hotspot | the glasses join Wi-Fi with credentials the phone sends over BLE (`set_wifi_credentials`); for live video, glasses -> soft AP -> phone -> cellular | background modes `bluetooth-central`, `audio`, `location`, `processing`, `fetch`; persistent join |
+| **Snap Spectacles '24** | Wi-Fi | router or Personal Hotspot | the glasses, directly; the app only picks the network | system hotspot |
+| **RayNeo X3 Pro** (Android glasses) | BT + Wi-Fi 6 | Personal Hotspot or a 4G/5G puck | the glasses, directly | ? |
+| **Hi Rokid** (Rokid's own app) | BLE + Wi-Fi 6 | router or hotspot for livestream | the assistant through the phone; livestream from the glasses' Wi-Fi | AI "may be unable to continue running in the background" |
+| **Insta360** cameras | BLE + camera AP | the camera | the phone stays on the camera's Wi-Fi and uses mobile data for the internet and livestream | ? |
+| **GoPro** | BLE + camera AP | the camera; a router or hotspot to livestream | the camera itself, in station mode | ? |
+| **Wireless CarPlay** | BT + car AP | the car | the iPhone's cellular; the car only gets CarPlay | yes (Apple's own protocol) |
+| **Cars on the phone's internet** (Volvo, Tesla) | Wi-Fi | Personal Hotspot | the car, directly; "keep the Personal Hotspot screen open" until it joins | hotspot stops broadcasting when idle |
+| **Garmin** (Connect IQ) | BLE | none | the phone app makes the HTTPS request (`makeWebRequest`) and returns a dictionary, tens of KB at most | works backgrounded, not after the app is killed |
+| **Pebble / Core Devices** (open source) | BLE (the iPhone is also a GATT server) | none | PebbleKit JS runs in the phone app, `XMLHttpRequest` through it | `bluetooth-central` + `bluetooth-peripheral`, state restoration on both managers |
+| **Zepp OS** (Amazfit) | BLE | none | a "Side Service" in the phone app makes the fetch | ? |
+| **Even Realities, Brilliant Labs, Vuzix Z100** | BLE | none | the phone app does all the networking; the glasses only display | ? |
+| **Ray-Ban/Oakley Meta** (no display) | BLE + Wi-Fi | the glasses, for imports; Wi-Fi Aware since v26 | the phone, for the assistant and livestream | auto-import exists, mechanism ? |
+| **Wear OS on iPhone** (until 2021) | BT | none | proxied through the phone | the app "must be running on your phone at all times"; dropped with Wear OS 3 |
+
+Patterns:
+
+1. **The device joins the Personal Hotspot or a known network** (Mentra, Spectacles, RayNeo,
+   GoPro livestream, cars). This is how every Android glasses maker found gives web and video
+   to glasses with an iPhone. It works with the iPhone locked; the user turns the hotspot on.
+2. **The iPhone joins the device's network and keeps the internet on cellular** (Insta360,
+   Mentra live video, Meta imports, CarPlay). It works while the app runs. Insta360 has iOS
+   users set the camera network's DNS to manual, and Mentra notes the soft AP's DHCP offers
+   itself as router and DNS: the accessory network must not pose as the internet, or iOS moves
+   its default route to it.
+3. **The phone app makes the requests for the device over Bluetooth** (Garmin, Pebble, Zepp,
+   Even, Frame). The only pattern that survives the iPhone locked by design, thanks to
+   `bluetooth-central` and state restoration. It carries API calls and text: BLE on an iPhone
+   gives about 0.2 to 0.5 Mbit/s in practice
+   ([Nordic forum](https://devzone.nordicsemi.com/f/nordic-q-a/61028/confusion-to-use-l2cap-vs-gatt-for-max-throughput-with-ios/248232)),
+   short of web video (1.5 to 5 Mbit/s at 720p).
+4. **Wi-Fi Aware**: no commercial accessory in production found beyond Meta's Early Access
+   ([Apple forums](https://developer.apple.com/forums/thread/811812)); Espressif has an ESP32-C5
+   demo ([Espressif](https://developer.espressif.com/blog/2026/08/wifi-aware-esp-to-iphone/)).
+   Mentra measured its own Android glasses: the MediaTek Wi-Fi chip has no NAN, no `wifi.aware`
+   feature, no `nan0` interface (`notes/wifi-aware-feasibility.md` in MentraOS).
+
+What Apple's documents add:
+
+- `joinOnce = true` drops the network when the app is in the background for more than 15 s or
+  the device sleeps ([joinOnce](https://developer.apple.com/documentation/networkextension/nehotspotconfiguration/joinonce)).
+  Mentra uses `joinOnce = false` for that reason (`GlassesHotspotNetwork.swift:328-329`).
+- A suspended app "is unable to properly process incoming connections on the listening
+  socket" ([TN2277](https://developer.apple.com/library/archive/technotes/tn2277/_index.html)):
+  Route B's proxy stops when the companion is suspended.
+- iOS leaves a manually joined network on "device sleep, which typically happens shortly after
+  screen lock" ([The iOS Wi-Fi Lifecycle](https://developer.apple.com/forums/thread/734361),
+  Apple DTS, not officially documented).
+- Wi-Fi Aware "may connect to paired Wi-Fi Aware devices whenever it's running", but gives no
+  new background runtime ([WiFiAware](https://developer.apple.com/documentation/wifiaware)).
+- **Wi-Fi Infrastructure** (iOS 26.2) shares the iPhone's Wi-Fi networks with an accessory
+  paired through AccessorySetupKit, over Bluetooth. "People using your app must have an account
+  registered in the European Union (EU), and their device must be located within the EU"
+  ([Wi-Fi Infrastructure](https://developer.apple.com/documentation/wifiinfrastructure)).
+  Outside the EU, the user types the network into the companion.
+
+### Route E: known networks from the companion
+
+Not a way to the iPhone's internet, but the one most glasses rely on: the companion keeps the
+user's networks (home, office) and sends them to the glasses, which already prefer a saved
+network in range (`PhoneInternet.kt:167-195`). In the EU, Wi-Fi Infrastructure can do it with
+no typing. Cheap, and it removes the phone from the path wherever there is Wi-Fi.
+
+### Route D, revisited: requests made by the companion
+
+Garmin's and Pebble's pattern fits part of Lumen: many of its apps live on APIs (WhatsApp
+through Evolution API, TickTick, Calendar). A `lumen.fetch` made by the companion over the CXR
+link would keep those apps working with the iPhone locked, where Routes A and B need Wi-Fi.
+Pages, pictures at size and video stay on Wi-Fi. The CXR link's throughput on iOS is not
+known; to measure in the spike.
+
 ### Recommendation
 
-Build **Route A first**: it is small on both sides, survives the iPhone being locked, and video
-works. Prototype **Route B** in the spike, because the background behaviour decides it and
-nothing short of a device answers that. If B holds with the iPhone locked, it becomes the
-default and A the fallback, as Wi-Fi then needs no step from the user.
+The other devices confirm the order:
+
+1. **Route A** (Personal Hotspot) for web and video: what Mentra, Spectacles and RayNeo do,
+   survives the iPhone locked, the smallest change.
+2. **Route E** (known networks) alongside: the phone drops out of the path at home and at work.
+3. **Route B** (glasses' AP, companion as proxy) for when the user has the companion open, as
+   Insta360 does; with the iPhone locked it stops (TN2277, Wi-Fi lifecycle), so it is a
+   convenience, not the base. The glasses' AP must not offer a gateway or DNS.
+4. **Route D** (`lumen.fetch` over the CXR link) for API-based apps with the iPhone locked, if
+   the spike shows the link has the throughput.
+5. **Route C** (Wi-Fi Aware) only with an Android 14 firmware with Aware pairing and a Wi-Fi
+   chip with NAN.
 
 ## Code that carries over
 
@@ -255,14 +341,15 @@ unchanged:
 8. Internet, Route B: a soft AP on the glasses (`cmd wifi start-softap` through the self-arm),
    the iPhone joins with `NEHotspotConfiguration`, a minimal `NWListener` CONNECT proxy;
    measure throughput, then lock the iPhone and time how long the proxy keeps answering.
-9. On the glasses: `pm list features | grep -i aware` and `dumpsys wifiaware`, to know whether
-   Wi-Fi Aware exists in the hardware at all.
-10. ANCS probe on the glasses: is the iPhone's ANCS visible to a third-party BLE central while
+9. On the glasses: `pm list features | grep -i aware`, `dumpsys wifiaware` and
+   `ip link | grep nan`, to know whether Wi-Fi Aware exists in the hardware at all.
+10. Throughput of `sendCustomCmd` / `sendCustomCmdStream` on iOS, for Route D.
+11. ANCS probe on the glasses: is the iPhone's ANCS visible to a third-party BLE central while
    Hi Rokid is connected, and do Rokid's own notifications show up in the glasses' notification
    system?
 
 **Go** if 1 to 4 pass and 7 or 8 does. 5 and 8 decide whether the companion can live in the
-background; 10 decides the notifications phase.
+background; 11 decides the notifications phase.
 
 ### Phase 1: MVP companion, internet first
 
