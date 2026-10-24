@@ -119,8 +119,18 @@ Meta does not document the data path to Meta Ray-Ban Display. What its own notes
   ([display overview](https://wearables.developer.meta.com/docs/develop/dat/display-overview/)).
 - Since v26 (Early Access) that prompt is gone through **Wi-Fi Aware**, iOS 26's peer-to-peer
   Wi-Fi, for imports and updates.
-- Reels play on the display since 2026-03-04; how their video reaches the glasses is not
-  documented.
+- Reels play on the display since 2026-03-04, **through the phone, with the phone locked**.
+  Meta's Reels page: "Keep your phone nearby with the screen off or locked", "Use a 5GHz Wi-Fi
+  connection for the best Reels quality", "If 5GHz Wi-Fi is not available, switching to a
+  cellular (LTE) connection may improve quality", "carrier charges may apply if using an LTE
+  connection", and "Disconnecting other devices, like Bluetooth headphones, might improve
+  performance" ([How to watch Reels](https://www.meta.com/help/ai-glasses/4317333675190079/)).
+  So the iPhone fetches the video over its own connection and passes it on while locked; the
+  hint about headphones points to Bluetooth as the hop to the glasses (an inference: Meta
+  does not say). Meta's toolkit caps third-party video at 400 px per side and 70,000 pixels
+  ([display overview](https://wearables.developer.meta.com/docs/develop/dat/display-overview/)),
+  the size a Bluetooth link can carry. Meta's app is the only one found that relays video to
+  glasses with the iPhone locked; how it stays awake on iOS is not documented.
 
 This is the pattern Apple calls a *stand-alone accessory*: the accessory publishes a network
 with no internet, the iPhone joins it, and iOS "will typically leave the default route" on
@@ -270,6 +280,17 @@ through Evolution API, TickTick, Calendar). A `lumen.fetch` made by the companio
 link would keep those apps working with the iPhone locked, where Routes A and B need Wi-Fi.
 Pages, pictures at size and video stay on Wi-Fi. The CXR link's throughput on iOS is not
 known; to measure in the spike.
+
+Meta's Reels show the same pattern can carry **small video** with the iPhone locked: the phone
+fetches, the link carries a stream sized for the lens (Meta caps it at 70,000 pixels). For
+Lumen that would be a companion that fetches and transcodes a video for the 480x640 HUD and
+sends it over the CXR link, not a general proxy. What the iOS SDK shows about that link
+(strings in `RGCxrClient` 1.1.1): CoreBluetooth central and GATT, plus per-stream TCP
+connections ("audio tcp connected, port", "custom cmd stream upload tcp connected",
+"ApkUpload TCP connected") opened from a `SessionResponse` with a `tcpPort` and a 5 s
+heartbeat, and `localChannelStart`. Where those TCP connections go (Hi Rokid on the same
+iPhone, or the glasses over Wi-Fi) is not visible from the interface; the spike finds out,
+and it decides both the throughput and whether Hi Rokid has to stay alive in the background.
 
 ### Recommendation
 
